@@ -266,7 +266,7 @@ private extension KFImage {
 
 struct CommentsView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
+        NavigationStack {
             CommentsView(
                 store: .init(initialState: .init(), reducer: CommentsReducer.init),
                 gid: .init(),

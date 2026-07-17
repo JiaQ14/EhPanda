@@ -43,16 +43,26 @@ struct ToplistsView: View {
                 tagTranslator.lookup(word: $0, returnOriginal: !setting.translatesTags)
             }
         )
-        .jumpPageAlert(
-            index: $store.jumpPageIndex,
-            isPresented: $store.jumpPageAlertPresented,
-            isFocused: $store.jumpPageAlertFocused,
-            pageNumber: store.pageNumber ?? .init(),
-            jumpAction: { store.send(.performJumpPage) }
-        )
+        .alert(
+            L10n.Localizable.JumpPageView.Title.jumpPage,
+            isPresented: $store.jumpPageAlertPresented
+        ) {
+            TextField("1", text: $store.jumpPageIndex)
+                .keyboardType(.numberPad)
+
+            Button(
+                L10n.Localizable.JumpPageView.Button.confirm,
+                role: .confirm
+            ) {
+                store.send(.performJumpPage)
+            }
+            .disabled(!store.isJumpPageIndexValid)
+
+            Button(role: .cancel) {}
+        } message: {
+            Text("1 - \((store.pageNumber?.maximum ?? 0) + 1)")
+        }
         .searchable(text: $store.keyword, prompt: L10n.Localizable.Searchable.Prompt.filter)
-        .navigationBarBackButtonHidden(store.jumpPageAlertPresented)
-        .animation(.default, value: store.jumpPageAlertPresented)
         .onAppear {
             if store.galleries?.isEmpty != false {
                 DispatchQueue.main.async {
@@ -67,14 +77,14 @@ struct ToplistsView: View {
         if DeviceUtil.isPad {
             content
                 .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { route in
-                    NavigationView {
+                    NavigationStack {
                         DetailView(
                             store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
                             gid: route.wrappedValue, user: user, setting: $setting,
                             blurRadius: blurRadius, tagTranslator: tagTranslator
                         )
                     }
-                    .autoBlur(radius: blurRadius).environment(\.inSheet, true).navigationViewStyle(.stack)
+                    .autoBlur(radius: blurRadius).environment(\.inSheet, true)
                 }
         } else {
             content
@@ -93,7 +103,7 @@ struct ToplistsView: View {
         }
     }
     private func toolbar() -> some ToolbarContent {
-        CustomToolbarItem(disabled: store.jumpPageAlertPresented) {
+        CustomToolbarItem {
             ToplistsTypeMenu(type: store.type) { type in
                 if type != store.type {
                     store.send(.setToplistsType(type))
@@ -102,9 +112,6 @@ struct ToplistsView: View {
             if AppUtil.galleryHost == .ehentai {
                 JumpPageButton(pageNumber: store.pageNumber ?? .init(), hideText: true) {
                     store.send(.presentJumpPageAlert)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        store.send(.setJumpPageAlertFocused(true))
-                    }
                 }
             }
         }
@@ -150,7 +157,7 @@ extension ToplistsType {
 
 struct ToplistsView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
+        NavigationStack {
             ToplistsView(
                 store: .init(initialState: .init(), reducer: ToplistsReducer.init),
                 user: .init(),

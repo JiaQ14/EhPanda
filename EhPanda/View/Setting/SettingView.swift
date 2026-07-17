@@ -19,18 +19,32 @@ struct SettingView: View {
     // MARK: SettingView
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(SettingReducer.Route.allCases) { route in
-                        SettingRow(rowType: route) {
-                            store.send(.setNavigation($0))
-                        }
+            List {
+                Section {
+                    ForEach(primaryRoutes) { route in
+                        settingRow(for: route)
                     }
                 }
-                .padding(.vertical, 40).padding(.horizontal)
+                Section {
+                    settingRow(for: .laboratory)
+                }
+                Section {
+                    settingRow(for: .about)
+                }
             }
+            .listStyle(.insetGrouped)
             .background(navigationLinks)
             .navigationTitle(L10n.Localizable.SettingView.Title.setting)
+        }
+    }
+
+    private var primaryRoutes: [SettingReducer.Route] {
+        [.account, .general, .appearance, .cache, .reading]
+    }
+
+    private func settingRow(for route: SettingReducer.Route) -> some View {
+        SettingRow(rowType: route) {
+            store.send(.setNavigation($0))
         }
     }
 }
@@ -83,9 +97,19 @@ private extension SettingView {
                 readingDirection: $store.setting.readingDirection,
                 prefetchLimit: $store.setting.prefetchLimit,
                 enablesLandscape: $store.setting.enablesLandscape,
+                avoidsStatusBarInVerticalMode: $store.setting.avoidsStatusBarInVerticalMode,
                 contentDividerHeight: $store.setting.contentDividerHeight,
                 maximumScaleFactor: $store.setting.maximumScaleFactor,
                 doubleTapScaleFactor: $store.setting.doubleTapScaleFactor
+            )
+            .tint(store.setting.accentColor)
+        }
+        NavigationLink(unwrapping: $store.route, case: \.cache) { _ in
+            CacheSettingView(
+                imageQuality: $store.setting.cacheImageQuality,
+                concurrentDownloads: $store.setting.cacheConcurrentDownloads,
+                allowsCellularAccess: $store.setting.cacheAllowsCellularAccess,
+                resumesAutomatically: $store.setting.cacheResumesAutomatically
             )
             .tint(store.setting.accentColor)
         }
@@ -103,18 +127,8 @@ private extension SettingView {
 
 // MARK: SettingRow
 private struct SettingRow: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isPressing = false
-
     private let rowType: SettingReducer.Route
     private let tapAction: (SettingReducer.Route) -> Void
-
-    private var color: Color {
-        colorScheme == .light ? Color(.darkGray) : Color(.lightGray)
-    }
-    private var backgroundColor: Color {
-        isPressing ? color.opacity(0.1) : .clear
-    }
 
     init(rowType: SettingReducer.Route, tapAction: @escaping (SettingReducer.Route) -> Void) {
         self.rowType = rowType
@@ -122,21 +136,25 @@ private struct SettingRow: View {
     }
 
     var body: some View {
-        HStack {
-            Image(systemSymbol: rowType.symbol)
-                .font(.largeTitle).foregroundColor(color)
-                .padding(.trailing, 20).frame(width: 45)
-            Text(rowType.value).fontWeight(.medium)
-                .font(.title3).foregroundColor(color)
-            Spacer()
+        Button {
+            tapAction(rowType)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemSymbol: rowType.symbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(rowType.tintColor, in: .rect(cornerRadius: 7))
+                Text(rowType.value)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemSymbol: .chevronForward)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(.rect)
         }
-        .contentShape(Rectangle()).padding(.vertical, 10)
-        .padding(.horizontal, 20).background(backgroundColor)
-        .cornerRadius(10).onTapGesture { tapAction(rowType) }
-        .onLongPressGesture(
-            minimumDuration: .infinity, maximumDistance: 50,
-            pressing: { isPressing = $0 }, perform: {}
-        )
+        .buttonStyle(.plain)
     }
 }
 
@@ -150,6 +168,8 @@ extension SettingReducer.Route {
             return L10n.Localizable.Enum.SettingStateRoute.Value.general
         case .appearance:
             return L10n.Localizable.Enum.SettingStateRoute.Value.appearance
+        case .cache:
+            return L10n.Localizable.Enum.SettingStateRoute.Value.cache
         case .reading:
             return L10n.Localizable.Enum.SettingStateRoute.Value.reading
         case .laboratory:
@@ -166,12 +186,32 @@ extension SettingReducer.Route {
             return .switch2
         case .appearance:
             return .circleRighthalfFilled
+        case .cache:
+            return .squareAndArrowDown
         case .reading:
             return .newspaperFill
         case .laboratory:
             return .testtube2
         case .about:
             return .pCircleFill
+        }
+    }
+    var tintColor: Color {
+        switch self {
+        case .account:
+            return .blue
+        case .general:
+            return .gray
+        case .appearance:
+            return .purple
+        case .cache:
+            return .cyan
+        case .reading:
+            return .orange
+        case .laboratory:
+            return .green
+        case .about:
+            return .indigo
         }
     }
 }

@@ -238,6 +238,7 @@
 "reading_setting_view.title.direction" = "방향";
 "reading_setting_view.title.preload_limit" = "페이지 미리 로딩";
 "reading_setting_view.title.enables_landscape" = "Enables landscape";
+"reading_setting_view.title.avoids_status_bar" = "첫 페이지를 상태 막대 아래에 표시";
 "reading_setting_view.title.separator_height" = "페이지 간 여백 두께";
 "reading_setting_view.title.maximum_scale_factor" = "최대 확대 비율";
 "reading_setting_view.title.double_tap_scale_factor" = "더블 탭 확대 비율";
@@ -904,3 +905,50 @@
 "enum.browsing_country.name.yemen" = "예멘";
 "enum.browsing_country.name.zambia" = "잠비아";
 "enum.browsing_country.name.zimbabwe" = "짐바브웨";
+
+// 캐시
+"tab_item.title.cache" = "캐시";
+"enum.setting_state_route.value.cache" = "캐시";
+
+"cache_setting_view.title.cache" = "캐시";
+"cache_setting_view.title.image_quality" = "이미지 품질";
+"cache_setting_view.title.concurrent_downloads" = "동시 다운로드 수";
+"cache_setting_view.title.allows_cellular_access" = "셀룰러 데이터 사용";
+"cache_setting_view.title.resumes_automatically" = "앱 실행 시 완료되지 않은 캐시 재개";
+"cache_setting_view.title.location" = "파일 폴더";
+"cache_setting_view.section.title.download" = "다운로드";
+"cache_setting_view.section.title.storage" = "저장 공간";
+"cache_setting_view.section.footer.download" = "원본 이미지는 더 많은 저장 공간을 사용합니다. 변경 사항은 새로 캐시하는 갤러리에 적용됩니다.";
+"cache_setting_view.section.footer.storage" = "캐시된 페이지는 파일 > 나의 iPhone > EhPanda > Downloads에서 확인할 수 있습니다.";
+"cache_setting_view.value.standard" = "표준";
+"cache_setting_view.value.original" = "원본";
+
+"cache_view.title.cache" = "캐시";
+"cache_view.empty.title.cache" = "캐시된 갤러리가 없습니다";
+"cache_view.empty.description.cache" = "갤러리 상세 페이지의 메뉴에서 캐시할 수 있습니다.";
+"cache_view.search.prompt.cache" = "캐시된 갤러리 검색";
+"cache_view.section.title.in_progress" = "진행 중";
+"cache_view.section.title.completed" = "캐시됨";
+"cache_view.button.pause" = "일시 정지";
+"cache_view.button.resume" = "계속";
+"cache_view.button.retry" = "다시 시도";
+"cache_view.button.delete" = "캐시 삭제";
+"cache_view.button.delete_all" = "모든 캐시 삭제";
+"cache_view.button.resume_all" = "모두 계속";
+"cache_view.button.pause_all" = "모두 일시 정지";
+"cache_view.button.more" = "캐시 작업 더 보기";
+"cache_view.status.queued" = "대기 중";
+"cache_view.status.resolving" = "페이지 분석 중";
+"cache_view.status.downloading" = "캐시 중";
+"cache_view.status.paused" = "일시 정지됨";
+"cache_view.status.completed" = "캐시됨";
+"cache_view.status.failed" = "실패";
+"cache_view.value.pages" = "%@ / %@페이지";
+"cache_view.confirmation.delete_all.title" = "캐시된 갤러리를 모두 삭제할까요?";
+"cache_view.confirmation.delete_all.message" = "다운로드한 이미지 파일도 파일 앱에서 삭제됩니다.";
+
+"detail_view.cache.button.cache" = "갤러리 캐시";
+"detail_view.cache.button.remove" = "캐시 삭제";
+"detail_view.cache.status.cached" = "캐시됨";
+"detail_view.cache.confirmation.delete.title" = "이 갤러리의 캐시를 삭제할까요?";
+"detail_view.cache.confirmation.delete.message" = "다운로드한 이미지 파일도 파일 앱에서 삭제됩니다.";

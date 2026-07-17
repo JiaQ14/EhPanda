@@ -19,7 +19,14 @@ struct ImageClient {
 extension ImageClient {
     static let live: Self = .init(
         prefetchImages: { urls in
-            ImagePrefetcher(urls: urls).start()
+            let remoteURLs = urls.filter { !$0.isFileURL }
+            let localURLs = urls.filter(\.isFileURL)
+            if !remoteURLs.isEmpty {
+                ImagePrefetcher(urls: remoteURLs).start()
+            }
+            if !localURLs.isEmpty {
+                ImagePrefetcher(urls: localURLs, options: [.cacheMemoryOnly]).start()
+            }
         },
         saveImageToPhotoLibrary: { (image, isAnimated) in
             await withCheckedContinuation { continuation in
@@ -66,7 +73,12 @@ extension ImageClient {
     )
 
     func fetchImage(url: URL) async -> Result<UIImage, Error> {
-        if KingfisherManager.shared.cache.isCached(forKey: url.absoluteString) {
+        if url.isFileURL {
+            guard let data = try? Data(contentsOf: url),
+                  let image = UIImage(data: data)
+            else { return .failure(AppError.notFound) }
+            return .success(image)
+        } else if KingfisherManager.shared.cache.isCached(forKey: url.absoluteString) {
             return await retrieveImage(url.absoluteString)
         } else {
             return await downloadImage(url)

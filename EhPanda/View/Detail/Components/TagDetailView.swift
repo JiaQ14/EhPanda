@@ -7,6 +7,8 @@ import SwiftUI
 import Kingfisher
 
 struct TagDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
     private let detail: TagDetail
 
     init(detail: TagDetail) {
@@ -14,7 +16,7 @@ struct TagDetailView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack {
                     DescriptionSection(description: detail.description)
@@ -22,6 +24,14 @@ struct TagDetailView: View {
                     LinksSection(links: detail.links).padding(.vertical)
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(role: .close) {
+                        dismiss()
+                    }
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationTitle(detail.title.emojisRipped)
         }
     }

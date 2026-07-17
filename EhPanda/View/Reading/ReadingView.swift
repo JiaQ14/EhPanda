@@ -44,6 +44,7 @@ struct ReadingView: View {
                         readingDirection: $setting.readingDirection,
                         prefetchLimit: $setting.prefetchLimit,
                         enablesLandscape: $setting.enablesLandscape,
+                        avoidsStatusBarInVerticalMode: $setting.avoidsStatusBarInVerticalMode,
                         contentDividerHeight: $setting.contentDividerHeight,
                         maximumScaleFactor: $setting.maximumScaleFactor,
                         doubleTapScaleFactor: $setting.doubleTapScaleFactor
@@ -76,10 +77,8 @@ struct ReadingView: View {
                 case: \.hud
             )
 
-            .animation(.linear(duration: 0.1), value: gestureHandler.offset)
             .animation(.default, value: liveTextHandler.enablesLiveText)
             .animation(.default, value: liveTextHandler.liveTextGroups)
-            .animation(.default, value: gestureHandler.scale)
             .animation(.default, value: store.showsPanel)
             .statusBar(hidden: !store.showsPanel)
             .onDisappear {
@@ -93,38 +92,41 @@ struct ReadingView: View {
         ZStack {
             backgroundColor.ignoresSafeArea()
 
-            ZStack {
-                if setting.readingDirection == .vertical {
-                    AdvancedList(
-                        page: page,
-                        data: store.state.containerDataSource(setting: setting),
-                        id: \.self,
-                        spacing: setting.contentDividerHeight,
-                        gesture: SimultaneousGesture(magnificationGesture, tapGesture),
-                        content: imageStack
-                    )
-                    .scrollDisabled(gestureHandler.scale != 1)
-                } else {
-                    Pager(
-                        page: page,
-                        data: store.state.containerDataSource(setting: setting),
-                        id: \.self,
-                        content: imageStack
-                    )
-                    .horizontal(setting.readingDirection == .rightToLeft ? .endToStart : .startToEnd)
-                    .swipeInteractionArea(.allAvailable)
-                    .allowsDragging(gestureHandler.scale == 1)
+            GeometryReader { proxy in
+                ZStack {
+                    if setting.readingDirection == .vertical {
+                        AdvancedList(
+                            page: page,
+                            data: store.state.containerDataSource(setting: setting),
+                            id: \.self,
+                            spacing: setting.contentDividerHeight,
+                            topContentInset: setting.avoidsStatusBarInVerticalMode
+                                ? proxy.safeAreaInsets.top : 0,
+                            content: imageStack
+                        )
+                        .scrollDisabled(gestureHandler.scale != 1)
+                    } else {
+                        Pager(
+                            page: page,
+                            data: store.state.containerDataSource(setting: setting),
+                            id: \.self,
+                            content: imageStack
+                        )
+                        .horizontal(setting.readingDirection == .rightToLeft ? .endToStart : .startToEnd)
+                        .swipeInteractionArea(.allAvailable)
+                        .allowsDragging(gestureHandler.scale == 1)
+                    }
                 }
+                .scaleEffect(gestureHandler.scale, anchor: gestureHandler.scaleAnchor)
+                .offset(gestureHandler.offset)
+                .highPriorityGesture(
+                    dragGesture.simultaneously(with: tapGesture),
+                    isEnabled: gestureHandler.scale > 1
+                )
+                .simultaneousGesture(tapGesture, isEnabled: gestureHandler.scale == 1)
+                .simultaneousGesture(magnificationGesture)
+                .ignoresSafeArea()
             }
-            .scaleEffect(gestureHandler.scale, anchor: gestureHandler.scaleAnchor)
-            .offset(gestureHandler.offset)
-            .highPriorityGesture(
-                dragGesture.simultaneously(with: tapGesture),
-                isEnabled: gestureHandler.scale > 1
-            )
-            .gesture(tapGesture, isEnabled: gestureHandler.scale == 1)
-            .gesture(magnificationGesture)
-            .ignoresSafeArea()
             .id(store.databaseLoadingState)
             .id(store.forceRefreshID)
 
@@ -208,6 +210,8 @@ struct ReadingView: View {
     @ViewBuilder private func imageStack(index: Int) -> some View {
         let imageStackConfig = store.state.imageContainerConfigs(index: index, setting: setting)
         let isDualPage = setting.enablesDualPageMode && setting.readingDirection != .vertical && DeviceUtil.isLandscape
+        let cacheDirectoryIdentifier = store.cacheDirectoryIdentifier
+        let cachePageIdentifiers = store.cachePageIdentifiers
         HorizontalImageStack(
             index: index,
             isDualPage: isDualPage,
@@ -226,7 +230,16 @@ struct ReadingView: View {
             prefetchAction: { store.send(.prefetchImages($0, setting.prefetchLimit)) },
             loadRetryAction: { store.send(.onWebImageRetry($0)) },
             loadSucceededAction: { store.send(.onWebImageSucceeded($0)) },
-            loadFailedAction: { store.send(.onWebImageFailed($0)) },
+            loadFailedAction: {
+                store.send(
+                    .onWebImageFailed(
+                        $0,
+                        $1,
+                        cacheDirectoryIdentifier,
+                        cachePageIdentifiers[$0]
+                    )
+                )
+            },
             copyImageAction: { store.send(.copyImage($0)) },
             saveImageAction: { store.send(.saveImage($0)) },
             shareImageAction: { store.send(.shareImage($0)) }
@@ -257,7 +270,7 @@ extension ReadingView {
             Logger.info("analyzeImageForLiveText duplicated", context: ["index": index])
             return
         }
-        guard let key = store.imageURLs[index]?.absoluteString else {
+        guard let key = store.imageURLs[index]?.cacheKey else {
             Logger.info("analyzeImageForLiveText URL not found", context: ["index": index])
             return
         }
@@ -303,10 +316,12 @@ extension ReadingView {
             }
         let doubleTap = TapGesture(count: 2)
             .onEnded {
-                gestureHandler.onDoubleTapGestureEnded(
-                    scaleMaximum: setting.maximumScaleFactor,
-                    doubleTapScale: setting.doubleTapScaleFactor
-                )
+                withAnimation(.easeOut(duration: 0.2)) {
+                    gestureHandler.onDoubleTapGestureEnded(
+                        scaleMaximum: setting.maximumScaleFactor,
+                        doubleTapScale: setting.doubleTapScaleFactor
+                    )
+                }
             }
         return ExclusiveGesture(doubleTap, singleTap)
     }
@@ -317,10 +332,12 @@ extension ReadingView {
                     value: $0, scaleMaximum: setting.maximumScaleFactor
                 )
             }
-            .onEnded {
-                gestureHandler.onMagnificationGestureEnded(
-                    value: $0, scaleMaximum: setting.maximumScaleFactor
-                )
+            .onEnded { value in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    gestureHandler.onMagnificationGestureEnded(
+                        value: value, scaleMaximum: setting.maximumScaleFactor
+                    )
+                }
             }
     }
     var dragGesture: some Gesture {
@@ -356,7 +373,7 @@ private struct HorizontalImageStack: View {
     private let prefetchAction: (Int) -> Void
     private let loadRetryAction: (Int) -> Void
     private let loadSucceededAction: (Int) -> Void
-    private let loadFailedAction: (Int) -> Void
+    private let loadFailedAction: (Int, URL?) -> Void
     private let copyImageAction: (URL) -> Void
     private let saveImageAction: (URL) -> Void
     private let shareImageAction: (URL) -> Void
@@ -370,7 +387,7 @@ private struct HorizontalImageStack: View {
         fetchAction: @escaping (Int) -> Void,
         refetchAction: @escaping (Int) -> Void, prefetchAction: @escaping (Int) -> Void,
         loadRetryAction: @escaping (Int) -> Void, loadSucceededAction: @escaping (Int) -> Void,
-        loadFailedAction: @escaping (Int) -> Void, copyImageAction: @escaping (URL) -> Void,
+        loadFailedAction: @escaping (Int, URL?) -> Void, copyImageAction: @escaping (URL) -> Void,
         saveImageAction: @escaping (URL) -> Void, shareImageAction: @escaping (URL) -> Void
     ) {
         self.index = index
@@ -434,10 +451,15 @@ private struct HorizontalImageStack: View {
         .contextMenu { contextMenuItems(index: index) }
     }
     @ViewBuilder private func contextMenuItems(index: Int) -> some View {
-        Button {
-            refetchAction(index)
-        } label: {
-            Label(L10n.Localizable.ReadingView.ContextMenu.Button.reload, systemSymbol: .arrowCounterclockwise)
+        if imageURLs[index]?.isFileURL != true {
+            Button {
+                refetchAction(index)
+            } label: {
+                Label(
+                    L10n.Localizable.ReadingView.ContextMenu.Button.reload,
+                    systemSymbol: .arrowCounterclockwise
+                )
+            }
         }
         if let imageURL = imageURLs[index] {
             Button {
@@ -490,7 +512,7 @@ private struct ImageContainer: View {
     private let refetchAction: (Int) -> Void
     private let loadRetryAction: (Int) -> Void
     private let loadSucceededAction: (Int) -> Void
-    private let loadFailedAction: (Int) -> Void
+    private let loadFailedAction: (Int, URL?) -> Void
 
     init(
         index: Int, imageURL: URL?,
@@ -504,7 +526,7 @@ private struct ImageContainer: View {
         refetchAction: @escaping (Int) -> Void,
         loadRetryAction: @escaping (Int) -> Void,
         loadSucceededAction: @escaping (Int) -> Void,
-        loadFailedAction: @escaping (Int) -> Void
+        loadFailedAction: @escaping (Int, URL?) -> Void
     ) {
         self.index = index
         self.imageURL = imageURL
@@ -532,11 +554,14 @@ private struct ImageContainer: View {
         if url?.isGIF != true {
             KFImage(url)
                 .placeholder(placeholder)
+                .cacheMemoryOnly(url?.isFileURL == true)
                 .defaultModifier(withRoundedCorners: false)
                 .onSuccess(onSuccess).onFailure(onFailure)
         } else {
             KFAnimatedImage(url)
-                .placeholder(placeholder).fade(duration: 0.25)
+                .placeholder(placeholder)
+                .cacheMemoryOnly(url?.isFileURL == true)
+                .fade(duration: 0.25)
                 .onSuccess(onSuccess).onFailure(onFailure)
         }
     }
@@ -584,7 +609,7 @@ private struct ImageContainer: View {
     }
     private func onFailure(_: KingfisherError) {
         if imageURL != nil {
-            loadFailedAction(index)
+            loadFailedAction(index, imageURL)
         }
     }
 }

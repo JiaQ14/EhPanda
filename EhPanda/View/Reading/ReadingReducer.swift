@@ -44,6 +44,7 @@ struct ReadingReducer {
         case refetchNormalImageURLs
         case fetchMPVKeys
         case fetchMPVImageURL
+        case observeCache
     }
 
     @ObservableState
@@ -66,11 +67,14 @@ struct ReadingReducer {
 
         var thumbnailURLs = [Int: URL]()
         var imageURLs = [Int: URL]()
+        var networkImageURLs = [Int: URL]()
         var originalImageURLs = [Int: URL]()
 
         var mpvKey: String?
         var mpvImageKeys = [Int: String]()
         var mpvSkipServerIdentifiers = [Int: String]()
+        var cacheDirectoryIdentifier: UUID?
+        var cachePageIdentifiers = [Int: UUID]()
 
         var showsPanel = false
         var showsSliderPreview = false
@@ -87,8 +91,22 @@ struct ReadingReducer {
             update(stored: &self.thumbnailURLs, new: thumbnailURLs)
         }
         mutating func updateImageURLs(_ imageURLs: [Int: URL], _ originalImageURLs: [Int: URL]) {
-            update(stored: &self.imageURLs, new: imageURLs)
+            let networkImageURLs = imageURLs.filter { !$0.value.isFileURL }
+            update(stored: &self.networkImageURLs, new: networkImageURLs)
+            self.imageURLs.merge(networkImageURLs) { stored, new in
+                stored.isFileURL ? stored : new
+            }
             update(stored: &self.originalImageURLs, new: originalImageURLs)
+        }
+        mutating func markImageURLFailed(_ error: AppError, index: Int) {
+            if imageURLs[index]?.isFileURL == true {
+                imageURLLoadingStates[index] = .idle
+                return
+            }
+            imageURLLoadingStates[index] = .failed(error)
+        }
+        mutating func markImageURLsFailed(_ error: AppError, indices: ClosedRange<Int>) {
+            indices.forEach { markImageURLFailed(error, index: $0) }
         }
 
         // Image
@@ -136,7 +154,7 @@ struct ReadingReducer {
 
         case onWebImageRetry(Int)
         case onWebImageSucceeded(Int)
-        case onWebImageFailed(Int)
+        case onWebImageFailed(Int, URL?, UUID?, UUID?)
         case reloadAllWebImages
         case retryAllFailedWebImages
 
@@ -155,6 +173,9 @@ struct ReadingReducer {
         case teardown
         case fetchDatabaseInfos(String)
         case fetchDatabaseInfosDone(GalleryState)
+        case observeCache(String)
+        case fetchCachedImageURLs(String)
+        case cachedImageURLsUpdated(GalleryCacheImageSnapshot)
 
         case fetchPreviewURLs(Int)
         case fetchPreviewURLsDone(Int, Result<[Int: URL], AppError>)
@@ -184,6 +205,7 @@ struct ReadingReducer {
     @Dependency(\.deviceClient) private var deviceClient
     @Dependency(\.imageClient) private var imageClient
     @Dependency(\.urlClient) private var urlClient
+    @Dependency(\.cacheClient) private var cacheClient
 
     var body: some Reducer<State, Action> {
         BindingReducer()
@@ -219,7 +241,8 @@ struct ReadingReducer {
 
             case .onAppear(let gid, let enablesLandscape):
                 var effects: [Effect<Action>] = [
-                    .send(.fetchDatabaseInfos(gid))
+                    .send(.fetchDatabaseInfos(gid)),
+                    .send(.observeCache(gid))
                 ]
                 if enablesLandscape {
                     effects.append(.send(.setOrientationPortrait(false)))
@@ -235,14 +258,40 @@ struct ReadingReducer {
                 state.webImageLoadSuccessIndices.insert(index)
                 return .none
 
-            case .onWebImageFailed(let index):
+            case .onWebImageFailed(
+                let index,
+                let requestedURL,
+                let requestedCacheDirectoryIdentifier,
+                let requestedCachePageIdentifier
+            ):
+                guard state.imageURLs[index] == requestedURL else { return .none }
+                if requestedURL?.isFileURL == true {
+                    guard let requestedCacheDirectoryIdentifier,
+                          requestedCacheDirectoryIdentifier == state.cacheDirectoryIdentifier,
+                          let requestedCachePageIdentifier,
+                          requestedCachePageIdentifier == state.cachePageIdentifiers[index]
+                    else { return .none }
+                    state.imageURLs[index] = state.networkImageURLs[index]
+                    state.imageURLLoadingStates[index] = .idle
+                    state.webImageLoadSuccessIndices.remove(index)
+                    state.forceRefreshID = .init()
+                    return .run { [gid = state.gallery.id] _ in
+                        await cacheClient.invalidatePage(
+                            gid,
+                            index,
+                            requestedCacheDirectoryIdentifier,
+                            requestedCachePageIdentifier
+                        )
+                    }
+                }
                 state.imageURLLoadingStates[index] = .failed(.webImageFailed)
                 return .none
 
             case .reloadAllWebImages:
                 state.previewURLs = .init()
                 state.thumbnailURLs = .init()
-                state.imageURLs = .init()
+                state.imageURLs = state.imageURLs.filter(\.value.isFileURL)
+                state.networkImageURLs = .init()
                 state.originalImageURLs = .init()
                 state.mpvKey = nil
                 state.mpvImageKeys = .init()
@@ -359,11 +408,49 @@ struct ReadingReducer {
                     state.previewConfig = previewConfig
                 }
                 state.previewURLs = galleryState.previewURLs
-                state.imageURLs = galleryState.imageURLs
+                state.networkImageURLs = galleryState.imageURLs.filter { !$0.value.isFileURL }
+                state.imageURLs = state.networkImageURLs
                 state.thumbnailURLs = galleryState.thumbnailURLs
                 state.originalImageURLs =  galleryState.originalImageURLs
                 state.readingProgress = galleryState.readingProgress
                 state.databaseLoadingState = .idle
+                return .send(.fetchCachedImageURLs(state.gallery.id))
+
+            case .observeCache(let gid):
+                return .run { send in
+                    let stream = await cacheClient.updates()
+                    for await _ in stream {
+                        let snapshot = await cacheClient.localImageSnapshot(gid)
+                        await send(.cachedImageURLsUpdated(snapshot))
+                    }
+                }
+                .cancellable(id: CancelID.observeCache, cancelInFlight: true)
+
+            case .fetchCachedImageURLs(let gid):
+                return .run { send in
+                    let snapshot = await cacheClient.localImageSnapshot(gid)
+                    await send(.cachedImageURLsUpdated(snapshot))
+                }
+
+            case .cachedImageURLsUpdated(let snapshot):
+                state.cacheDirectoryIdentifier = snapshot.directoryIdentifier
+                state.cachePageIdentifiers = snapshot.pageIdentifiers
+                let previousLocalIndices = Set(
+                    state.imageURLs.compactMap { $0.value.isFileURL ? $0.key : nil }
+                )
+                let removedLocalIndices = previousLocalIndices.subtracting(snapshot.urls.keys)
+                state.imageURLs = state.networkImageURLs
+                state.imageURLs.merge(snapshot.urls, uniquingKeysWith: { _, local in local })
+                snapshot.urls.keys.forEach {
+                    state.imageURLLoadingStates[$0] = .idle
+                }
+                removedLocalIndices.forEach {
+                    state.imageURLLoadingStates[$0] = .idle
+                    state.webImageLoadSuccessIndices.remove($0)
+                }
+                if !removedLocalIndices.isEmpty {
+                    state.forceRefreshID = .init()
+                }
                 return .none
 
             case .fetchPreviewURLs(let index):
@@ -394,6 +481,7 @@ struct ReadingReducer {
                 return .none
 
             case .fetchImageURLs(let index):
+                guard state.imageURLs[index]?.isFileURL != true else { return .none }
                 if state.mpvKey != nil {
                     return .send(.fetchMPVImageURL(index, false))
                 } else {
@@ -401,6 +489,7 @@ struct ReadingReducer {
                 }
 
             case .refetchImageURLs(let index):
+                guard state.imageURLs[index]?.isFileURL != true else { return .none }
                 if state.mpvKey != nil {
                     return .send(.fetchMPVImageURL(index, true))
                 } else {
@@ -451,10 +540,13 @@ struct ReadingReducer {
 
             case .fetchThumbnailURLs(let index):
                 guard state.imageURLLoadingStates[index] != .loading,
+                      state.imageURLs[index]?.isFileURL != true,
                       let galleryURL = state.gallery.galleryURL
                 else { return .none }
                 state.previewConfig.batchRange(index: index).forEach {
-                    state.imageURLLoadingStates[$0] = .loading
+                    if state.imageURLs[$0]?.isFileURL != true {
+                        state.imageURLLoadingStates[$0] = .loading
+                    }
                 }
                 let pageNum = state.previewConfig.pageNumber(index: index)
                 return .run { send in
@@ -468,9 +560,7 @@ struct ReadingReducer {
                 switch result {
                 case .success(let thumbnailURLs):
                     guard !thumbnailURLs.isEmpty else {
-                        batchRange.forEach {
-                            state.imageURLLoadingStates[$0] = .failed(.notFound)
-                        }
+                        state.markImageURLsFailed(.notFound, indices: batchRange)
                         return .none
                     }
                     if let url = thumbnailURLs[index], urlClient.checkIfMPVURL(url) {
@@ -483,15 +573,20 @@ struct ReadingReducer {
                         )
                     }
                 case .failure(let error):
-                    batchRange.forEach {
-                        state.imageURLLoadingStates[$0] = .failed(error)
-                    }
+                    state.markImageURLsFailed(error, indices: batchRange)
                 }
                 return .none
 
             case .fetchNormalImageURLs(let index, let thumbnailURLs):
-                return .run { send in
-                    let response = await GalleryNormalImageURLsRequest(thumbnailURLs: thumbnailURLs).response()
+                let unresolvedThumbnailURLs = thumbnailURLs.filter {
+                    state.imageURLs[$0.key]?.isFileURL != true
+                }
+                guard !unresolvedThumbnailURLs.isEmpty else { return .none }
+                return .run { [unresolvedThumbnailURLs] send in
+                    let response = await GalleryNormalImageURLsRequest(
+                        thumbnailURLs: unresolvedThumbnailURLs
+                    )
+                    .response()
                     await send(.fetchNormalImageURLsDone(index, response))
                 }
                 .cancellable(id: CancelID.fetchNormalImageURLs)
@@ -501,9 +596,7 @@ struct ReadingReducer {
                 switch result {
                 case .success(let (imageURLs, originalImageURLs)):
                     guard !imageURLs.isEmpty else {
-                        batchRange.forEach {
-                            state.imageURLLoadingStates[$0] = .failed(.notFound)
-                        }
+                        state.markImageURLsFailed(.notFound, indices: batchRange)
                         return .none
                     }
                     batchRange.forEach {
@@ -512,9 +605,7 @@ struct ReadingReducer {
                     state.updateImageURLs(imageURLs, originalImageURLs)
                     return .send(.syncImageURLs(imageURLs, originalImageURLs))
                 case .failure(let error):
-                    batchRange.forEach {
-                        state.imageURLLoadingStates[$0] = .failed(error)
-                    }
+                    state.markImageURLsFailed(error, indices: batchRange)
                 }
                 return .none
 
@@ -546,7 +637,7 @@ struct ReadingReducer {
                         effects.append(.run(operation: { _ in cookieClient.setSkipServer(response: response) }))
                     }
                     guard !imageURLs.isEmpty else {
-                        state.imageURLLoadingStates[index] = .failed(.notFound)
+                        state.markImageURLFailed(.notFound, index: index)
                         return effects.isEmpty ? .none : .merge(effects)
                     }
                     state.imageURLLoadingStates[index] = .idle
@@ -554,7 +645,7 @@ struct ReadingReducer {
                     effects.append(.send(.syncImageURLs(imageURLs, [:])))
                     return .merge(effects)
                 case .failure(let error):
-                    state.imageURLLoadingStates[index] = .failed(error)
+                    state.markImageURLFailed(error, index: index)
                 }
                 return .none
 
@@ -571,9 +662,7 @@ struct ReadingReducer {
                 case .success(let (mpvKey, mpvImageKeys)):
                     let pageCount = state.gallery.pageCount
                     guard mpvImageKeys.count == pageCount else {
-                        batchRange.forEach {
-                            state.imageURLLoadingStates[$0] = .failed(.notFound)
-                        }
+                        state.markImageURLsFailed(.notFound, indices: batchRange)
                         return .none
                     }
                     batchRange.forEach {
@@ -587,15 +676,14 @@ struct ReadingReducer {
                         }
                     )
                 case .failure(let error):
-                    batchRange.forEach {
-                        state.imageURLLoadingStates[$0] = .failed(error)
-                    }
+                    state.markImageURLsFailed(error, indices: batchRange)
                 }
                 return .none
 
             case .fetchMPVImageURL(let index, let isRefresh):
                 guard let gidInteger = Int(state.gallery.id), let mpvKey = state.mpvKey,
                       let mpvImageKey = state.mpvImageKeys[index],
+                      state.imageURLs[index]?.isFileURL != true,
                       state.imageURLLoadingStates[index] != .loading
                 else { return .none }
                 state.imageURLLoadingStates[index] = .loading
@@ -626,7 +714,7 @@ struct ReadingReducer {
                     state.updateImageURLs(imageURLs, originalImageURLs)
                     return .send(.syncImageURLs(imageURLs, originalImageURLs))
                 case .failure(let error):
-                    state.imageURLLoadingStates[index] = .failed(error)
+                    state.markImageURLFailed(error, index: index)
                 }
                 return .none
             }

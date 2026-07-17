@@ -6,8 +6,8 @@
 import SwiftUI
 import SwiftUIPager
 
-struct AdvancedList<Element, ID, PageView, G>: View
-where PageView: View, Element: Equatable, ID: Hashable, G: Gesture {
+struct AdvancedList<Element, ID, PageView>: View
+where PageView: View, Element: Equatable, ID: Hashable {
     @State var performingChanges = false
     @State var scrollPositionID: Int?
 
@@ -15,19 +15,19 @@ where PageView: View, Element: Equatable, ID: Hashable, G: Gesture {
     private let data: [Element]
     private let id: KeyPath<Element, ID>
     private let spacing: CGFloat
-    private let gesture: G
+    private let topContentInset: CGFloat
     private let content: (Element) -> PageView
 
     init<Data: RandomAccessCollection>(
         page: Page, data: Data,
-        id: KeyPath<Element, ID>, spacing: CGFloat, gesture: G,
+        id: KeyPath<Element, ID>, spacing: CGFloat, topContentInset: CGFloat,
         @ViewBuilder content: @escaping (Element) -> PageView
     ) where Data.Index == Int, Data.Element == Element {
         self.pagerModel = page
         self.data = .init(data)
         self.id = id
         self.spacing = spacing
-        self.gesture = gesture
+        self.topContentInset = topContentInset
         self.content = content
     }
 
@@ -37,9 +37,9 @@ where PageView: View, Element: Equatable, ID: Hashable, G: Gesture {
                 LazyVStack(spacing: spacing) {
                     ForEach(data, id: id) { index in
                         content(index)
-                            .gesture(gesture)
                     }
                 }
+                .padding(.top, topContentInset)
                 .scrollTargetLayout()
                 .onAppear(perform: { tryScrollTo(id: pagerModel.index + 1, proxy: proxy) })
             }
@@ -48,7 +48,7 @@ where PageView: View, Element: Equatable, ID: Hashable, G: Gesture {
                 if newValue == .idle, let index = scrollPositionID {
                     performingChanges = true
                     pagerModel.update(.new(index: index - 1))
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    DispatchQueue.main.async {
                         performingChanges = false
                     }
                 }

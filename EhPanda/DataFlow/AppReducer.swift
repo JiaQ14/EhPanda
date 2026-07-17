@@ -16,6 +16,7 @@ struct AppReducer {
         var tabBarState = TabBarReducer.State()
         var homeState = HomeReducer.State()
         var favoritesState = FavoritesReducer.State()
+        var cacheState = CacheReducer.State()
         var searchRootState = SearchRootReducer.State()
         var settingState = SettingReducer.State()
     }
@@ -32,6 +33,7 @@ struct AppReducer {
 
         case home(HomeReducer.Action)
         case favorites(FavoritesReducer.Action)
+        case cache(CacheReducer.Action)
         case searchRoot(SearchRootReducer.Action)
         case setting(SettingReducer.Action)
     }
@@ -62,7 +64,10 @@ struct AppReducer {
                     case .active:
                         let threshold = state.settingState.setting.autoLockPolicy.rawValue
                         let blurRadius = state.settingState.setting.backgroundBlurRadius
-                        return .send(.appLock(.onBecomeActive(threshold, blurRadius)))
+                        return .merge(
+                            .send(.appLock(.onBecomeActive(threshold, blurRadius))),
+                            .send(.cache(.refresh))
+                        )
 
                     case .inactive:
                         let blurRadius = state.settingState.setting.backgroundBlurRadius
@@ -123,6 +128,11 @@ struct AppReducer {
                                 effects.append(.send(.favorites(.fetchGalleries())))
                                 effects.append(hapticEffect)
                             }
+                        case .cache:
+                            if state.cacheState.route != nil {
+                                effects.append(.send(.cache(.setNavigation(nil))))
+                            }
+                            effects.append(hapticEffect)
                         case .search:
                             if state.searchRootState.route != nil {
                                 effects.append(.send(.searchRoot(.setNavigation(nil))))
@@ -170,6 +180,9 @@ struct AppReducer {
                 case .favorites:
                     return .none
 
+                case .cache:
+                    return .none
+
                 case .searchRoot:
                     return .none
 
@@ -184,6 +197,10 @@ struct AppReducer {
                     if state.settingState.setting.detectsLinksFromClipboard {
                         effects.append(.send(.appRoute(.detectClipboardURL)))
                     }
+                    effects.append(.send(.cache(.onAppear(
+                        .init(setting: state.settingState.setting),
+                        resumesAutomatically: state.settingState.setting.cacheResumesAutomatically
+                    ))))
                     return effects.isEmpty ? .none : .merge(effects)
 
                 case .setting(.fetchGreetingDone(let result)):
@@ -200,6 +217,7 @@ struct AppReducer {
             Scope(state: \.tabBarState, action: \.tabBar, child: TabBarReducer.init)
             Scope(state: \.homeState, action: \.home, child: HomeReducer.init)
             Scope(state: \.favoritesState, action: \.favorites, child: FavoritesReducer.init)
+            Scope(state: \.cacheState, action: \.cache, child: CacheReducer.init)
             Scope(state: \.searchRootState, action: \.searchRoot, child: SearchRootReducer.init)
             Scope(state: \.settingState, action: \.setting, child: SettingReducer.init)
         }

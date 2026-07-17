@@ -59,14 +59,14 @@ struct FrontpageView: View {
         if DeviceUtil.isPad {
             content
                 .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { route in
-                    NavigationView {
+                    NavigationStack {
                         DetailView(
                             store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
                             gid: route.wrappedValue, user: user, setting: $setting,
                             blurRadius: blurRadius, tagTranslator: tagTranslator
                         )
                     }
-                    .autoBlur(radius: blurRadius).environment(\.inSheet, true).navigationViewStyle(.stack)
+                    .autoBlur(radius: blurRadius).environment(\.inSheet, true)
                 }
         } else {
             content
@@ -95,7 +95,7 @@ struct FrontpageView: View {
 
 struct FrontpageView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
+        NavigationStack {
             FrontpageView(
                 store: .init(initialState: .init(), reducer: FrontpageReducer.init),
                 user: .init(),

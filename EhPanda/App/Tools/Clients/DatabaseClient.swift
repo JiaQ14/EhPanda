@@ -8,6 +8,52 @@ import Combine
 import CoreData
 import ComposableArchitecture
 
+struct GalleryPreviewCache: Equatable {
+    let previewURLs: [Int: URL]
+    let previewConfig: PreviewConfig
+}
+
+private actor PreviewURLUpdateCoordinator {
+    private struct PendingUpdate {
+        let id: UUID
+        let task: Task<Void, Never>
+    }
+
+    private var pendingUpdates = [String: PendingUpdate]()
+
+    func update(
+        gid: String,
+        previewURLs: [Int: URL],
+        readStoredData: @MainActor @escaping () -> Data?,
+        writeStoredData: @MainActor @escaping (Data) -> Void
+    ) async {
+        guard !previewURLs.isEmpty else { return }
+
+        let previousTask = pendingUpdates[gid]?.task
+        let updateID = UUID()
+        let task = Task {
+            await previousTask?.value
+
+            let storedData = await readStoredData()
+            let storedPreviewURLs: [Int: URL] = storedData?.toObject() ?? [:]
+            let mergedPreviewURLs = storedPreviewURLs.merging(
+                previewURLs,
+                uniquingKeysWith: { _, new in new }
+            )
+            guard let mergedData = mergedPreviewURLs.toData() else { return }
+            await writeStoredData(mergedData)
+        }
+        pendingUpdates[gid] = .init(id: updateID, task: task)
+
+        await task.value
+        if pendingUpdates[gid]?.id == updateID {
+            pendingUpdates.removeValue(forKey: gid)
+        }
+    }
+}
+
+private let previewURLUpdateCoordinator = PreviewURLUpdateCoordinator()
+
 struct DatabaseClient {
     let prepareDatabase: () async -> Result<Void, AppError>
     let dropDatabase: () async -> Result<Void, AppError>
@@ -241,6 +287,23 @@ extension DatabaseClient {
         guard gid.isValidGID else { return nil }
         return await fetchGalleryState(gid: gid).map(\.previewURLs)
     }
+    @MainActor func fetchGalleryPreviewCache(gid: String) async -> GalleryPreviewCache? {
+        guard gid.isValidGID else { return nil }
+        let galleryStateMO = fetchOrCreate(entityType: GalleryStateMO.self, gid: gid)
+        let previewURLsData = galleryStateMO.previewURLs
+        let previewConfigData = galleryStateMO.previewConfig
+
+        return await Task.detached(priority: .userInitiated) {
+            let previewURLs: [Int: URL] = previewURLsData?.toObject() ?? [:]
+            let previewConfig: PreviewConfig = previewConfigData?.toObject()
+                ?? .normal(rows: 4)
+            return GalleryPreviewCache(
+                previewURLs: previewURLs,
+                previewConfig: previewConfig
+            )
+        }
+        .value
+    }
 }
 
 // MARK: UpdateGallery
@@ -394,11 +457,23 @@ extension DatabaseClient {
             update(gid: gid, storedData: &galleryStateMO.originalImageURLs, new: originalImageURLs)
         }
     }
-    @MainActor func updatePreviewURLs(gid: String, previewURLs: [Int: URL]) {
+    func updatePreviewURLs(gid: String, previewURLs: [Int: URL]) async {
         guard gid.isValidGID else { return }
-        updateGalleryState(gid: gid) { galleryStateMO in
-            update(gid: gid, storedData: &galleryStateMO.previewURLs, new: previewURLs)
-        }
+        await previewURLUpdateCoordinator.update(
+            gid: gid,
+            previewURLs: previewURLs,
+            readStoredData: {
+                fetchOrCreate(
+                    entityType: GalleryStateMO.self,
+                    gid: gid
+                ).previewURLs
+            },
+            writeStoredData: { data in
+                updateGalleryState(gid: gid) { galleryStateMO in
+                    galleryStateMO.previewURLs = data
+                }
+            }
+        )
     }
 
     private func update<T: Codable>(

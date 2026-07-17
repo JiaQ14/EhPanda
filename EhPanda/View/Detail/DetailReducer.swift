@@ -25,7 +25,8 @@ struct DetailReducer {
     }
 
     private enum CancelID: CaseIterable {
-        case fetchDatabaseInfos, fetchGalleryDetail, rateGallery, favorGallery, unfavorGallery, postComment, voteTag
+        case fetchDatabaseInfos, fetchGalleryDetail, observeCache
+        case rateGallery, favorGallery, unfavorGallery, postComment, voteTag
     }
 
     @ObservableState
@@ -46,6 +47,7 @@ struct DetailReducer {
         var galleryTags = [GalleryTag]()
         var galleryPreviewURLs = [Int: URL]()
         var galleryComments = [GalleryComment]()
+        var cacheItem: GalleryCacheItem?
 
         var readingState = ReadingReducer.State()
         var archivesState = ArchivesReducer.State()
@@ -95,6 +97,12 @@ struct DetailReducer {
         case fetchDatabaseInfosDone(GalleryState)
         case fetchGalleryDetail
         case fetchGalleryDetailDone(Result<(GalleryDetail, GalleryState, String, Greeting?), AppError>)
+        case observeCache(String)
+        case cacheItemUpdated(GalleryCacheItem?)
+        case enqueueCache(CacheDownloadOptions)
+        case pauseCache
+        case resumeCache(CacheDownloadOptions)
+        case deleteCache
 
         case rateGallery
         case favorGallery(Int)
@@ -115,6 +123,7 @@ struct DetailReducer {
     @Dependency(\.databaseClient) private var databaseClient
     @Dependency(\.hapticsClient) private var hapticsClient
     @Dependency(\.cookieClient) private var cookieClient
+    @Dependency(\.cacheClient) private var cacheClient
 
     func coreReducer(self: Reduce<State, Action>) -> some Reducer<State, Action> {
         Reduce { state, action in
@@ -123,6 +132,13 @@ struct DetailReducer {
                 return .none
 
             case .setNavigation(let route):
+                if case .some(.previews) = route {
+                    state.previewsState.gallery = state.gallery
+                    state.previewsState.previewURLs.merge(
+                        state.galleryPreviewURLs,
+                        uniquingKeysWith: { _, new in new }
+                    )
+                }
                 state.route = route
                 return route == nil ? .send(.clearSubStates) : .none
 
@@ -159,7 +175,10 @@ struct DetailReducer {
                 if state.commentsState.wrappedValue == nil {
                     state.commentsState.wrappedValue = .init()
                 }
-                return .send(.fetchDatabaseInfos(gid))
+                return .merge(
+                    .send(.fetchDatabaseInfos(gid)),
+                    .send(.observeCache(gid))
+                )
 
             case .toggleShowFullTitle:
                 state.showsFullTitle.toggle()
@@ -299,6 +318,37 @@ struct DetailReducer {
                     state.loadingState = .failed(error)
                 }
                 return .none
+
+            case .observeCache(let gid):
+                return .run { send in
+                    let stream = await cacheClient.updates()
+                    for await items in stream {
+                        await send(.cacheItemUpdated(items.first(where: { $0.id == gid })))
+                    }
+                }
+                .cancellable(id: CancelID.observeCache, cancelInFlight: true)
+
+            case .cacheItemUpdated(let item):
+                state.cacheItem = item
+                return .none
+
+            case .enqueueCache(let options):
+                guard let detail = state.galleryDetail else { return .none }
+                return .run { [gallery = state.gallery] _ in
+                    await cacheClient.enqueue(gallery, detail, options)
+                }
+
+            case .pauseCache:
+                guard let gid = state.cacheItem?.id else { return .none }
+                return .run { _ in await cacheClient.pause(gid) }
+
+            case .resumeCache(let options):
+                guard let gid = state.cacheItem?.id else { return .none }
+                return .run { _ in await cacheClient.resume(gid, options) }
+
+            case .deleteCache:
+                guard let gid = state.cacheItem?.id else { return .none }
+                return .run { _ in await cacheClient.delete(gid) }
 
             case .rateGallery:
                 guard let apiuid = Int(cookieClient.apiuid), let gid = Int(state.gallery.id)

@@ -77,8 +77,7 @@ private extension AccountSettingView {
     @ViewBuilder var navigationLinks: some View {
         NavigationLink(unwrapping: $store.route, case: \.login) { _ in
             LoginView(
-                store: store.scope(state: \.loginState, action: \.login),
-                bypassesSNIFiltering: bypassesSNIFiltering, blurRadius: blurRadius
+                store: store.scope(state: \.loginState, action: \.login)
             )
         }
         NavigationLink(unwrapping: $store.route, case: \.ehSetting) { _ in

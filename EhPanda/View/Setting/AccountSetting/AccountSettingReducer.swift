@@ -71,10 +71,7 @@ struct AccountSettingReducer {
             case .clearSubStates:
                 state.loginState = .init()
                 state.ehSettingState = .init()
-                return .merge(
-                    .send(.login(.teardown)),
-                    .send(.ehSetting(.teardown))
-                )
+                return .send(.ehSetting(.teardown))
 
             case .loadCookies:
                 state.ehCookiesState = cookieClient.loadCookiesState(host: .ehentai)

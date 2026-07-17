@@ -75,7 +75,6 @@ struct Defaults {
         static let torrentDownloadInvalid: Foundation.URL = .init(string: "https://ehgt.org/g/td.png").forceUnwrapped
 
         static let forum: Foundation.URL = .init(string: "https://forums.e-hentai.org/index.php").forceUnwrapped
-        static let login = forum.appending(queryItems: [.act: .loginAct, .code: .zeroOne])
         static let webLogin = forum.appending(queryItems: [.act: .loginAct])
 
         static var api: Foundation.URL { host.appendingPathComponent("api.php") }
@@ -109,7 +108,6 @@ struct Defaults {
                 case showUser = "showuser"
                 case fSearch = "f_search"
 
-                case code = "CODE"
                 case act = "act"
                 case showComments = "hc"
                 case inlineSet = "inline_set"
@@ -148,7 +146,6 @@ struct Defaults {
             enum Value: String {
                 case one = "1"
                 case all = "all"
-                case zeroOne = "01"
                 case filterOn = "on"
                 case loginAct = "Login"
                 case addFavAct = "addfav"

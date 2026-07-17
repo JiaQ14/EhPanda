@@ -238,6 +238,7 @@
 "reading_setting_view.title.direction" = "方向";
 "reading_setting_view.title.preload_limit" = "预加载数量上限";
 "reading_setting_view.title.enables_landscape" = "启用横屏";
+"reading_setting_view.title.avoids_status_bar" = "首图避开状态栏";
 "reading_setting_view.title.separator_height" = "分隔线高度";
 "reading_setting_view.title.maximum_scale_factor" = "最大缩放系数";
 "reading_setting_view.title.double_tap_scale_factor" = "双击缩放系数";
@@ -904,3 +905,50 @@
 "enum.browsing_country.name.yemen" = "也门";
 "enum.browsing_country.name.zambia" = "赞比亚";
 "enum.browsing_country.name.zimbabwe" = "津巴布韦";
+
+// 缓存
+"tab_item.title.cache" = "缓存";
+"enum.setting_state_route.value.cache" = "缓存";
+
+"cache_setting_view.title.cache" = "缓存";
+"cache_setting_view.title.image_quality" = "缓存画质";
+"cache_setting_view.title.concurrent_downloads" = "并发下载数";
+"cache_setting_view.title.allows_cellular_access" = "允许使用蜂窝网络";
+"cache_setting_view.title.resumes_automatically" = "启动时继续未完成缓存";
+"cache_setting_view.title.location" = "文件目录";
+"cache_setting_view.section.title.download" = "下载";
+"cache_setting_view.section.title.storage" = "存储";
+"cache_setting_view.section.footer.download" = "原图会占用更多空间。画质变更仅应用于之后新建的缓存。";
+"cache_setting_view.section.footer.storage" = "缓存图片可在“文件 > 我的 iPhone > EhPanda > Downloads”中查看。";
+"cache_setting_view.value.standard" = "标准图";
+"cache_setting_view.value.original" = "原图";
+
+"cache_view.title.cache" = "缓存";
+"cache_view.empty.title.cache" = "暂无缓存漫画";
+"cache_view.empty.description.cache" = "可从漫画详情页的菜单中开始缓存。";
+"cache_view.search.prompt.cache" = "搜索缓存漫画";
+"cache_view.section.title.in_progress" = "进行中";
+"cache_view.section.title.completed" = "已缓存";
+"cache_view.button.pause" = "暂停";
+"cache_view.button.resume" = "继续";
+"cache_view.button.retry" = "重试";
+"cache_view.button.delete" = "删除缓存";
+"cache_view.button.delete_all" = "删除全部缓存";
+"cache_view.button.resume_all" = "全部继续";
+"cache_view.button.pause_all" = "全部暂停";
+"cache_view.button.more" = "更多缓存操作";
+"cache_view.status.queued" = "等待中";
+"cache_view.status.resolving" = "正在解析页面";
+"cache_view.status.downloading" = "正在缓存";
+"cache_view.status.paused" = "已暂停";
+"cache_view.status.completed" = "已缓存";
+"cache_view.status.failed" = "缓存失败";
+"cache_view.value.pages" = "已缓存 %@ / %@ 页";
+"cache_view.confirmation.delete_all.title" = "删除全部缓存漫画？";
+"cache_view.confirmation.delete_all.message" = "“文件”App 中对应的图片文件也会一并删除。";
+
+"detail_view.cache.button.cache" = "缓存漫画";
+"detail_view.cache.button.remove" = "删除缓存";
+"detail_view.cache.status.cached" = "已缓存";
+"detail_view.cache.confirmation.delete.title" = "删除这本漫画的缓存？";
+"detail_view.cache.confirmation.delete.message" = "“文件”App 中对应的图片文件也会一并删除。";

@@ -173,13 +173,113 @@ struct RoundedCorner: Shape {
     }
 }
 
+struct PreviewImageResource: Equatable {
+    let originalURL: URL?
+    let sourceURL: URL?
+    let cropSize: CGSize?
+    let cropOffset: CGSize?
+
+    var aspectRatio: CGFloat {
+        guard let cropSize, cropSize.width > 0, cropSize.height > 0 else {
+            return Defaults.ImageSize.previewAspect
+        }
+        return cropSize.width / cropSize.height
+    }
+
+    func processor(targetPixelSize: CGSize) -> PreviewImageProcessor {
+        .init(
+            cropSize: cropSize,
+            cropOffset: cropOffset,
+            targetPixelSize: targetPixelSize
+        )
+    }
+}
+
+struct PreviewImageProcessor: ImageProcessor {
+    let cropSize: CGSize?
+    let cropOffset: CGSize?
+    let targetPixelSize: CGSize
+
+    var identifier: String {
+        "app.ehpanda.preview-thumbnail.v1"
+            + "-crop:\(String(describing: cropSize))"
+            + "-offset:\(String(describing: cropOffset))"
+            + "-target:\(targetPixelSize)"
+    }
+
+    func process(
+        item: ImageProcessItem,
+        options: KingfisherParsedOptionsInfo
+    ) -> KFCrossPlatformImage? {
+        guard let sourceImage = DefaultImageProcessor.default.process(
+            item: item,
+            options: options
+        ) else { return nil }
+
+        let croppedImage: KFCrossPlatformImage
+        if cropSize != nil || cropOffset != nil {
+            guard let cropSize, let cropOffset else { return nil }
+            let requestedRect = CGRect(
+                origin: .init(x: cropOffset.width, y: cropOffset.height),
+                size: cropSize
+            )
+            let cropRect = requestedRect.intersection(
+                CGRect(origin: .zero, size: sourceImage.size)
+            )
+            guard !cropRect.isNull, !cropRect.isEmpty,
+                  let image = sourceImage.cropping(to: cropRect)
+            else { return nil }
+            croppedImage = image
+        } else {
+            croppedImage = sourceImage
+        }
+
+        guard targetPixelSize.width > 0, targetPixelSize.height > 0,
+              croppedImage.size.width > 0, croppedImage.size.height > 0
+        else { return croppedImage }
+
+        let scale = min(
+            1,
+            min(
+                targetPixelSize.width / croppedImage.size.width,
+                targetPixelSize.height / croppedImage.size.height
+            )
+        )
+        let outputSize = CGSize(
+            width: max(1, floor(croppedImage.size.width * scale)),
+            height: max(1, floor(croppedImage.size.height * scale))
+        )
+
+        // Redrawing detaches a sprite crop from the full backing bitmap.
+        return croppedImage.kf.resize(to: outputSize)
+    }
+}
+
 struct PreviewResolver {
-    static func getPreviewConfigs(originalURL: URL?) -> (URL?, ImageModifier) {
+    static func resolve(originalURL: URL?) -> PreviewImageResource {
         guard let url = originalURL,
               let (plainURL, size, offset) = Parser.parsePreviewConfigs(url: url)
         else {
-            return (originalURL, RoundedOffsetModifier(size: nil, offset: nil))
+            return .init(
+                originalURL: originalURL,
+                sourceURL: originalURL,
+                cropSize: nil,
+                cropOffset: nil
+            )
         }
-        return (plainURL, RoundedOffsetModifier(size: size, offset: offset))
+        return .init(
+            originalURL: originalURL,
+            sourceURL: plainURL,
+            cropSize: size,
+            cropOffset: offset
+        )
+    }
+
+    static func getPreviewConfigs(originalURL: URL?) -> (URL?, ImageModifier) {
+        let resource = resolve(originalURL: originalURL)
+        return (
+            resource.sourceURL,
+            RoundedOffsetModifier(size: resource.cropSize, offset: resource.cropOffset)
+        )
     }
 }

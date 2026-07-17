@@ -20,13 +20,15 @@ struct GalleryThumbnailCell: View {
     }
 
     private var backgroundColor: Color {
-        colorScheme == .light ? Color(.systemGray6) : Color(.systemGray5)
+        Color(uiColor: .secondarySystemGroupedBackground)
     }
     private var tagColor: Color {
         colorScheme == .light ? Color(.systemGray5) : Color(.systemGray4)
     }
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+
         VStack(alignment: .leading, spacing: 0) {
             KFImage(gallery.coverURL)
                 .placeholder { Placeholder(style: .activity(ratio: Defaults.ImageSize.rowAspect)) }
@@ -41,14 +43,14 @@ struct GalleryThumbnailCell: View {
                             CategoryLabel(
                                 text: gallery.category.value, color: gallery.color,
                                 insets: .init(top: 3, leading: 6, bottom: 3, trailing: 6),
-                                cornerRadius: 15, corners: .bottomLeft
+                                cornerRadius: 6, corners: .bottomLeft
                             )
                         }
                         Spacer()
                     }
                 }
             VStack(alignment: .leading, spacing: 5) {
-                Text(gallery.title).font(.callout.bold()).lineLimit(3)
+                Text(gallery.title).font(.callout.weight(.semibold)).lineLimit(3)
                 let tagContents = gallery.tagContents(maximum: setting.listTagsNumberMaximum)
                 if setting.showsTagsInList, !tagContents.isEmpty {
                     TagCloudView(data: tagContents) { content in
@@ -66,18 +68,27 @@ struct GalleryThumbnailCell: View {
                 HStack(spacing: 10) {
                     if let language = gallery.language {
                         Text(language.value)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                     HStack(spacing: 2) {
                         Image(systemSymbol: .photoOnRectangleAngled)
                         Text(String(gallery.pageCount))
                     }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
                 }
                 .lineLimit(1).font(.footnote).foregroundStyle(.secondary)
                 RatingView(rating: gallery.rating).foregroundColor(.yellow).font(.caption)
             }
-            .padding()
+            .padding(10)
         }
-        .background(backgroundColor).cornerRadius(15)
+        .background(backgroundColor)
+        .clipShape(shape)
+        .overlay {
+            shape.stroke(.primary.opacity(colorScheme == .light ? 0.08 : 0.14), lineWidth: 0.5)
+        }
+        .contentShape(shape)
     }
 }
 

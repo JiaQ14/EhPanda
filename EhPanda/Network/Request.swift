@@ -696,33 +696,6 @@ struct DataRequest: Request {
 }
 
 // MARK: Account Ops
-struct LoginRequest: Request {
-    let username: String
-    let password: String
-
-    var publisher: AnyPublisher<HTTPURLResponse?, AppError> {
-        let params: [String: String] = [
-            "b": "d",
-            "bt": "1-1",
-            "CookieDate": "1",
-            "UserName": username,
-            "PassWord": password,
-            "ipb_login_submit": "Login!"
-        ]
-
-        var request = URLRequest(url: Defaults.URL.login)
-        request.httpMethod = "POST"
-        request.httpBody = params.dictString().urlEncoded.data(using: .utf8)
-        request.setURLEncodedContentType()
-
-        return URLSession.shared.dataTaskPublisher(for: request)
-            .genericRetry()
-            .map { $0.response as? HTTPURLResponse }
-            .mapError(mapAppError)
-            .eraseToAnyPublisher()
-    }
-}
-
 struct IgneousRequest: Request {
     var publisher: AnyPublisher<HTTPURLResponse, AppError> {
         URLSession.shared.dataTaskPublisher(for: Defaults.URL.exhentai)

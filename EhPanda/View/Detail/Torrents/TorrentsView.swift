@@ -7,6 +7,8 @@ import SwiftUI
 import ComposableArchitecture
 
 struct TorrentsView: View {
+    @Environment(\.dismiss) private var dismiss
+
     @Bindable private var store: StoreOf<TorrentsReducer>
     private let gid: String
     private let token: String
@@ -20,7 +22,7 @@ struct TorrentsView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 List(store.torrents) { torrent in
                     TorrentRow(torrent: torrent) { magnetURL in
@@ -57,6 +59,14 @@ struct TorrentsView: View {
             .onAppear {
                 store.send(.fetchGalleryTorrents(gid, token))
             }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(role: .close) {
+                        dismiss()
+                    }
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationTitle(L10n.Localizable.TorrentsView.Title.torrents)
         }
     }

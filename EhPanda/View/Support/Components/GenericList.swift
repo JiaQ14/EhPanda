@@ -64,8 +64,7 @@ struct GenericList: View {
                 .opacity([.idle, .loading].contains(loadingState) ? 0 : 1)
                 .zIndex(1)
         }
-        .animation(.default, value: loadingState)
-        .animation(.default, value: galleries)
+        .animation(.easeInOut(duration: 0.2), value: loadingState)
         .refreshable { fetchAction?() }
     }
 }
@@ -113,7 +112,9 @@ private struct DetailList: View {
             } label: {
                 GalleryDetailCell(gallery: gallery, setting: setting, translateAction: translateAction)
             }
-            .foregroundColor(.primary)
+            .buttonStyle(.plain)
+            .listRowInsets(.init(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .listRowSeparator(.visible)
             .onAppear {
                 if gallery == galleries.last {
                     fetchMoreAction?()
@@ -123,6 +124,7 @@ private struct DetailList: View {
                 FetchMoreFooter(loadingState: footerLoadingState, retryAction: fetchMoreAction)
             }
         }
+        .listStyle(.plain)
     }
 }
 
@@ -143,13 +145,8 @@ private struct WaterfallList: View {
         DeviceUtil.isPadWidth ? 5 : 2
     }
 
-    private var shouldShowFooter: Bool {
-        guard let pageNumber = pageNumber else { return false }
-
-        let isPageNumberValid = pageNumber.hasNextPage()
-        let isLoadingStateIdle = footerLoadingState == .idle
-
-        return !isLoadingStateIdle && isPageNumberValid
+    private var hasNextPage: Bool {
+        pageNumber?.hasNextPage() == true
     }
 
     init(
@@ -169,7 +166,7 @@ private struct WaterfallList: View {
     }
 
     var body: some View {
-        List {
+        ScrollView {
             WaterfallGrid(galleries) { gallery in
                 Button {
                     navigateAction?(gallery.id)
@@ -177,30 +174,32 @@ private struct WaterfallList: View {
                     GalleryThumbnailCell(gallery: gallery, setting: setting, translateAction: translateAction)
                         .tint(.primary).multilineTextAlignment(.leading)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
             }
             .gridStyle(
                 columnsInPortrait: columnsInPortrait, columnsInLandscape: columnsInLandscape,
-                spacing: 15, animation: nil
+                spacing: 12, animation: nil
             )
-            if !shouldShowFooter {
-                Button {
-                    fetchMoreAction?()
-                } label: {
-                    HStack {
-                        Spacer()
-                        Image(systemSymbol: .chevronDown)
-                        Spacer()
-                    }
+            .padding(.horizontal, DeviceUtil.isPadWidth ? 16 : 12)
+            .padding(.top, 8)
+
+            if hasNextPage {
+                if footerLoadingState == .idle {
+                    Color.clear
+                        .frame(height: 1)
+                        .accessibilityHidden(true)
+                        .onAppear {
+                            fetchMoreAction?()
+                        }
+                } else {
+                    FetchMoreFooter(
+                        loadingState: footerLoadingState,
+                        retryAction: fetchMoreAction
+                    )
                 }
-                .foregroundStyle(.tint)
-            } else {
-                FetchMoreFooter(
-                    loadingState: footerLoadingState,
-                    retryAction: fetchMoreAction
-                )
             }
         }
-        .listStyle(.plain)
+        .contentMargins(.bottom, 16, for: .scrollContent)
+        .background(Color(uiColor: .systemGroupedBackground))
     }
 }

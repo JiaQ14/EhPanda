@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CACE10000000000000000001 /* GalleryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000001 /* GalleryCache.swift */; };
+		CACE10000000000000000002 /* CacheClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000002 /* CacheClient.swift */; };
+		CACE10000000000000000003 /* CacheReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000003 /* CacheReducer.swift */; };
+		CACE10000000000000000004 /* CacheView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000004 /* CacheView.swift */; };
+		CACE10000000000000000005 /* CacheSettingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000005 /* CacheSettingView.swift */; };
 		AB0929B6277F043D00F107CA /* AccountSettingReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0929B5277F043D00F107CA /* AccountSettingReducer.swift */; };
 		AB0929BE2780032400F107CA /* EhSettingReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0929BD2780032400F107CA /* EhSettingReducer.swift */; };
 		AB0929C027805A8200F107CA /* LoginReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0929BF27805A8200F107CA /* LoginReducer.swift */; };
@@ -317,6 +322,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CACE00000000000000000001 /* GalleryCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryCache.swift; sourceTree = "<group>"; };
+		CACE00000000000000000002 /* CacheClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheClient.swift; sourceTree = "<group>"; };
+		CACE00000000000000000003 /* CacheReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheReducer.swift; sourceTree = "<group>"; };
+		CACE00000000000000000004 /* CacheView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheView.swift; sourceTree = "<group>"; };
+		CACE00000000000000000005 /* CacheSettingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSettingView.swift; sourceTree = "<group>"; };
 		AB0929B5277F043D00F107CA /* AccountSettingReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingReducer.swift; sourceTree = "<group>"; };
 		AB0929BD2780032400F107CA /* EhSettingReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EhSettingReducer.swift; sourceTree = "<group>"; };
 		AB0929BF27805A8200F107CA /* LoginReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginReducer.swift; sourceTree = "<group>"; };
@@ -651,9 +661,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CACE20000000000000000001 /* Cache */ = {
+			isa = PBXGroup;
+			children = (
+				CACE00000000000000000003 /* CacheReducer.swift */,
+				CACE00000000000000000004 /* CacheView.swift */,
+			);
+			path = Cache;
+			sourceTree = "<group>";
+		};
 		AB0929C12781589000F107CA /* Clients */ = {
 			isa = PBXGroup;
 			children = (
+				CACE00000000000000000002 /* CacheClient.swift */,
 				AB0929C72781938A00F107CA /* DFClient.swift */,
 				AB86ABF62782DDE600E61E6A /* FileClient.swift */,
 				ABBB264127942B74007B6149 /* URLClient.swift */,
@@ -967,6 +987,7 @@
 		AB7BF2B827A96559001865A3 /* Gallery */ = {
 			isa = PBXGroup;
 			children = (
+				CACE00000000000000000001 /* GalleryCache.swift */,
 				AB7BF2B927A96562001865A3 /* Gallery.swift */,
 				AB7BF2C127A96760001865A3 /* GalleryDetail.swift */,
 				AB7BF2C927A969F4001865A3 /* GalleryState.swift */,
@@ -1253,6 +1274,7 @@
 				ABD49D5E277C7715003D1A07 /* TabBar */,
 				ABF45AC025F3313D00ECB568 /* Home */,
 				AB24C55F276757240085C33A /* Favorites */,
+				CACE20000000000000000001 /* Cache */,
 				AB86AC112783226100E61E6A /* Search */,
 				ABF45AD125F3313D00ECB568 /* Detail */,
 				ABF45ACF25F3313D00ECB568 /* Reading */,
@@ -1420,6 +1442,7 @@
 		EA2E2E802A1F7F2A0038A261 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				CACE00000000000000000005 /* CacheSettingView.swift */,
 				ABF45ADB25F3313D00ECB568 /* ReadingSettingView.swift */,
 				ABE1867726A1733000689FDC /* LaboratorySettingView.swift */,
 				AB86ABF82782EC0D00E61E6A /* AboutView.swift */,
@@ -1825,6 +1848,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CACE10000000000000000001 /* GalleryCache.swift in Sources */,
+				CACE10000000000000000002 /* CacheClient.swift in Sources */,
+				CACE10000000000000000003 /* CacheReducer.swift in Sources */,
+				CACE10000000000000000004 /* CacheView.swift in Sources */,
+				CACE10000000000000000005 /* CacheSettingView.swift in Sources */,
 				ABA732D925A8018A00B3D9AB /* Extensions.swift in Sources */,
 				AB0929D02781E1CC00F107CA /* UIApplicationClient.swift in Sources */,
 				ABF45AF325F3313D00ECB568 /* AccountSettingView.swift in Sources */,

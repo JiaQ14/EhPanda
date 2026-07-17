@@ -21,7 +21,6 @@ struct ToplistsReducer {
         var route: Route?
         var keyword = ""
         var jumpPageIndex = ""
-        var jumpPageAlertFocused = false
         var jumpPageAlertPresented = false
 
         var type: ToplistsType = .yesterday
@@ -48,6 +47,10 @@ struct ToplistsReducer {
         var footerLoadingState: LoadingState? {
             rawFooterLoadingState[type]
         }
+        var isJumpPageIndexValid: Bool {
+            guard let index = Int(jumpPageIndex), let pageNumber else { return false }
+            return index > 0 && index <= pageNumber.maximum + 1
+        }
 
         var detailState: Heap<DetailReducer.State?>
 
@@ -72,7 +75,6 @@ struct ToplistsReducer {
 
         case performJumpPage
         case presentJumpPageAlert
-        case setJumpPageAlertFocused(Bool)
 
         case teardown
         case fetchGalleries(Int? = nil)
@@ -90,14 +92,6 @@ struct ToplistsReducer {
         BindingReducer()
             .onChange(of: \.route) { _, newValue in
                 Reduce({ _, _ in newValue == nil ? .send(.clearSubStates) : .none })
-            }
-            .onChange(of: \.jumpPageAlertPresented) { _, newValue in
-                Reduce { state, _ in
-                    if !newValue {
-                        state.jumpPageAlertFocused = false
-                    }
-                    return .none
-                }
             }
 
         Reduce { state, action in
@@ -124,15 +118,13 @@ struct ToplistsReducer {
                       index > 0, index <= pageNumber.maximum + 1 else {
                     return .run(operation: { _ in hapticsClient.generateNotificationFeedback(.error) })
                 }
+                state.jumpPageAlertPresented = false
                 return .send(.fetchGalleries(index - 1))
 
             case .presentJumpPageAlert:
+                state.jumpPageIndex = String((state.pageNumber?.current ?? 0) + 1)
                 state.jumpPageAlertPresented = true
                 return .run(operation: { _ in hapticsClient.generateFeedback(.light) })
-
-            case .setJumpPageAlertFocused(let isFocused):
-                state.jumpPageAlertFocused = isFocused
-                return .none
 
             case .teardown:
                 return .merge(CancelID.allCases.map(Effect.cancel(id:)))

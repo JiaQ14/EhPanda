@@ -238,6 +238,7 @@
 "reading_setting_view.title.direction" = "Direction";
 "reading_setting_view.title.preload_limit" = "Preload limit";
 "reading_setting_view.title.enables_landscape" = "Enables landscape";
+"reading_setting_view.title.avoids_status_bar" = "Keep first page below status bar";
 "reading_setting_view.title.separator_height" = "Separator height";
 "reading_setting_view.title.maximum_scale_factor" = "Maximum scale factor";
 "reading_setting_view.title.double_tap_scale_factor" = "Double tap scale factor";
@@ -904,3 +905,50 @@
 "enum.browsing_country.name.yemen" = "Yemen";
 "enum.browsing_country.name.zambia" = "Zambia";
 "enum.browsing_country.name.zimbabwe" = "Zimbabwe";
+
+// Cache
+"tab_item.title.cache" = "Cache";
+"enum.setting_state_route.value.cache" = "Cache";
+
+"cache_setting_view.title.cache" = "Cache";
+"cache_setting_view.title.image_quality" = "Image quality";
+"cache_setting_view.title.concurrent_downloads" = "Concurrent downloads";
+"cache_setting_view.title.allows_cellular_access" = "Use cellular data";
+"cache_setting_view.title.resumes_automatically" = "Resume unfinished caches at launch";
+"cache_setting_view.title.location" = "Files folder";
+"cache_setting_view.section.title.download" = "Download";
+"cache_setting_view.section.title.storage" = "Storage";
+"cache_setting_view.section.footer.download" = "Original images use more storage. Changes apply to newly cached galleries.";
+"cache_setting_view.section.footer.storage" = "Cached pages are available in Files > On My iPhone > EhPanda > Downloads.";
+"cache_setting_view.value.standard" = "Standard";
+"cache_setting_view.value.original" = "Original";
+
+"cache_view.title.cache" = "Cache";
+"cache_view.empty.title.cache" = "No Cached Galleries";
+"cache_view.empty.description.cache" = "Cache a gallery from the menu on its details page.";
+"cache_view.search.prompt.cache" = "Search cached galleries";
+"cache_view.section.title.in_progress" = "In Progress";
+"cache_view.section.title.completed" = "Cached";
+"cache_view.button.pause" = "Pause";
+"cache_view.button.resume" = "Resume";
+"cache_view.button.retry" = "Retry";
+"cache_view.button.delete" = "Delete Cache";
+"cache_view.button.delete_all" = "Delete All Caches";
+"cache_view.button.resume_all" = "Resume All";
+"cache_view.button.pause_all" = "Pause All";
+"cache_view.button.more" = "More Cache Actions";
+"cache_view.status.queued" = "Queued";
+"cache_view.status.resolving" = "Resolving pages";
+"cache_view.status.downloading" = "Caching";
+"cache_view.status.paused" = "Paused";
+"cache_view.status.completed" = "Cached";
+"cache_view.status.failed" = "Failed";
+"cache_view.value.pages" = "%@ of %@ pages";
+"cache_view.confirmation.delete_all.title" = "Delete all cached galleries?";
+"cache_view.confirmation.delete_all.message" = "The downloaded image files will also be removed from Files.";
+
+"detail_view.cache.button.cache" = "Cache Gallery";
+"detail_view.cache.button.remove" = "Remove Cache";
+"detail_view.cache.status.cached" = "Cached";
+"detail_view.cache.confirmation.delete.title" = "Remove this cached gallery?";
+"detail_view.cache.confirmation.delete.message" = "The downloaded image files will also be removed from Files.";

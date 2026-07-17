@@ -27,13 +27,25 @@ struct PreviewsReducer {
 
         var previewURLs = [Int: URL]()
         var previewConfig: PreviewConfig = .normal(rows: 4)
+        var loadingPages = Set<Int>()
+        var pendingPreviewIndices = Set<Int>()
+        var pageErrors = [Int: AppError]()
+        var automaticallyRetriedPages = Set<Int>()
 
         var readingState = ReadingReducer.State()
 
         mutating func updatePreviewURLs(_ previewURLs: [Int: URL]) {
-            self.previewURLs = self.previewURLs.merging(
-                previewURLs, uniquingKeysWith: { stored, _ in stored }
-            )
+            self.previewURLs.merge(previewURLs, uniquingKeysWith: { _, new in new })
+        }
+
+        mutating func updateLoadingState() {
+            if !loadingPages.isEmpty {
+                loadingState = .loading
+            } else if let error = pageErrors.sorted(by: { $0.key < $1.key }).first?.value {
+                loadingState = .failed(error)
+            } else {
+                loadingState = .idle
+            }
         }
     }
 
@@ -47,9 +59,9 @@ struct PreviewsReducer {
 
         case teardown
         case fetchDatabaseInfos(String)
-        case fetchDatabaseInfosDone(GalleryState)
+        case fetchDatabaseInfosDone(GalleryPreviewCache?)
         case fetchPreviewURLs(Int)
-        case fetchPreviewURLsDone(Result<[Int: URL], AppError>)
+        case fetchPreviewURLsDone(Int, Result<[Int: URL], AppError>)
 
         case reading(ReadingReducer.Action)
     }
@@ -77,62 +89,107 @@ struct PreviewsReducer {
                 return .send(.reading(.teardown))
 
             case .syncPreviewURLs(let previewURLs):
-                return .run { [state] _ in
-                    await databaseClient.updatePreviewURLs(gid: state.gallery.id, previewURLs: previewURLs)
+                return .run { [galleryID = state.gallery.id] _ in
+                    await databaseClient.updatePreviewURLs(gid: galleryID, previewURLs: previewURLs)
                 }
 
             case .updateReadingProgress(let progress):
-                return .run { [state] _ in
-                    await databaseClient.updateReadingProgress(gid: state.gallery.id, progress: progress)
+                return .run { [galleryID = state.gallery.id] _ in
+                    await databaseClient.updateReadingProgress(gid: galleryID, progress: progress)
                 }
 
             case .teardown:
+                state.loadingPages.removeAll()
+                state.pendingPreviewIndices.removeAll()
+                state.pageErrors.removeAll()
+                state.automaticallyRetriedPages.removeAll()
                 return .merge(CancelID.allCases.map(Effect.cancel(id:)))
 
             case .fetchDatabaseInfos(let gid):
-                guard let gallery = databaseClient.fetchGallery(gid: gid) else { return .none }
-                state.gallery = gallery
-                return .run { [state] send in
-                    guard let dbState = await databaseClient.fetchGalleryState(gid: state.gallery.id) else { return }
-                    await send(.fetchDatabaseInfosDone(dbState))
+                guard state.databaseLoadingState == .loading else { return .none }
+                if let gallery = databaseClient.fetchGallery(gid: gid) {
+                    state.gallery = gallery
+                }
+                guard state.gallery.galleryURL != nil else {
+                    state.databaseLoadingState = .idle
+                    state.loadingState = .failed(.notFound)
+                    return .none
+                }
+                return .run { send in
+                    let cache = await databaseClient.fetchGalleryPreviewCache(gid: gid)
+                    await send(.fetchDatabaseInfosDone(cache))
                 }
                 .cancellable(id: CancelID.fetchDatabaseInfos)
 
-            case .fetchDatabaseInfosDone(let galleryState):
-                if let previewConfig = galleryState.previewConfig {
-                    state.previewConfig = previewConfig
+            case .fetchDatabaseInfosDone(let cache):
+                if let cache {
+                    state.previewConfig = cache.previewConfig
+                    state.previewURLs.merge(
+                        cache.previewURLs,
+                        uniquingKeysWith: { current, _ in current }
+                    )
                 }
-                state.previewURLs = galleryState.previewURLs
                 state.databaseLoadingState = .idle
-                return .none
+
+                let firstBatchUpperBound = min(
+                    state.gallery.pageCount,
+                    state.previewConfig.batchSize
+                )
+                var indicesToFetch = state.pendingPreviewIndices
+                state.pendingPreviewIndices.removeAll()
+                if firstBatchUpperBound >= 1,
+                   let firstMissingIndex = (1...firstBatchUpperBound)
+                    .first(where: { state.previewURLs[$0] == nil })
+                {
+                    indicesToFetch.insert(firstMissingIndex)
+                }
+                return .merge(
+                    indicesToFetch.sorted().map { .send(.fetchPreviewURLs($0)) }
+                )
 
             case .fetchPreviewURLs(let index):
-                guard state.loadingState != .loading,
+                guard state.databaseLoadingState != .loading else {
+                    state.pendingPreviewIndices.insert(index)
+                    return .none
+                }
+
+                let pageNum = state.previewConfig.pageNumber(index: index)
+                let batchRange = state.previewConfig.batchRange(index: index)
+                let upperBound = min(batchRange.upperBound, state.gallery.pageCount)
+                guard !state.loadingPages.contains(pageNum),
+                      batchRange.lowerBound <= upperBound,
+                      (batchRange.lowerBound...upperBound)
+                        .contains(where: { state.previewURLs[$0] == nil }),
                       let galleryURL = state.gallery.galleryURL
                 else { return .none }
-                state.loadingState = .loading
-                let pageNum = state.previewConfig.pageNumber(index: index)
+
+                state.pageErrors.removeValue(forKey: pageNum)
+                state.loadingPages.insert(pageNum)
+                state.updateLoadingState()
                 return .run { send in
                     let response = await GalleryPreviewURLsRequest(galleryURL: galleryURL, pageNum: pageNum).response()
-                    await send(.fetchPreviewURLsDone(response))
+                    await send(.fetchPreviewURLsDone(pageNum, response))
                 }
                 .cancellable(id: CancelID.fetchPreviewURLs)
 
-            case .fetchPreviewURLsDone(let result):
-                state.loadingState = .idle
+            case .fetchPreviewURLsDone(let pageNum, let result):
+                state.loadingPages.remove(pageNum)
 
                 switch result {
                 case .success(let previewURLs):
                     guard !previewURLs.isEmpty else {
-                        state.loadingState = .failed(.notFound)
-                        return .none
+                        return retryFailedPage(
+                            pageNum: pageNum, error: .notFound, state: &state
+                        )
                     }
+                    state.pageErrors.removeValue(forKey: pageNum)
+                    state.automaticallyRetriedPages.remove(pageNum)
                     state.updatePreviewURLs(previewURLs)
+                    state.updateLoadingState()
                     return .send(.syncPreviewURLs(previewURLs))
                 case .failure(let error):
-                    state.loadingState = .failed(error)
+                    return retryFailedPage(pageNum: pageNum, error: error, state: &state)
                 }
-                return .none
 
             case .reading(.onPerformDismiss):
                 return .send(.setNavigation(nil))
@@ -148,5 +205,25 @@ struct PreviewsReducer {
         )
 
         Scope(state: \.readingState, action: \.reading, child: ReadingReducer.init)
+    }
+
+    private func retryFailedPage(
+        pageNum: Int,
+        error: AppError,
+        state: inout State
+    ) -> Effect<Action> {
+        state.pageErrors[pageNum] = error
+        state.updateLoadingState()
+
+        guard error.isRetryable,
+              state.automaticallyRetriedPages.insert(pageNum).inserted
+        else { return .none }
+
+        let retryIndex = pageNum * state.previewConfig.batchSize + 1
+        return .run { send in
+            try await Task.sleep(for: .milliseconds(800))
+            await send(.fetchPreviewURLs(retryIndex))
+        }
+        .cancellable(id: CancelID.fetchPreviewURLs)
     }
 }

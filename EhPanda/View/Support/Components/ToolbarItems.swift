@@ -11,7 +11,7 @@ struct CustomToolbarItem<Content: View>: ToolbarContent {
     private let disabled: Bool
     private let content: Content
 
-    init(placement: ToolbarItemPlacement = .navigationBarTrailing,
+    init(placement: ToolbarItemPlacement = .topBarTrailing,
          tint: Color? = nil, disabled: Bool = false,
          @ViewBuilder content: () -> Content
     ) {
@@ -22,10 +22,8 @@ struct CustomToolbarItem<Content: View>: ToolbarContent {
     }
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: placement) {
-            HStack(spacing: 14) {
-                content
-            }
+        ToolbarItemGroup(placement: placement) {
+            content
             .foregroundColor(tint)
             .disabled(disabled)
         }

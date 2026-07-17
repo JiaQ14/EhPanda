@@ -30,31 +30,76 @@ struct SubSection<Content: View>: View {
         self.content = content()
     }
 
+    @ViewBuilder private var titleControl: some View {
+        if let reloadAction {
+            Button {
+                reloadAction()
+                HapticsUtil.generateFeedback(style: .soft)
+            } label: {
+                titleLabel
+            }
+            .buttonStyle(.plain)
+        } else {
+            titleLabel
+        }
+    }
+
+    private var titleLabel: some View {
+        HStack(spacing: 8) {
+            Text(title)
+            if isLoading == true {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .font(.title3.bold())
+        .foregroundStyle(.primary)
+    }
+
+    private var showAllControl: some View {
+        Button(action: showAllAction) {
+            HStack(spacing: 4) {
+                Text(L10n.Localizable.SubSection.Button.showAll)
+                Image(systemSymbol: .chevronRight)
+                    .imageScale(.small)
+            }
+            .font(.subheadline.weight(.medium))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tint ?? .secondary)
+    }
+
     var body: some View {
-        VStack(alignment: .leading) {
-            HStack {
-                Button {
-                    reloadAction?()
-                    HapticsUtil.generateFeedback(style: .soft)
-                } label: {
-                    HStack(spacing: 10) {
-                        Text(title).font(.title3.bold())
-                        ProgressView()
-                            .opacity(isLoading == true ? 1 : 0)
-                            .animation(.default, value: isLoading)
+        VStack(alignment: .leading, spacing: 12) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    titleControl
+                        .fixedSize(horizontal: true, vertical: false)
+
+                    Spacer(minLength: 8)
+
+                    if showAll {
+                        showAllControl
+                            .fixedSize()
                     }
                 }
-                .allowsHitTesting(reloadAction != nil)
-                .foregroundColor(.primary)
-                Spacer()
-                Button(action: showAllAction) {
-                    Text(L10n.Localizable.SubSection.Button.showAll).font(.subheadline)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    titleControl
+
+                    if showAll {
+                        HStack {
+                            Spacer(minLength: 0)
+                            showAllControl
+                        }
+                    }
                 }
-                .tint(tint).opacity(showAll ? 1 : 0)
             }
             .padding(.horizontal)
+
             content
         }
+        .animation(.default, value: isLoading)
     }
 }
 

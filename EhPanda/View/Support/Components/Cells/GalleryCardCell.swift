@@ -4,66 +4,77 @@
 //
 
 import SwiftUI
-import Colorful
 import Kingfisher
-import UIImageColors
 
 struct GalleryCardCell: View {
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
 
-    private let currentID: String
-    private let colors: [Color]
-    private let webImageSuccessAction: (RetrieveImageResult) -> Void
-
+    private let width: CGFloat
+    private let height: CGFloat
     private let gallery: Gallery
 
-    private let animation: Animation =
-        .interpolatingSpring(stiffness: 50, damping: 1).speed(0.2)
-
     init(
-        gallery: Gallery, currentID: String, colors: [Color],
-        webImageSuccessAction: @escaping (RetrieveImageResult) -> Void
+        gallery: Gallery,
+        width: CGFloat = Defaults.FrameSize.cardCellWidth,
+        height: CGFloat = Defaults.FrameSize.cardCellHeight
     ) {
         self.gallery = gallery
-        self.currentID = currentID
-        self.colors = colors
-        self.webImageSuccessAction = webImageSuccessAction
-    }
-
-    private var animated: Bool {
-        guard colorScheme == .dark else { return false }
-        return gallery.gid == currentID
+        self.width = width
+        self.height = height
     }
     private var title: String {
         let trimmedTitle = gallery.trimmedTitle
-        guard !DeviceUtil.isPad, trimmedTitle.count > 20 else {
+        guard width < 500, trimmedTitle.count > 20 else {
             return gallery.title
         }
         return trimmedTitle
     }
-
+    private var usesAccessibilityLayout: Bool {
+        height > Defaults.FrameSize.cardCellHeight
+    }
+    private var coverHeight: CGFloat {
+        usesAccessibilityLayout ? 112 : Defaults.ImageSize.headerH
+    }
+    private var coverWidth: CGFloat {
+        coverHeight * Defaults.ImageSize.headerAspect
+    }
+    private var coverPixelSize: CGSize {
+        .init(width: coverWidth * displayScale, height: coverHeight * displayScale)
+    }
+    private var horizontalPadding: CGFloat {
+        usesAccessibilityLayout ? 16 : 20
+    }
     var body: some View {
         ZStack {
-            Color.gray.opacity(0.2)
-            ColorfulView(animated: animated, animation: animation, colors: colors)
-                .id(currentID + animated.description)
-            HStack {
+            HStack(spacing: usesAccessibilityLayout ? 12 : 15) {
                 KFImage(gallery.coverURL)
                     .placeholder { Placeholder(style: .activity(ratio: Defaults.ImageSize.headerAspect)) }
-                    .onSuccess(webImageSuccessAction).defaultModifier().scaledToFill()
-                    .frame(width: Defaults.ImageSize.headerW, height: Defaults.ImageSize.headerH)
-                    .cornerRadius(5)
-                VStack(alignment: .leading) {
-                    Text(title).font(.title3.bold()).lineLimit(4)
-                    Spacer()
+                    .downsampling(size: coverPixelSize)
+                    .backgroundDecode()
+                    .loadDiskFileSynchronously(false)
+                    .cancelOnDisappear(true)
+                    .fade(duration: 0.15)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: coverWidth, height: coverHeight)
+                    .clipShape(.rect(cornerRadius: 6))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title)
+                        .font(.title3.bold())
+                        .lineLimit(usesAccessibilityLayout ? 5 : 4)
+                    Spacer(minLength: 0)
                     RatingView(rating: gallery.rating).foregroundColor(.yellow)
                 }
-                .padding(.leading, 15)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 20)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, usesAccessibilityLayout ? 16 : 20)
         }
-        .frame(width: Defaults.FrameSize.cardCellWidth).cornerRadius(15)
+        .frame(width: width, height: height)
+        .contentShape(.rect(cornerRadius: 8))
+        .glassEffect(
+            .regular.interactive(),
+            in: .rect(cornerRadius: 8)
+        )
     }
 }
 
@@ -71,9 +82,7 @@ struct GalleryCardCell_Previews: PreviewProvider {
     static var previews: some View {
         let gallery = Gallery.preview
         GalleryCardCell(
-            gallery: gallery, currentID: gallery.gid,
-            colors: ColorfulView.defaultColorList,
-            webImageSuccessAction: { _ in }
+            gallery: gallery
         )
         .previewLayout(.fixed(width: 300, height: 206)).padding()
     }

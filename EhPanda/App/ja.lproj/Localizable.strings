@@ -238,6 +238,7 @@
 "reading_setting_view.title.direction" = "方向";
 "reading_setting_view.title.preload_limit" = "プリロード上限数";
 "reading_setting_view.title.enables_landscape" = "横向きを有効";
+"reading_setting_view.title.avoids_status_bar" = "最初のページをステータスバーの下に表示";
 "reading_setting_view.title.separator_height" = "仕切りの高さ";
 "reading_setting_view.title.maximum_scale_factor" = "最大スケール係数";
 "reading_setting_view.title.double_tap_scale_factor" = "ダブルタップスケール係数";
@@ -904,3 +905,50 @@
 "enum.browsing_country.name.yemen" = "イエメン";
 "enum.browsing_country.name.zambia" = "ザンビア";
 "enum.browsing_country.name.zimbabwe" = "ジンバブエ";
+
+// キャッシュ
+"tab_item.title.cache" = "キャッシュ";
+"enum.setting_state_route.value.cache" = "キャッシュ";
+
+"cache_setting_view.title.cache" = "キャッシュ";
+"cache_setting_view.title.image_quality" = "画像品質";
+"cache_setting_view.title.concurrent_downloads" = "同時ダウンロード数";
+"cache_setting_view.title.allows_cellular_access" = "モバイルデータ通信を使用";
+"cache_setting_view.title.resumes_automatically" = "起動時に未完了のキャッシュを再開";
+"cache_setting_view.title.location" = "ファイルの保存先";
+"cache_setting_view.section.title.download" = "ダウンロード";
+"cache_setting_view.section.title.storage" = "ストレージ";
+"cache_setting_view.section.footer.download" = "原寸画像はより多くのストレージを使用します。変更は新しくキャッシュするギャラリーに適用されます。";
+"cache_setting_view.section.footer.storage" = "キャッシュしたページは「ファイル > このiPhone内 > EhPanda > Downloads」で確認できます。";
+"cache_setting_view.value.standard" = "標準";
+"cache_setting_view.value.original" = "原寸";
+
+"cache_view.title.cache" = "キャッシュ";
+"cache_view.empty.title.cache" = "キャッシュ済みのギャラリーはありません";
+"cache_view.empty.description.cache" = "ギャラリーの詳細ページにあるメニューからキャッシュできます。";
+"cache_view.search.prompt.cache" = "キャッシュ済みギャラリーを検索";
+"cache_view.section.title.in_progress" = "進行中";
+"cache_view.section.title.completed" = "キャッシュ済み";
+"cache_view.button.pause" = "一時停止";
+"cache_view.button.resume" = "再開";
+"cache_view.button.retry" = "再試行";
+"cache_view.button.delete" = "キャッシュを削除";
+"cache_view.button.delete_all" = "すべてのキャッシュを削除";
+"cache_view.button.resume_all" = "すべて再開";
+"cache_view.button.pause_all" = "すべて一時停止";
+"cache_view.button.more" = "その他のキャッシュ操作";
+"cache_view.status.queued" = "待機中";
+"cache_view.status.resolving" = "ページを解析中";
+"cache_view.status.downloading" = "キャッシュ中";
+"cache_view.status.paused" = "一時停止中";
+"cache_view.status.completed" = "キャッシュ済み";
+"cache_view.status.failed" = "失敗";
+"cache_view.value.pages" = "%@ / %@ ページ";
+"cache_view.confirmation.delete_all.title" = "キャッシュ済みギャラリーをすべて削除しますか？";
+"cache_view.confirmation.delete_all.message" = "ダウンロードした画像ファイルも「ファイル」から削除されます。";
+
+"detail_view.cache.button.cache" = "ギャラリーをキャッシュ";
+"detail_view.cache.button.remove" = "キャッシュを削除";
+"detail_view.cache.status.cached" = "キャッシュ済み";
+"detail_view.cache.confirmation.delete.title" = "このギャラリーのキャッシュを削除しますか？";
+"detail_view.cache.confirmation.delete.message" = "ダウンロードした画像ファイルも「ファイル」から削除されます。";

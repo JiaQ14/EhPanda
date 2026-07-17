@@ -301,6 +301,118 @@ internal enum L10n {
         internal static let archives = L10n.tr("Localizable", "archives_view.title.archives", fallback: "Archives")
       }
     }
+    internal enum CacheSettingView {
+      internal enum Section {
+        internal enum Footer {
+          /// Original images use more storage. Changes apply to newly cached galleries.
+          internal static let download = L10n.tr("Localizable", "cache_setting_view.section.footer.download", fallback: "Original images use more storage. Changes apply to newly cached galleries.")
+          /// Cached pages are available in Files > On My iPhone > EhPanda > Downloads.
+          internal static let storage = L10n.tr("Localizable", "cache_setting_view.section.footer.storage", fallback: "Cached pages are available in Files > On My iPhone > EhPanda > Downloads.")
+        }
+        internal enum Title {
+          /// Download
+          internal static let download = L10n.tr("Localizable", "cache_setting_view.section.title.download", fallback: "Download")
+          /// Storage
+          internal static let storage = L10n.tr("Localizable", "cache_setting_view.section.title.storage", fallback: "Storage")
+        }
+      }
+      internal enum Title {
+        /// Use cellular data
+        internal static let allowsCellularAccess = L10n.tr("Localizable", "cache_setting_view.title.allows_cellular_access", fallback: "Use cellular data")
+        /// Cache
+        internal static let cache = L10n.tr("Localizable", "cache_setting_view.title.cache", fallback: "Cache")
+        /// Concurrent downloads
+        internal static let concurrentDownloads = L10n.tr("Localizable", "cache_setting_view.title.concurrent_downloads", fallback: "Concurrent downloads")
+        /// Image quality
+        internal static let imageQuality = L10n.tr("Localizable", "cache_setting_view.title.image_quality", fallback: "Image quality")
+        /// Files folder
+        internal static let location = L10n.tr("Localizable", "cache_setting_view.title.location", fallback: "Files folder")
+        /// Resume unfinished caches at launch
+        internal static let resumesAutomatically = L10n.tr("Localizable", "cache_setting_view.title.resumes_automatically", fallback: "Resume unfinished caches at launch")
+      }
+      internal enum Value {
+        /// Original
+        internal static let original = L10n.tr("Localizable", "cache_setting_view.value.original", fallback: "Original")
+        /// Standard
+        internal static let standard = L10n.tr("Localizable", "cache_setting_view.value.standard", fallback: "Standard")
+      }
+    }
+    internal enum CacheView {
+      internal enum Button {
+        /// Delete Cache
+        internal static let delete = L10n.tr("Localizable", "cache_view.button.delete", fallback: "Delete Cache")
+        /// Delete All Caches
+        internal static let deleteAll = L10n.tr("Localizable", "cache_view.button.delete_all", fallback: "Delete All Caches")
+        /// More Cache Actions
+        internal static let more = L10n.tr("Localizable", "cache_view.button.more", fallback: "More Cache Actions")
+        /// Pause
+        internal static let pause = L10n.tr("Localizable", "cache_view.button.pause", fallback: "Pause")
+        /// Pause All
+        internal static let pauseAll = L10n.tr("Localizable", "cache_view.button.pause_all", fallback: "Pause All")
+        /// Resume
+        internal static let resume = L10n.tr("Localizable", "cache_view.button.resume", fallback: "Resume")
+        /// Resume All
+        internal static let resumeAll = L10n.tr("Localizable", "cache_view.button.resume_all", fallback: "Resume All")
+        /// Retry
+        internal static let retry = L10n.tr("Localizable", "cache_view.button.retry", fallback: "Retry")
+      }
+      internal enum Confirmation {
+        internal enum DeleteAll {
+          /// The downloaded image files will also be removed from Files.
+          internal static let message = L10n.tr("Localizable", "cache_view.confirmation.delete_all.message", fallback: "The downloaded image files will also be removed from Files.")
+          /// Delete all cached galleries?
+          internal static let title = L10n.tr("Localizable", "cache_view.confirmation.delete_all.title", fallback: "Delete all cached galleries?")
+        }
+      }
+      internal enum Empty {
+        internal enum Description {
+          /// Cache a gallery from the menu on its details page.
+          internal static let cache = L10n.tr("Localizable", "cache_view.empty.description.cache", fallback: "Cache a gallery from the menu on its details page.")
+        }
+        internal enum Title {
+          /// No Cached Galleries
+          internal static let cache = L10n.tr("Localizable", "cache_view.empty.title.cache", fallback: "No Cached Galleries")
+        }
+      }
+      internal enum Search {
+        internal enum Prompt {
+          /// Search cached galleries
+          internal static let cache = L10n.tr("Localizable", "cache_view.search.prompt.cache", fallback: "Search cached galleries")
+        }
+      }
+      internal enum Section {
+        internal enum Title {
+          /// Cached
+          internal static let completed = L10n.tr("Localizable", "cache_view.section.title.completed", fallback: "Cached")
+          /// In Progress
+          internal static let inProgress = L10n.tr("Localizable", "cache_view.section.title.in_progress", fallback: "In Progress")
+        }
+      }
+      internal enum Status {
+        /// Cached
+        internal static let completed = L10n.tr("Localizable", "cache_view.status.completed", fallback: "Cached")
+        /// Caching
+        internal static let downloading = L10n.tr("Localizable", "cache_view.status.downloading", fallback: "Caching")
+        /// Failed
+        internal static let failed = L10n.tr("Localizable", "cache_view.status.failed", fallback: "Failed")
+        /// Paused
+        internal static let paused = L10n.tr("Localizable", "cache_view.status.paused", fallback: "Paused")
+        /// Queued
+        internal static let queued = L10n.tr("Localizable", "cache_view.status.queued", fallback: "Queued")
+        /// Resolving pages
+        internal static let resolving = L10n.tr("Localizable", "cache_view.status.resolving", fallback: "Resolving pages")
+      }
+      internal enum Title {
+        /// Cache
+        internal static let cache = L10n.tr("Localizable", "cache_view.title.cache", fallback: "Cache")
+      }
+      internal enum Value {
+        /// %@ of %@ pages
+        internal static func pages(_ p1: Any, _ p2: Any) -> String {
+          return L10n.tr("Localizable", "cache_view.value.pages", String(describing: p1), String(describing: p2), fallback: "%@ of %@ pages")
+        }
+      }
+    }
     internal enum CommentsView {
       internal enum Title {
         /// Comments
@@ -404,6 +516,26 @@ internal enum L10n {
         internal static let postComment = L10n.tr("Localizable", "detail_view.button.post_comment", fallback: "Post comment")
         /// Read
         internal static let read = L10n.tr("Localizable", "detail_view.button.read", fallback: "Read")
+      }
+      internal enum Cache {
+        internal enum Button {
+          /// Cache Gallery
+          internal static let cache = L10n.tr("Localizable", "detail_view.cache.button.cache", fallback: "Cache Gallery")
+          /// Remove Cache
+          internal static let remove = L10n.tr("Localizable", "detail_view.cache.button.remove", fallback: "Remove Cache")
+        }
+        internal enum Confirmation {
+          internal enum Delete {
+            /// The downloaded image files will also be removed from Files.
+            internal static let message = L10n.tr("Localizable", "detail_view.cache.confirmation.delete.message", fallback: "The downloaded image files will also be removed from Files.")
+            /// Remove this cached gallery?
+            internal static let title = L10n.tr("Localizable", "detail_view.cache.confirmation.delete.title", fallback: "Remove this cached gallery?")
+          }
+        }
+        internal enum Status {
+          /// Cached
+          internal static let cached = L10n.tr("Localizable", "detail_view.cache.status.cached", fallback: "Cached")
+        }
       }
       internal enum ContextMenu {
         internal enum Button {
@@ -1600,6 +1732,8 @@ internal enum L10n {
           internal static let account = L10n.tr("Localizable", "enum.setting_state_route.value.account", fallback: "Account")
           /// Appearance
           internal static let appearance = L10n.tr("Localizable", "enum.setting_state_route.value.appearance", fallback: "Appearance")
+          /// Cache
+          internal static let cache = L10n.tr("Localizable", "enum.setting_state_route.value.cache", fallback: "Cache")
           /// General
           internal static let general = L10n.tr("Localizable", "enum.setting_state_route.value.general", fallback: "General")
           /// Laboratory
@@ -2004,6 +2138,8 @@ internal enum L10n {
         }
       }
       internal enum Title {
+        /// Keep first page below status bar
+        internal static let avoidsStatusBar = L10n.tr("Localizable", "reading_setting_view.title.avoids_status_bar", fallback: "Keep first page below status bar")
         /// Direction
         internal static let direction = L10n.tr("Localizable", "reading_setting_view.title.direction", fallback: "Direction")
         /// Double tap scale factor
@@ -2138,6 +2274,8 @@ internal enum L10n {
     }
     internal enum TabItem {
       internal enum Title {
+        /// Cache
+        internal static let cache = L10n.tr("Localizable", "tab_item.title.cache", fallback: "Cache")
         /// Favorites
         internal static let favorites = L10n.tr("Localizable", "tab_item.title.favorites", fallback: "Favorites")
         /// Home

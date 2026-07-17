@@ -24,7 +24,7 @@ struct TabBarView: View {
                 )
             ) {
                 ForEach(TabBarItemType.allCases) { type in
-                    Group {
+                    Tab(value: type, role: type == .search ? .search : nil) {
                         switch type {
                         case .home:
                             HomeView(
@@ -37,6 +37,14 @@ struct TabBarView: View {
                         case .favorites:
                             FavoritesView(
                                 store: store.scope(state: \.favoritesState, action: \.favorites),
+                                user: store.settingState.user,
+                                setting: $store.settingState.setting,
+                                blurRadius: store.appLockState.blurRadius,
+                                tagTranslator: store.settingState.tagTranslator
+                            )
+                        case .cache:
+                            CacheView(
+                                store: store.scope(state: \.cacheState, action: \.cache),
                                 user: store.settingState.user,
                                 setting: $store.settingState.setting,
                                 blurRadius: store.appLockState.blurRadius,
@@ -56,11 +64,12 @@ struct TabBarView: View {
                                 blurRadius: store.appLockState.blurRadius
                             )
                         }
+                    } label: {
+                        type.label()
                     }
-                    .tabItem(type.label).tag(type)
                 }
-                .accentColor(store.settingState.setting.accentColor)
             }
+            .accentColor(store.settingState.setting.accentColor)
             .autoBlur(radius: store.appLockState.blurRadius)
             Button {
                 store.send(.appLock(.authorize))
@@ -82,7 +91,7 @@ struct TabBarView: View {
             .autoBlur(radius: store.appLockState.blurRadius)
         }
         .sheet(item: $store.appRouteState.route.sending(\.appRoute.setNavigation).detail, id: \.self) { route in
-            NavigationView {
+            NavigationStack {
                 DetailView(
                     store: store.scope(
                         state: \.appRouteState.detailState.wrappedValue!,
@@ -97,7 +106,6 @@ struct TabBarView: View {
             .accentColor(store.settingState.setting.accentColor)
             .autoBlur(radius: store.appLockState.blurRadius)
             .environment(\.inSheet, true)
-            .navigationViewStyle(.stack)
         }
         .progressHUD(
             config: store.appRouteState.hudConfig,
@@ -110,11 +118,12 @@ struct TabBarView: View {
 }
 
 // MARK: TabType
-enum TabBarItemType: Int, CaseIterable, Identifiable {
+enum TabBarItemType: Int, CaseIterable, Hashable, Identifiable {
     var id: Int { rawValue }
 
     case home
     case favorites
+    case cache
     case search
     case setting
 }
@@ -126,6 +135,8 @@ extension TabBarItemType {
             return L10n.Localizable.TabItem.Title.home
         case .favorites:
             return L10n.Localizable.TabItem.Title.favorites
+        case .cache:
+            return L10n.Localizable.TabItem.Title.cache
         case .search:
             return L10n.Localizable.TabItem.Title.search
         case .setting:
@@ -138,6 +149,8 @@ extension TabBarItemType {
             return .houseCircle
         case .favorites:
             return .heartCircle
+        case .cache:
+            return .squareAndArrowDown
         case .search:
             return .magnifyingglassCircle
         case .setting:

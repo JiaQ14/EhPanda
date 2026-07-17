@@ -3,9 +3,6 @@
 //  EhPanda
 //
 
-import SwiftUI
-import Kingfisher
-import UIImageColors
 import ComposableArchitecture
 
 @Reducer
@@ -20,13 +17,6 @@ struct HomeReducer {
     @ObservableState
     struct State: Equatable {
         var route: Route?
-        var cardPageIndex = 1
-        var currentCardID = ""
-        var allowsCardHitTesting = true
-        var rawCardColors = [String: [Color]]()
-        var cardColors: [Color] {
-            rawCardColors[currentCardID] ?? [.clear]
-        }
 
         var popularGalleries = [Gallery]()
         var popularLoadingState: LoadingState = .idle
@@ -57,7 +47,6 @@ struct HomeReducer {
             }
             trimmedGalleries.shuffle()
             popularGalleries = trimmedGalleries
-            currentCardID = trimmedGalleries[cardPageIndex].gid
         }
 
         mutating func setFrontpageGalleries(_ galleries: [Gallery]) {
@@ -70,9 +59,6 @@ struct HomeReducer {
         case binding(BindingAction<State>)
         case setNavigation(Route?)
         case clearSubStates
-        case setAllowsCardHitTesting(Bool)
-        case analyzeImageColors(String, RetrieveImageResult)
-        case analyzeImageColorsDone(String, UIImageColors?)
 
         case fetchAllGalleries
         case fetchAllToplistsGalleries
@@ -92,23 +78,11 @@ struct HomeReducer {
     }
 
     @Dependency(\.databaseClient) private var databaseClient
-    @Dependency(\.libraryClient) private var libraryClient
 
     var body: some Reducer<State, Action> {
         BindingReducer()
             .onChange(of: \.route) { _, newValue in
                 Reduce({ _, _ in newValue == nil ? .send(.clearSubStates) : .none })
-            }
-            .onChange(of: \.cardPageIndex) { _, newValue in
-                Reduce { state, _ in
-                    guard newValue < state.popularGalleries.count else { return .none }
-                    state.currentCardID = state.popularGalleries[state.cardPageIndex].gid
-                    state.allowsCardHitTesting = false
-                    return .run { send in
-                        try await Task.sleep(for: .milliseconds(300))
-                        await send(.setAllowsCardHitTesting(true))
-                    }
-                }
             }
 
         Reduce { state, action in
@@ -135,10 +109,6 @@ struct HomeReducer {
                     .send(.detail(.teardown))
                 )
 
-            case .setAllowsCardHitTesting(let isAllowed):
-                state.allowsCardHitTesting = isAllowed
-                return .none
-
             case .fetchAllGalleries:
                 return .merge(
                     .send(.fetchPopularGalleries),
@@ -156,7 +126,6 @@ struct HomeReducer {
             case .fetchPopularGalleries:
                 guard state.popularLoadingState != .loading else { return .none }
                 state.popularLoadingState = .loading
-                state.rawCardColors = [String: [Color]]()
                 let filter = databaseClient.fetchFilterSynchronously(range: .global)
                 return .run { send in
                     let response = await PopularGalleriesRequest(filter: filter).response()
@@ -222,23 +191,6 @@ struct HomeReducer {
                     return .run(operation: { _ in await databaseClient.cacheGalleries(galleries) })
                 case .failure(let error):
                     state.toplistsLoadingState[index] = .failed(error)
-                }
-                return .none
-
-            case .analyzeImageColors(let gid, let result):
-                guard !state.rawCardColors.keys.contains(gid) else { return .none }
-                return .run { send in
-                    let colors = await libraryClient.analyzeImageColors(result.image)
-                    await send(.analyzeImageColorsDone(gid, colors))
-                }
-
-            case .analyzeImageColorsDone(let gid, let colors):
-                if let colors = colors {
-                    state.rawCardColors[gid] = [
-                        colors.primary, colors.secondary,
-                        colors.detail, colors.background
-                    ]
-                    .map(Color.init)
                 }
                 return .none
 

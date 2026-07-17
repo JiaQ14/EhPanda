@@ -35,39 +35,24 @@ struct PreviewsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: gridItems) {
+            LazyVGrid(columns: gridItems, spacing: 10) {
                 ForEach(1..<store.gallery.pageCount + 1, id: \.self) { index in
-                    VStack {
-                        let (url, modifier) = PreviewResolver.getPreviewConfigs(
-                            originalURL: store.previewURLs[index]
-                        )
-                        Button {
+                    PreviewGridCell(
+                        index: index,
+                        originalURL: store.previewURLs[index],
+                        selectAction: {
                             store.send(.updateReadingProgress(index))
                             store.send(.setNavigation(.reading()))
-                        } label: {
-                            KFImage.url(url, cacheKey: store.previewURLs[index]?.absoluteString)
-                                .placeholder({ Placeholder(style: .activity(ratio: Defaults.ImageSize.previewAspect)) })
-                                .imageModifier(modifier)
-                                .fade(duration: 0.25)
-                                .resizable()
-                                .scaledToFit()
-                        }
-                        Text("\(index)")
-                            .font(DeviceUtil.isPadWidth ? .callout : .caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .onAppear {
-                        if store.databaseLoadingState != .loading
-                            && store.previewURLs[index] == nil && (index - 1) % 10 == 0
-                        {
+                        },
+                        loadAction: {
                             store.send(.fetchPreviewURLs(index))
                         }
-                    }
+                    )
+                    .equatable()
                 }
             }
             .padding(.horizontal)
             .padding(.bottom)
-            .id(store.databaseLoadingState)
         }
         .fullScreenCover(item: $store.route.sending(\.setNavigation).reading) { _ in
             ReadingView(
@@ -84,9 +69,74 @@ struct PreviewsView: View {
     }
 }
 
+private struct PreviewGridCell: View, Equatable {
+    @Environment(\.displayScale) private var displayScale
+
+    private let index: Int
+    private let originalURL: URL?
+    private let selectAction: () -> Void
+    private let loadAction: () -> Void
+
+    init(
+        index: Int,
+        originalURL: URL?,
+        selectAction: @escaping () -> Void,
+        loadAction: @escaping () -> Void
+    ) {
+        self.index = index
+        self.originalURL = originalURL
+        self.selectAction = selectAction
+        self.loadAction = loadAction
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.index == rhs.index && lhs.originalURL == rhs.originalURL
+    }
+
+    var body: some View {
+        let resource = PreviewResolver.resolve(originalURL: originalURL)
+        let targetWidth = ceil(Defaults.ImageSize.previewMaxW * displayScale)
+        let targetPixelSize = CGSize(
+            width: targetWidth,
+            height: ceil(targetWidth / resource.aspectRatio)
+        )
+
+        VStack(spacing: 6) {
+            Button(action: selectAction) {
+                Color.clear
+                    .aspectRatio(resource.aspectRatio, contentMode: .fit)
+                    .overlay {
+                        KFImage.url(resource.sourceURL)
+                            .placeholder {
+                                Placeholder(style: .activity(ratio: resource.aspectRatio))
+                            }
+                            .setProcessor(resource.processor(targetPixelSize: targetPixelSize))
+                            .cacheOriginalImage()
+                            .backgroundDecode()
+                            .loadDiskFileSynchronously(false)
+                            .cancelOnDisappear(true)
+                            .resizable()
+                            .scaledToFit()
+                            .id(resource.originalURL?.absoluteString)
+                    }
+                    .clipShape(.rect(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+
+            Text("\(index)")
+                .font(DeviceUtil.isPadWidth ? .callout : .caption)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear {
+            guard originalURL == nil else { return }
+            loadAction()
+        }
+    }
+}
+
 struct PreviewsView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
+        NavigationStack {
             PreviewsView(
                 store: .init(initialState: .init(gallery: .preview), reducer: PreviewsReducer.init),
                 gid: .init(),

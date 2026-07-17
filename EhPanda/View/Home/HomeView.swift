@@ -5,7 +5,6 @@
 
 import SwiftUI
 import Kingfisher
-import SwiftUIPager
 import SFSafeSymbols
 import ComposableArchitecture
 
@@ -29,125 +28,137 @@ struct HomeView: View {
 
     // MARK: HomeView
     var body: some View {
-        NavigationView {
-            let content =
-            ZStack {
-                ScrollView(showsIndicators: false) {
-                    VStack {
-                        if !store.popularGalleries.isEmpty {
-                            CardSlideSection(
-                                galleries: store.popularGalleries,
-                                pageIndex: $store.cardPageIndex,
-                                currentID: store.currentCardID,
-                                colors: store.cardColors,
-                                navigateAction: navigateTo(gid:),
-                                webImageSuccessAction: { gid, result in
-                                    store.send(.analyzeImageColors(gid, result))
-                                }
-                            )
-                            .equatable().allowsHitTesting(store.allowsCardHitTesting)
-                        }
-                        Group {
-                            if store.frontpageGalleries.count > 1 {
-                                CoverWallSection(
-                                    galleries: store.frontpageGalleries,
-                                    isLoading: store.frontpageLoadingState == .loading,
-                                    navigateAction: navigateTo(gid:),
-                                    showAllAction: { store.send(.setNavigation(.section(.frontpage))) },
-                                    reloadAction: { store.send(.fetchFrontpageGalleries) }
-                                )
-                            }
-                            ToplistsSection(
-                                galleries: store.toplistsGalleries,
-                                isLoading: !store.toplistsLoadingState
-                                    .values.allSatisfy({ $0 != .loading }),
-                                navigateAction: navigateTo(gid:),
-                                showAllAction: { store.send(.setNavigation(.section(.toplists))) },
-                                reloadAction: { store.send(.fetchAllToplistsGalleries) }
-                            )
-                            MiscGridSection(navigateAction: navigateTo(type:))
-                        }
-                        .padding(.vertical)
-                    }
+        NavigationStack {
+            content
+                .navigationDestination(item: navigationRoute) { route in
+                    destination(for: route)
                 }
-                .opacity(store.popularGalleries.isEmpty ? 0 : 1).zIndex(2)
-
-                LoadingView()
-                    .opacity(
-                        store.popularLoadingState == .loading
-                        && store.popularGalleries.isEmpty ? 1 : 0
-                    )
-                    .zIndex(0)
-
-                let error = store.popularLoadingState.failed
-                ErrorView(error: error ?? .unknown) {
-                    store.send(.fetchAllGalleries)
-                }
-                .opacity(store.popularGalleries.isEmpty && error != nil ? 1 : 0)
-                .zIndex(1)
+        }
+        .sheet(item: detailSheetRoute, id: \.self) { route in
+            NavigationStack {
+                DetailView(
+                    store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
+                    gid: route.wrappedValue, user: user, setting: $setting,
+                    blurRadius: blurRadius, tagTranslator: tagTranslator
+                )
             }
-            .animation(.default, value: store.popularLoadingState)
-            .onAppear {
-                if store.popularGalleries.isEmpty {
-                    store.send(.fetchAllGalleries)
-                }
-            }
-            .background(navigationLinks)
-            .toolbar(content: toolbar)
-            .navigationTitle(L10n.Localizable.HomeView.Title.home)
-
-            if DeviceUtil.isPad {
-                content
-                    .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { route in
-                        NavigationView {
-                            DetailView(
-                                store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                                gid: route.wrappedValue, user: user, setting: $setting,
-                                blurRadius: blurRadius, tagTranslator: tagTranslator
-                            )
-                        }
-                        .autoBlur(radius: blurRadius).environment(\.inSheet, true).navigationViewStyle(.stack)
-                    }
-            } else {
-                content
-            }
+            .autoBlur(radius: blurRadius)
+            .environment(\.inSheet, true)
         }
     }
 
+    private var content: some View {
+        ZStack {
+            ScrollView(showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 28) {
+                    if !store.popularGalleries.isEmpty {
+                        CardSlideSection(
+                            galleries: store.popularGalleries,
+                            navigateAction: navigateTo(gid:)
+                        )
+                        .equatable()
+                    }
+                    if store.frontpageGalleries.count > 1 {
+                        CoverWallSection(
+                            galleries: store.frontpageGalleries,
+                            isLoading: store.frontpageLoadingState == .loading,
+                            navigateAction: navigateTo(gid:),
+                            showAllAction: { store.send(.setNavigation(.section(.frontpage))) },
+                            reloadAction: { store.send(.fetchFrontpageGalleries) }
+                        )
+                    }
+                    ToplistsSection(
+                        galleries: store.toplistsGalleries,
+                        isLoading: !store.toplistsLoadingState
+                            .values.allSatisfy({ $0 != .loading }),
+                        navigateAction: navigateTo(gid:),
+                        showAllAction: { store.send(.setNavigation(.section(.toplists))) },
+                        reloadAction: { store.send(.fetchAllToplistsGalleries) }
+                    )
+                    MiscGridSection(navigateAction: navigateTo(type:))
+                }
+                .padding(.vertical, 12)
+            }
+            .opacity(store.popularGalleries.isEmpty ? 0 : 1)
+            .zIndex(2)
+
+            LoadingView()
+                .opacity(
+                    store.popularLoadingState == .loading
+                    && store.popularGalleries.isEmpty ? 1 : 0
+                )
+                .zIndex(0)
+
+            let error = store.popularLoadingState.failed
+            ErrorView(error: error ?? .unknown) {
+                store.send(.fetchAllGalleries)
+            }
+            .opacity(store.popularGalleries.isEmpty && error != nil ? 1 : 0)
+            .zIndex(1)
+        }
+        .animation(.default, value: store.popularLoadingState)
+        .onAppear {
+            if store.popularGalleries.isEmpty {
+                store.send(.fetchAllGalleries)
+            }
+        }
+        .toolbar(content: toolbar)
+        .navigationTitle(L10n.Localizable.HomeView.Title.home)
+    }
+
+    private var navigationRoute: Binding<HomeReducer.Route?> {
+        Binding(
+            get: {
+                guard let route = store.route else { return nil }
+                if DeviceUtil.isPad, case .detail = route { return nil }
+                return route
+            },
+            set: { route in
+                store.send(.setNavigation(route))
+            }
+        )
+    }
+
+    private var detailSheetRoute: Binding<String?> {
+        Binding(
+            get: {
+                guard DeviceUtil.isPad, case .detail(let gid) = store.route else { return nil }
+                return gid
+            },
+            set: { gid in
+                store.send(.setNavigation(gid.map(HomeReducer.Route.detail)))
+            }
+        )
+    }
+
     private func toolbar() -> some ToolbarContent {
-        CustomToolbarItem(tint: .primary) {
+        ToolbarItem(placement: .topBarTrailing) {
             Button {
                 store.send(.fetchAllGalleries)
             } label: {
-                Image(systemSymbol: .arrowCounterclockwise)
+                if store.popularLoadingState == .loading {
+                    ProgressView()
+                } else {
+                    Image(systemSymbol: .arrowCounterclockwise)
+                }
             }
-            .opacity(store.popularLoadingState == .loading ? 0 : 1)
-            .overlay(ProgressView().opacity(store.popularLoadingState == .loading ? 1 : 0))
+            .disabled(store.popularLoadingState == .loading)
         }
     }
 }
 
-// MARK: NavigationLinks
+// MARK: Navigation
 private extension HomeView {
-    @ViewBuilder var navigationLinks: some View {
-        if DeviceUtil.isPhone {
-            detailViewLink
-        }
-        miscGridLink
-        sectionLink
-    }
-    var detailViewLink: some View {
-        NavigationLink(unwrapping: $store.route, case: \.detail) { route in
+    @ViewBuilder func destination(for route: HomeReducer.Route) -> some View {
+        switch route {
+        case .detail(let gid):
             DetailView(
                 store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                gid: route.wrappedValue, user: user, setting: $setting,
+                gid: gid, user: user, setting: $setting,
                 blurRadius: blurRadius, tagTranslator: tagTranslator
             )
-        }
-    }
-    var miscGridLink: some View {
-        NavigationLink(unwrapping: $store.route, case: \.misc) { route in
-            switch route.wrappedValue {
+        case .misc(let type):
+            switch type {
             case .popular:
                 PopularView(
                     store: store.scope(state: \.popularState, action: \.popular),
@@ -164,11 +175,8 @@ private extension HomeView {
                     user: user, setting: $setting, blurRadius: blurRadius, tagTranslator: tagTranslator
                 )
             }
-        }
-    }
-    var sectionLink: some View {
-        NavigationLink(unwrapping: $store.route, case: \.section) { route in
-            switch route.wrappedValue {
+        case .section(let section):
+            switch section {
             case .frontpage:
                 FrontpageView(
                     store: store.scope(state: \.frontpageState, action: \.frontpage),
@@ -182,6 +190,7 @@ private extension HomeView {
             }
         }
     }
+
     func navigateTo(gid: String) {
         store.send(.setNavigation(.detail(gid)))
     }
@@ -190,52 +199,78 @@ private extension HomeView {
     }
 }
 
+private struct HomePressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.78 : 1)
+            .animation(.snappy(duration: 0.18), value: configuration.isPressed)
+    }
+}
+
 // MARK: CardSlideSection
 private struct CardSlideSection: View, Equatable {
-    @StateObject private var page: Page = .withIndex(1)
-    @Binding private var pageIndex: Int
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let galleries: [Gallery]
-    private let currentID: String
-    private let colors: [Color]
     private let navigateAction: (String) -> Void
-    private let webImageSuccessAction: (String, RetrieveImageResult) -> Void
 
     init(
-        galleries: [Gallery], pageIndex: Binding<Int>, currentID: String,
-        colors: [Color], navigateAction: @escaping (String) -> Void,
-        webImageSuccessAction: @escaping (String, RetrieveImageResult) -> Void
+        galleries: [Gallery],
+        navigateAction: @escaping (String) -> Void
     ) {
         self.galleries = galleries
-        _pageIndex = pageIndex
-        self.currentID = currentID
-        self.colors = colors
         self.navigateAction = navigateAction
-        self.webImageSuccessAction = webImageSuccessAction
     }
 
-    static func == (lhs: CardSlideSection, rhs: CardSlideSection) -> Bool {
-        lhs.galleries == rhs.galleries
-        && lhs.currentID == rhs.currentID
-        && lhs.colors == rhs.colors
+    private var cardHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 280 : Defaults.FrameSize.cardCellHeight
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        guard lhs.galleries.count == rhs.galleries.count else { return false }
+        return zip(lhs.galleries, rhs.galleries).allSatisfy { lhs, rhs in
+            lhs.id == rhs.id
+                && lhs.title == rhs.title
+                && lhs.rating == rhs.rating
+                && lhs.coverURL == rhs.coverURL
+        }
     }
 
     var body: some View {
-        Pager(page: page, data: galleries) { gallery in
-            Button {
-                navigateAction(gallery.id)
-            } label: {
-                GalleryCardCell(gallery: gallery, currentID: currentID, colors: colors) {
-                    webImageSuccessAction(gallery.gid, $0)
+        GeometryReader { proxy in
+            let cardWidth = min(max(proxy.size.width - 48, 1), 620)
+            let horizontalMargin = max((proxy.size.width - cardWidth) / 2, 16)
+
+            GlassEffectContainer(spacing: 12) {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 12) {
+                        ForEach(galleries) { gallery in
+                            Button {
+                                navigateAction(gallery.id)
+                            } label: {
+                                GalleryCardCell(
+                                    gallery: gallery,
+                                    width: cardWidth,
+                                    height: cardHeight
+                                )
+                                .tint(.primary)
+                                .multilineTextAlignment(.leading)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .scrollTargetLayout()
                 }
-                .tint(.primary).multilineTextAlignment(.leading)
+                .scrollIndicators(.hidden)
+                .contentMargins(.horizontal, horizontalMargin, for: .scrollContent)
+                .scrollTargetBehavior(
+                    .viewAligned(limitBehavior: .alwaysByOne, anchor: .center)
+                )
             }
         }
-        .preferredItemSize(Defaults.FrameSize.cardCellSize)
-        .interactive(opacity: 0.2).itemSpacing(20)
-        .loopPages().pagingPriority(.high)
-        .synchronize($pageIndex, $page.index)
-        .frame(height: Defaults.FrameSize.cardCellHeight)
+        .frame(height: cardHeight)
     }
 }
 
@@ -274,19 +309,19 @@ private struct CoverWallSection: View {
     var body: some View {
         SubSection(
             title: L10n.Localizable.HomeView.Section.Title.frontpage,
-            tint: .secondary, isLoading: isLoading,
+            isLoading: isLoading,
             reloadAction: reloadAction,
             showAllAction: showAllAction
         ) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 20) {
+                LazyHStack(spacing: 12) {
                     ForEach(dataSource, id: \.first) {
                         VerticalCoverStack(galleries: $0, navigateAction: navigateAction)
                     }
-                    .withHorizontalSpacing(width: 0)
                 }
             }
-            .frame(height: Defaults.ImageSize.rowH * 2 + 30)
+            .contentMargins(.horizontal, 16, for: .scrollContent)
+            .frame(height: Defaults.ImageSize.rowH * 2 + 12)
         }
     }
 }
@@ -307,13 +342,22 @@ private struct VerticalCoverStack: View {
         Button {
             navigateAction(gallery.id)
         } label: {
-            KFImage(gallery.coverURL).placeholder(placeholder).defaultModifier().scaledToFill()
-                .frame(width: Defaults.ImageSize.rowW, height: Defaults.ImageSize.rowH).cornerRadius(2)
+            KFImage(gallery.coverURL)
+                .placeholder(placeholder)
+                .defaultModifier()
+                .scaledToFill()
+                .frame(width: Defaults.ImageSize.rowW, height: Defaults.ImageSize.rowH)
+                .clipShape(.rect(cornerRadius: 6))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color(uiColor: .separator).opacity(0.3), lineWidth: 0.5)
+                }
         }
+        .buttonStyle(HomePressableButtonStyle())
     }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             ForEach(galleries, content: imageContainer)
         }
     }
@@ -364,21 +408,23 @@ private struct ToplistsSection: View {
     var body: some View {
         SubSection(
             title: L10n.Localizable.HomeView.Section.Title.toplists,
-            tint: .secondary, isLoading: isLoading,
+            isLoading: isLoading,
             reloadAction: reloadAction,
             showAllAction: showAllAction
         ) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
+                LazyHStack(spacing: 24) {
                     ForEach(ToplistsType.allCases, content: verticalStacks)
                 }
             }
+            .contentMargins(.horizontal, 16, for: .scrollContent)
         }
     }
     private func verticalStacks(type: ToplistsType) -> some View {
-        VStack(alignment: .leading) {
-            Text(type.value).font(.subheadline.bold())
-            HStack {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(type.value)
+                .font(.headline)
+            HStack(spacing: 20) {
                 VerticalToplistsStack(
                     galleries: galleries(type: type, range: 0...2), startRanking: 1,
                     navigateAction: navigateAction
@@ -391,7 +437,7 @@ private struct ToplistsSection: View {
                 }
             }
         }
-        .padding(.horizontal, 20).padding(.vertical, 5)
+        .padding(.vertical, 4)
     }
 }
 
@@ -416,6 +462,7 @@ private struct VerticalToplistsStack: View {
                         GalleryRankingCell(gallery: galleries[index], ranking: startRanking + index)
                             .tint(.primary).multilineTextAlignment(.leading)
                     }
+                    .buttonStyle(HomePressableButtonStyle())
                     Divider().opacity(index == galleries.count - 1 ? 0 : 1)
                 }
             }
@@ -435,19 +482,19 @@ private struct MiscGridSection: View {
     var body: some View {
         SubSection(title: L10n.Localizable.HomeView.Section.Title.other, showAll: false) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    let types = HomeMiscGridType.allCases
-                    ForEach(types) { type in
+                LazyHStack(spacing: 12) {
+                    ForEach(HomeMiscGridType.allCases) { type in
                         Button {
                             navigateAction(type)
                         } label: {
-                            MiscGridItem(title: type.title, symbol: type.symbol).tint(.primary)
+                            MiscGridItem(title: type.title, symbol: type.symbol)
+                                .tint(.primary)
                         }
-                        .padding(.trailing, type == types.last ? 0 : 10)
+                        .buttonStyle(HomePressableButtonStyle())
                     }
-                    .withHorizontalSpacing()
                 }
             }
+            .contentMargins(.horizontal, 16, for: .scrollContent)
         }
     }
 }
@@ -464,17 +511,39 @@ private struct MiscGridItem: View {
     }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(title).font(.title2.bold()).lineLimit(1).frame(minWidth: 100)
+        HStack(spacing: 12) {
+            Image(systemSymbol: symbol)
+                .font(.title2)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                    .lineLimit(2)
                 if let subTitle = subTitle {
-                    Text(subTitle).font(.subheadline).foregroundColor(.secondary).lineLimit(2)
+                    Text(subTitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
-            Image(systemSymbol: symbol).font(.system(size: 50, weight: .light, design: .default))
-                .foregroundColor(.secondary).imageScale(.large).offset(x: 20, y: 20)
+
+            Spacer(minLength: 8)
+
+            Image(systemSymbol: .chevronRight)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(30).cornerRadius(15).background(Color(.systemGray6).cornerRadius(15))
+        .padding(.horizontal, 16)
+        .frame(width: DeviceUtil.isPad ? 240 : 210, alignment: .leading)
+        .frame(minHeight: 72, alignment: .leading)
+        .background(.thinMaterial, in: .rect(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5)
+        }
     }
 }
 

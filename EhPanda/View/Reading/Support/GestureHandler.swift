@@ -78,9 +78,6 @@ final class GestureHandler: ObservableObject {
     }
 
     func onMagnificationGestureChanged(value: Double, scaleMaximum: Double) {
-        Logger.info("onMagnificationGestureChanged", context: [
-            "value": value, "scaleMaximum": scaleMaximum
-        ])
         if value == 1 {
             baseScale = scale
         }
@@ -102,7 +99,6 @@ final class GestureHandler: ObservableObject {
     }
 
     func onDragGestureChanged(value: DragGesture.Value) {
-        Logger.info("onDragGestureChanged", context: ["value": value])
         guard scale > 1 else { return }
         let newX = value.translation.width + newOffset.width
         let newY = value.translation.height + newOffset.height

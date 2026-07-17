@@ -15,28 +15,25 @@ struct WebView: UIViewControllerRepresentable {
         self.loginDoneAction = loginDoneAction
     }
 
-    final class Coodinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         private var parent: WebView
+        private var didCompleteLogin = false
 
         init(parent: WebView) {
             self.parent = parent
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard parent.url.absoluteString == Defaults.URL.webLogin.absoluteString, let webViewURL = webView.url,
-                  let queryItems = URLComponents(url: webViewURL, resolvingAgainstBaseURL: false)?.queryItems,
-                  queryItems.contains(where: { queryItem in
-                      queryItem.name == Defaults.URL.Component.Key.code.rawValue
-                      && queryItem.value == Defaults.URL.Component.Value.zeroOne.rawValue
-                  })
-            else { return }
+            guard parent.loginDoneAction != nil, !didCompleteLogin else { return }
 
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
                 cookies.forEach { HTTPCookieStorage.shared.setCookie($0) }
-            }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                self?.parent.loginDoneAction?()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, !didCompleteLogin, CookieUtil.didLogin else { return }
+                    didCompleteLogin = true
+                    parent.loginDoneAction?()
+                }
             }
         }
 
@@ -45,8 +42,8 @@ struct WebView: UIViewControllerRepresentable {
         }
     }
 
-    func makeCoordinator() -> WebView.Coodinator {
-        Coodinator(parent: self)
+    func makeCoordinator() -> WebView.Coordinator {
+        Coordinator(parent: self)
     }
 
     func makeUIViewController(context: Context) -> EmbeddedWebviewController {
@@ -65,12 +62,11 @@ struct WebView: UIViewControllerRepresentable {
 final class EmbeddedWebviewController: UIViewController {
     private var webview: WKWebView
 
-    private weak var delegate: WebView.Coordinator?
-
     init(coordinator: WebView.Coordinator) {
-        delegate = coordinator
         webview = WKWebView()
         super.init(nibName: nil, bundle: nil)
+        webview.navigationDelegate = coordinator
+        webview.uiDelegate = coordinator
     }
 
     required init?(coder: NSCoder) {
@@ -84,8 +80,6 @@ final class EmbeddedWebviewController: UIViewController {
     }
 
     override func loadView() {
-        webview.navigationDelegate = delegate
-        webview.uiDelegate = delegate
         view = webview
     }
 }

@@ -238,6 +238,7 @@
 "reading_setting_view.title.direction" = "翻頁方向";
 "reading_setting_view.title.preload_limit" = "預先載入頁數";
 "reading_setting_view.title.enables_landscape" = "啟用橫向顯示";
+"reading_setting_view.title.avoids_status_bar" = "首圖避開狀態列";
 "reading_setting_view.title.separator_height" = "頁間分隔高度";
 "reading_setting_view.title.maximum_scale_factor" = "縮放上限";
 "reading_setting_view.title.double_tap_scale_factor" = "雙擊縮放值";
@@ -904,3 +905,50 @@
 "enum.browsing_country.name.yemen" = "葉門";
 "enum.browsing_country.name.zambia" = "尚比亞";
 "enum.browsing_country.name.zimbabwe" = "辛巴威";
+
+// 快取
+"tab_item.title.cache" = "快取";
+"enum.setting_state_route.value.cache" = "快取";
+
+"cache_setting_view.title.cache" = "快取";
+"cache_setting_view.title.image_quality" = "快取畫質";
+"cache_setting_view.title.concurrent_downloads" = "同時下載數";
+"cache_setting_view.title.allows_cellular_access" = "允許使用行動數據";
+"cache_setting_view.title.resumes_automatically" = "啟動時繼續未完成的快取";
+"cache_setting_view.title.location" = "檔案目錄";
+"cache_setting_view.section.title.download" = "下載";
+"cache_setting_view.section.title.storage" = "儲存空間";
+"cache_setting_view.section.footer.download" = "原圖會佔用更多儲存空間。畫質變更僅適用於之後新增的快取。";
+"cache_setting_view.section.footer.storage" = "快取圖片可在「檔案 > 我的 iPhone > EhPanda > Downloads」中查看。";
+"cache_setting_view.value.standard" = "標準圖";
+"cache_setting_view.value.original" = "原圖";
+
+"cache_view.title.cache" = "快取";
+"cache_view.empty.title.cache" = "尚無快取漫畫";
+"cache_view.empty.description.cache" = "可從漫畫詳細資料頁的選單中開始快取。";
+"cache_view.search.prompt.cache" = "搜尋快取漫畫";
+"cache_view.section.title.in_progress" = "進行中";
+"cache_view.section.title.completed" = "已快取";
+"cache_view.button.pause" = "暫停";
+"cache_view.button.resume" = "繼續";
+"cache_view.button.retry" = "重試";
+"cache_view.button.delete" = "刪除快取";
+"cache_view.button.delete_all" = "刪除所有快取";
+"cache_view.button.resume_all" = "全部繼續";
+"cache_view.button.pause_all" = "全部暫停";
+"cache_view.button.more" = "更多快取操作";
+"cache_view.status.queued" = "等待中";
+"cache_view.status.resolving" = "正在解析頁面";
+"cache_view.status.downloading" = "正在快取";
+"cache_view.status.paused" = "已暫停";
+"cache_view.status.completed" = "已快取";
+"cache_view.status.failed" = "快取失敗";
+"cache_view.value.pages" = "已快取 %@ / %@ 頁";
+"cache_view.confirmation.delete_all.title" = "刪除所有快取漫畫？";
+"cache_view.confirmation.delete_all.message" = "「檔案」App 中對應的圖片檔案也會一併刪除。";
+
+"detail_view.cache.button.cache" = "快取漫畫";
+"detail_view.cache.button.remove" = "刪除快取";
+"detail_view.cache.status.cached" = "已快取";
+"detail_view.cache.confirmation.delete.title" = "刪除這本漫畫的快取？";
+"detail_view.cache.confirmation.delete.message" = "「檔案」App 中對應的圖片檔案也會一併刪除。";

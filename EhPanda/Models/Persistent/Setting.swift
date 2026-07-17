@@ -39,12 +39,19 @@ struct Setting: Codable, Equatable {
     var listTagsNumberMaximum = 0
     var displaysJapaneseTitle = true
 
+    // Cache
+    var cacheImageQuality: CacheImageQuality = .standard
+    var cacheConcurrentDownloads = 3
+    var cacheAllowsCellularAccess = false
+    var cacheResumesAutomatically = true
+
     // Reading
     var readingDirection: ReadingDirection = .vertical
     var prefetchLimit = 10
     var enablesLandscape = false
     var enablesDualPageMode = false
     var exceptCover = false
+    var avoidsStatusBarInVerticalMode = true
     var contentDividerHeight: Double = 0
     var maximumScaleFactor: Double = 3
     var doubleTapScaleFactor: Double = 2
@@ -206,12 +213,20 @@ extension Setting {
         showsTagsInList = (try? container?.decodeIfPresent(Bool.self, forKey: .showsTagsInList)) ?? false
         listTagsNumberMaximum = (try? container?.decodeIfPresent(Int.self, forKey: .listTagsNumberMaximum)) ?? 0
         displaysJapaneseTitle = (try? container?.decodeIfPresent(Bool.self, forKey: .displaysJapaneseTitle)) ?? true
+        // Cache
+        cacheImageQuality = (try? container?.decodeIfPresent(CacheImageQuality.self, forKey: .cacheImageQuality)) ?? .standard
+        cacheConcurrentDownloads = (try? container?.decodeIfPresent(Int.self, forKey: .cacheConcurrentDownloads)) ?? 3
+        cacheAllowsCellularAccess = (try? container?.decodeIfPresent(Bool.self, forKey: .cacheAllowsCellularAccess)) ?? false
+        cacheResumesAutomatically = (try? container?.decodeIfPresent(Bool.self, forKey: .cacheResumesAutomatically)) ?? true
         // Reading
         readingDirection = (try? container?.decodeIfPresent(ReadingDirection.self, forKey: .readingDirection)) ?? .vertical
         prefetchLimit = (try? container?.decodeIfPresent(Int.self, forKey: .prefetchLimit)) ?? 10
         enablesLandscape = (try? container?.decodeIfPresent(Bool.self, forKey: .enablesLandscape)) ?? false
         enablesDualPageMode = (try? container?.decodeIfPresent(Bool.self, forKey: .enablesDualPageMode)) ?? false
         exceptCover = (try? container?.decodeIfPresent(Bool.self, forKey: .exceptCover)) ?? false
+        avoidsStatusBarInVerticalMode = (try? container?.decodeIfPresent(
+            Bool.self, forKey: .avoidsStatusBarInVerticalMode
+        )) ?? true
         contentDividerHeight = (try? container?.decodeIfPresent(Double.self, forKey: .contentDividerHeight)) ?? 0
         maximumScaleFactor = (try? container?.decodeIfPresent(Double.self, forKey: .maximumScaleFactor)) ?? 3
         doubleTapScaleFactor = (try? container?.decodeIfPresent(Double.self, forKey: .doubleTapScaleFactor)) ?? 2

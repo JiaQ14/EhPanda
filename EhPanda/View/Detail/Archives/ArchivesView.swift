@@ -7,6 +7,8 @@ import SwiftUI
 import ComposableArchitecture
 
 struct ArchivesView: View {
+    @Environment(\.dismiss) private var dismiss
+
     @Bindable private var store: StoreOf<ArchivesReducer>
     private let gid: String
     private let user: User
@@ -26,7 +28,7 @@ struct ArchivesView: View {
 
     // MARK: ArchiveView
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 VStack {
                     HathArchivesView(archives: store.hathArchives, selection: $store.selectedArchive)
@@ -72,6 +74,14 @@ struct ArchivesView: View {
             .onAppear {
                 store.send(.fetchArchive(gid, galleryURL, archiveURL))
             }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(role: .close) {
+                        dismiss()
+                    }
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationTitle(L10n.Localizable.ArchivesView.Title.archives)
         }
     }
@@ -99,17 +109,17 @@ private struct HathArchivesView: View {
             LazyVGrid(columns: gridItems, spacing: 10) {
                 ForEach(archives) { archive in
                     Button {
-                        if archive.isValid {
-                            selection = archive
-                            HapticsUtil.generateFeedback(style: .soft)
-                        }
+                        selection = archive
+                        HapticsUtil.generateFeedback(style: .soft)
                     } label: {
                         HathArchiveGrid(isSelected: selection == archive, archive: archive)
                             .tint(.primary).multilineTextAlignment(.center)
                     }
+                    .disabled(!archive.isValid)
+                    .accessibilityAddTraits(selection == archive ? .isSelected : [])
                 }
             }
-            .padding(.top, 40)
+            .padding(.top, 16)
         }
     }
 }
@@ -182,17 +192,15 @@ private struct HathArchiveGrid: View {
         .frame(width: width, height: height)
         .contentShape(.rect)
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 8)
                 .stroke(borderColor, lineWidth: 1)
         )
-        .glassEffect(.clear.interactive(), in: .rect(cornerRadius: 10))
+        .glassEffect(.clear.interactive(), in: .rect(cornerRadius: 8))
     }
 }
 
 // MARK: DownloadButton
 private struct DownloadButton: View {
-    @State private var isPressing = false
-
     private var isDisabled: Bool
     private var action: () -> Void
 
@@ -201,12 +209,6 @@ private struct DownloadButton: View {
         self.action = action
     }
 
-    private var textColor: Color {
-        isDisabled ? .white.opacity(0.5) : isPressing ? .white.opacity(0.5) : .white
-    }
-    private var backgroundColor: Color {
-        isDisabled ? .accentColor.opacity(0.5) : isPressing ? .accentColor.opacity(0.5) : .accentColor
-    }
     private var paddingInsets: EdgeInsets {
         DeviceUtil.isPadWidth
             ? .init(top: 0, leading: 0, bottom: 30, trailing: 0)
@@ -214,23 +216,16 @@ private struct DownloadButton: View {
     }
 
     var body: some View {
-        Text(L10n.Localizable.ArchivesView.Button.downloadToHathClient)
-            .font(.headline)
-            .foregroundStyle(textColor)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(backgroundColor)
-            .animation(.default, value: backgroundColor)
-            .clipShape(.rect(cornerRadius: 30))
-            .glassEffect(.regular.interactive())
-            .padding(paddingInsets)
-            .onTapGesture(perform: { if !isDisabled { action() }})
-            .onLongPressGesture(
-                minimumDuration: 0,
-                maximumDistance: 50,
-                pressing: { isPressing = $0 },
-                perform: {}
-            )
+        Button(action: action) {
+            Text(L10n.Localizable.ArchivesView.Button.downloadToHathClient)
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.glassProminent)
+        .buttonBorderShape(.roundedRectangle(radius: 8))
+        .controlSize(.large)
+        .disabled(isDisabled)
+        .padding(paddingInsets)
     }
 }
 

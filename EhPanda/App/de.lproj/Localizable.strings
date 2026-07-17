@@ -238,6 +238,7 @@
 "reading_setting_view.title.direction" = "Direction";
 "reading_setting_view.title.preload_limit" = "Preload limit";
 "reading_setting_view.title.enables_landscape" = "Enables landscape";
+"reading_setting_view.title.avoids_status_bar" = "Erste Seite unter der Statusleiste";
 "reading_setting_view.title.separator_height" = "Höhe der Teilung";
 "reading_setting_view.title.maximum_scale_factor" = "Maximaler Skalierungsfaktor";
 "reading_setting_view.title.double_tap_scale_factor" = "Doppel-Tap Skalierungsfaktor";
@@ -904,3 +905,50 @@
 "enum.browsing_country.name.yemen" = "Yemen";
 "enum.browsing_country.name.zambia" = "Zambia";
 "enum.browsing_country.name.zimbabwe" = "Zimbabwe";
+
+// Cache
+"tab_item.title.cache" = "Cache";
+"enum.setting_state_route.value.cache" = "Cache";
+
+"cache_setting_view.title.cache" = "Cache";
+"cache_setting_view.title.image_quality" = "Bildqualität";
+"cache_setting_view.title.concurrent_downloads" = "Gleichzeitige Downloads";
+"cache_setting_view.title.allows_cellular_access" = "Mobile Daten verwenden";
+"cache_setting_view.title.resumes_automatically" = "Unvollständige Cache-Downloads beim Start fortsetzen";
+"cache_setting_view.title.location" = "Dateiordner";
+"cache_setting_view.section.title.download" = "Download";
+"cache_setting_view.section.title.storage" = "Speicher";
+"cache_setting_view.section.footer.download" = "Originalbilder benötigen mehr Speicherplatz. Änderungen gelten für neu angelegte Caches.";
+"cache_setting_view.section.footer.storage" = "Zwischengespeicherte Seiten sind unter Dateien > Auf meinem iPhone > EhPanda > Downloads verfügbar.";
+"cache_setting_view.value.standard" = "Standard";
+"cache_setting_view.value.original" = "Original";
+
+"cache_view.title.cache" = "Cache";
+"cache_view.empty.title.cache" = "Keine Galerien im Cache";
+"cache_view.empty.description.cache" = "Galerien können über das Menü auf ihrer Detailseite zwischengespeichert werden.";
+"cache_view.search.prompt.cache" = "Galerien im Cache durchsuchen";
+"cache_view.section.title.in_progress" = "In Bearbeitung";
+"cache_view.section.title.completed" = "Im Cache";
+"cache_view.button.pause" = "Pausieren";
+"cache_view.button.resume" = "Fortsetzen";
+"cache_view.button.retry" = "Erneut versuchen";
+"cache_view.button.delete" = "Cache löschen";
+"cache_view.button.delete_all" = "Alle Caches löschen";
+"cache_view.button.resume_all" = "Alle fortsetzen";
+"cache_view.button.pause_all" = "Alle pausieren";
+"cache_view.button.more" = "Weitere Cache-Aktionen";
+"cache_view.status.queued" = "In der Warteschlange";
+"cache_view.status.resolving" = "Seiten werden ermittelt";
+"cache_view.status.downloading" = "Wird zwischengespeichert";
+"cache_view.status.paused" = "Pausiert";
+"cache_view.status.completed" = "Im Cache";
+"cache_view.status.failed" = "Fehlgeschlagen";
+"cache_view.value.pages" = "%@ von %@ Seiten";
+"cache_view.confirmation.delete_all.title" = "Alle Galerien aus dem Cache löschen?";
+"cache_view.confirmation.delete_all.message" = "Die heruntergeladenen Bilddateien werden auch aus Dateien entfernt.";
+
+"detail_view.cache.button.cache" = "Galerie zwischenspeichern";
+"detail_view.cache.button.remove" = "Cache löschen";
+"detail_view.cache.status.cached" = "Im Cache";
+"detail_view.cache.confirmation.delete.title" = "Diese Galerie aus dem Cache löschen?";
+"detail_view.cache.confirmation.delete.message" = "Die heruntergeladenen Bilddateien werden auch aus Dateien entfernt.";
