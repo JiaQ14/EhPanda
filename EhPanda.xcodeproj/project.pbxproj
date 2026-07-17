@@ -1687,6 +1687,7 @@
 				ABD49D5B277C6C9D003D1A07 /* XCRemoteSwiftPackageReference "SFSafeSymbols" */,
 				AB86AC0E27831AD100E61E6A /* XCRemoteSwiftPackageReference "swift-composable-architecture" */,
 				ABBB2634278FB888007B6149 /* XCRemoteSwiftPackageReference "swift-navigation" */,
+				EA9B00012E2A000100000001 /* XCRemoteSwiftPackageReference "swift-sharing" */,
 				AB26F59727ACDB4200AB3468 /* XCRemoteSwiftPackageReference "FilePicker" */,
 				AB1FA94727C62BC80063EF55 /* XCRemoteSwiftPackageReference "SwiftCommonMark" */,
 				AB2EB99D280251D600011A8A /* XCRemoteSwiftPackageReference "TTProgressHUD" */,
@@ -2515,7 +2516,7 @@
 			repositoryURL = "https://github.com/pointfreeco/swift-composable-architecture";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.17.0;
+				minimumVersion = 1.26.0;
 			};
 		};
 		ABAC82FC26BC4866009F5026 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */ = {
@@ -2531,7 +2532,15 @@
 			repositoryURL = "https://github.com/pointfreeco/swift-navigation";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
+				minimumVersion = 2.8.0;
+			};
+		};
+		EA9B00012E2A000100000001 /* XCRemoteSwiftPackageReference "swift-sharing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-sharing";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.1;
 			};
 		};
 		ABC4A0772751B40E00968A4F /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
