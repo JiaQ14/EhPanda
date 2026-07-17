@@ -156,6 +156,276 @@ private enum GalleryCacheManagerError: Error {
     case page(index: Int, underlying: Error)
 }
 
+struct JHenTaiCacheImporter {
+    private static let metadataFileName = "metadata"
+    private static let imageExtensions = Set([
+        "jpg", "jpeg", "png", "gif", "webp", "avif"
+    ])
+
+    static func importItem(
+        from directoryURL: URL,
+        maximumMetadataByteCount: Int
+    ) -> GalleryCacheItem? {
+        let metadataURL = directoryURL.appendingPathComponent(metadataFileName)
+        guard let metadataValues = try? metadataURL.resourceValues(
+            forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]
+        ),
+              metadataValues.isRegularFile == true,
+              metadataValues.isSymbolicLink != true,
+              let metadataSize = metadataValues.fileSize,
+              metadataSize > 0,
+              metadataSize <= maximumMetadataByteCount,
+              let data = try? Data(contentsOf: metadataURL, options: .mappedIfSafe),
+              let metadata = try? JSONDecoder().decode(Metadata.self, from: data),
+              metadata.gallery.gid > 0,
+              GalleryCacheItem.isValidPageCount(metadata.gallery.pageCount)
+        else { return nil }
+
+        let gid = String(metadata.gallery.gid)
+        let category = category(from: metadata.gallery.category)
+        let postedDate = date(from: metadata.gallery.publishTime) ?? .now
+        let createdDate =
+            date(from: metadata.gallery.insertTime)
+            ?? (try? directoryURL.resourceValues(forKeys: [.creationDateKey]).creationDate)
+            ?? postedDate
+        let updatedDate =
+            (try? directoryURL.resourceValues(
+                forKeys: [.contentModificationDateKey]
+            ).contentModificationDate)
+            ?? createdDate
+        let galleryURL =
+            metadata.gallery.galleryURL.flatMap(URL.init(string:))
+            ?? URL(
+                string: "https://e-hentai.org/g/\(gid)/\(metadata.gallery.token)/"
+            )
+        let uploader = metadata.gallery.uploader ?? ""
+        let pageFiles = pageFiles(
+            in: directoryURL,
+            pageCount: metadata.gallery.pageCount
+        )
+        let remoteURLs = remoteImageURLs(
+            metadata.images,
+            pageCount: metadata.gallery.pageCount,
+            excluding: Set(pageFiles.keys),
+            original: false
+        )
+        let originalURLs = remoteImageURLs(
+            metadata.images,
+            pageCount: metadata.gallery.pageCount,
+            excluding: Set(pageFiles.keys),
+            original: true
+        )
+        let gallery = Gallery(
+            gid: gid,
+            token: metadata.gallery.token,
+            title: metadata.gallery.title,
+            rating: 0,
+            tags: [],
+            category: category,
+            uploader: uploader,
+            pageCount: metadata.gallery.pageCount,
+            postedDate: postedDate,
+            coverURL: nil,
+            galleryURL: galleryURL
+        )
+        let detail = GalleryDetail(
+            gid: gid,
+            title: metadata.gallery.title,
+            isFavorited: false,
+            visibility: .yes,
+            rating: 0,
+            userRating: 0,
+            ratingCount: 0,
+            category: category,
+            language: .japanese,
+            uploader: uploader,
+            postedDate: postedDate,
+            coverURL: nil,
+            favoritedCount: 0,
+            pageCount: metadata.gallery.pageCount,
+            sizeCount: 0,
+            sizeType: "",
+            torrentCount: 0
+        )
+        let hasAllPages = pageFiles.count == metadata.gallery.pageCount
+        return GalleryCacheItem(
+            gallery: gallery,
+            detail: detail,
+            folderName: directoryURL.lastPathComponent,
+            pageCount: metadata.gallery.pageCount,
+            createdDate: createdDate,
+            directoryIdentifier: UUID(),
+            status: hasAllPages ? .completed : .paused,
+            imageQuality: metadata.gallery.downloadOriginalImage == true
+                ? .original
+                : .standard,
+            updatedDate: updatedDate,
+            byteCount: byteCount(of: pageFiles, in: directoryURL),
+            errorDescription: nil,
+            coverFileName: pageFiles.sorted(by: { $0.key < $1.key }).first?.value,
+            pageFiles: pageFiles,
+            pageIdentifiers: Dictionary(
+                uniqueKeysWithValues: pageFiles.keys.map { ($0, UUID()) }
+            ),
+            remoteImageURLs: remoteURLs,
+            originalImageURLs: originalURLs
+        )
+    }
+}
+
+private extension JHenTaiCacheImporter {
+    struct Metadata: Decodable {
+        let gallery: GalleryMetadata
+        let images: [ImageMetadata?]
+
+        enum CodingKeys: String, CodingKey {
+            case gallery
+            case images
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            gallery = try container.decode(GalleryMetadata.self, forKey: .gallery)
+            if let encodedImages = try? container.decode(String.self, forKey: .images),
+               let data = encodedImages.data(using: .utf8)
+            {
+                images = (try? JSONDecoder().decode([ImageMetadata?].self, from: data)) ?? []
+            } else {
+                images = (try? container.decode([ImageMetadata?].self, forKey: .images)) ?? []
+            }
+        }
+    }
+
+    struct GalleryMetadata: Decodable {
+        let gid: Int
+        let token: String
+        let title: String
+        let category: String
+        let pageCount: Int
+        let galleryURL: String?
+        let uploader: String?
+        let publishTime: String?
+        let insertTime: String?
+        let downloadOriginalImage: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case gid
+            case token
+            case title
+            case category
+            case pageCount
+            case galleryURL = "galleryUrl"
+            case uploader
+            case publishTime
+            case insertTime
+            case downloadOriginalImage
+        }
+    }
+
+    struct ImageMetadata: Decodable {
+        let url: String?
+        let originalImageURL: String?
+
+        enum CodingKeys: String, CodingKey {
+            case url
+            case originalImageURL = "originalImageUrl"
+        }
+    }
+
+    static func pageFiles(
+        in directoryURL: URL,
+        pageCount: Int
+    ) -> [Int: String] {
+        guard let fileURLs = try? FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [:] }
+
+        var pageFiles = [Int: String]()
+        let sortedFileURLs = fileURLs.sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent)
+                == .orderedAscending
+        }
+        for fileURL in sortedFileURLs {
+            let fileExtension = fileURL.pathExtension.lowercased()
+            guard imageExtensions.contains(fileExtension),
+                  let serialNumber = Int(
+                    fileURL.deletingPathExtension().lastPathComponent
+                  ),
+                  (0..<pageCount).contains(serialNumber),
+                  pageFiles[serialNumber + 1] == nil,
+                  let values = try? fileURL.resourceValues(
+                    forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+                  ),
+                  values.isRegularFile == true,
+                  values.isSymbolicLink != true
+            else { continue }
+            pageFiles[serialNumber + 1] = fileURL.lastPathComponent
+        }
+        return pageFiles
+    }
+
+    static func remoteImageURLs(
+        _ images: [ImageMetadata?],
+        pageCount: Int,
+        excluding localIndices: Set<Int>,
+        original: Bool
+    ) -> [Int: URL] {
+        var urls = [Int: URL]()
+        for (offset, image) in images.prefix(pageCount).enumerated() {
+            let index = offset + 1
+            guard !localIndices.contains(index),
+                  let string = original ? image?.originalImageURL : image?.url,
+                  let url = URL(string: string),
+                  let scheme = url.scheme?.lowercased(),
+                  ["http", "https"].contains(scheme),
+                  url.host != nil
+            else { continue }
+            urls[index] = url
+        }
+        return urls
+    }
+
+    static func category(from value: String) -> Category {
+        let normalized = value
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return Category.allCases.first {
+            $0.rawValue.caseInsensitiveCompare(normalized) == .orderedSame
+        } ?? .misc
+    }
+
+    static func date(from value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        let isoFormatter = ISO8601DateFormatter()
+        if let date = isoFormatter.date(from: value) {
+            return date
+        }
+        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm"] {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = format
+            if let date = formatter.date(from: value) {
+                return date
+            }
+        }
+        return nil
+    }
+
+    static func byteCount(
+        of pageFiles: [Int: String],
+        in directoryURL: URL
+    ) -> Int64 {
+        pageFiles.values.reduce(into: 0) { count, fileName in
+            let url = directoryURL.appendingPathComponent(fileName)
+            let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            count += Int64(fileSize)
+        }
+    }
+}
+
 private final class DownloadedCachePage: @unchecked Sendable {
     let index: Int
     let sourceURL: URL
@@ -710,9 +980,6 @@ private actor GalleryCacheManager {
               )
         else { return }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
         for directoryURL in directories {
             guard let resourceValues = try? directoryURL.resourceValues(
                 forKeys: [
@@ -725,21 +992,24 @@ private actor GalleryCacheManager {
                   resourceValues.isSymbolicLink != true
             else { continue }
 
-            let manifestURL = directoryURL.appendingPathComponent(GalleryCacheItem.manifestFileName)
-            guard let manifestValues = try? manifestURL.resourceValues(
-                forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]
+            let decodedItem: GalleryCacheItem
+            let importedFromJHenTai: Bool
+            if let item = decodedCacheItem(from: directoryURL) {
+                decodedItem = item
+                importedFromJHenTai = false
+            } else if let item = JHenTaiCacheImporter.importItem(
+                from: directoryURL,
+                maximumMetadataByteCount: Self.maximumManifestByteCount
             ),
-                  manifestValues.isRegularFile == true,
-                  manifestValues.isSymbolicLink != true,
-                  let manifestSize = manifestValues.fileSize,
-                  manifestSize > 0,
-                  manifestSize <= Self.maximumManifestByteCount,
-                  let data = try? Data(contentsOf: manifestURL, options: .mappedIfSafe),
-                  var item = try? decoder.decode(GalleryCacheItem.self, from: data),
-                  isValidMetadata(item)
-            else { continue }
+                      isValidMetadata(item)
+            {
+                decodedItem = item
+                importedFromJHenTai = true
+            } else {
+                continue
+            }
 
-            let decodedItem = item
+            var item = decodedItem
             item.folderName = directoryURL.lastPathComponent
             if item.directoryIdentifier == nil {
                 item.directoryIdentifier = UUID()
@@ -793,7 +1063,7 @@ private actor GalleryCacheManager {
                 createdByCurrentManager: false
             )
             removeStalePartialFiles(in: standardizedDirectoryURL)
-            if item != decodedItem {
+            if importedFromJHenTai || item != decodedItem {
                 try? writeManifest(item, to: standardizedDirectoryURL)
             }
 
@@ -813,6 +1083,29 @@ private actor GalleryCacheManager {
             }
         }
 
+    }
+
+    private func decodedCacheItem(from directoryURL: URL) -> GalleryCacheItem? {
+        let manifestURL = directoryURL.appendingPathComponent(
+            GalleryCacheItem.manifestFileName
+        )
+        guard let manifestValues = try? manifestURL.resourceValues(
+            forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]
+        ),
+              manifestValues.isRegularFile == true,
+              manifestValues.isSymbolicLink != true,
+              let manifestSize = manifestValues.fileSize,
+              manifestSize > 0,
+              manifestSize <= Self.maximumManifestByteCount,
+              let data = try? Data(contentsOf: manifestURL, options: .mappedIfSafe)
+        else { return nil }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let item = try? decoder.decode(GalleryCacheItem.self, from: data),
+              isValidMetadata(item)
+        else { return nil }
+        return item
     }
 
     @discardableResult
@@ -1891,7 +2184,10 @@ private actor GalleryCacheManager {
     }
 
     private func byteCount(of item: GalleryCacheItem) -> Int64 {
-        let urls = Array(item.localImageURLs.values) + [item.coverFileURL].compactMap { $0 }
+        let urls = Set(
+            Array(item.localImageURLs.values)
+                + [item.coverFileURL].compactMap { $0 }
+        )
         return urls.reduce(into: 0) { count, url in
             let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             count += Int64(fileSize)

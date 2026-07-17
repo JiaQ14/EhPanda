@@ -916,10 +916,11 @@
 "cache_setting_view.title.allows_cellular_access" = "允许使用蜂窝网络";
 "cache_setting_view.title.resumes_automatically" = "启动时继续未完成缓存";
 "cache_setting_view.title.location" = "文件目录";
+"cache_setting_view.title.refresh_library" = "刷新缓存列表";
 "cache_setting_view.section.title.download" = "下载";
 "cache_setting_view.section.title.storage" = "存储";
 "cache_setting_view.section.footer.download" = "原图会占用更多空间。画质变更仅应用于之后新建的缓存。";
-"cache_setting_view.section.footer.storage" = "缓存图片可在“文件 > 我的 iPhone > EhPanda > Downloads”中查看。";
+"cache_setting_view.section.footer.storage" = "缓存图片可在“文件 > 我的 iPhone > EhPanda > Downloads”中查看。刷新列表可同步在“文件”中添加或删除的兼容文件夹，包括 JHenTai 下载。";
 "cache_setting_view.value.standard" = "标准图";
 "cache_setting_view.value.original" = "原图";
 

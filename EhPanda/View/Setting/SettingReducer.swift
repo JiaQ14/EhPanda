@@ -32,6 +32,7 @@ struct SettingReducer {
 
         var route: Route?
         var tagTranslatorLoadingState: LoadingState = .idle
+        var isRefreshingCacheLibrary = false
 
         var accountSettingState = AccountSettingReducer.State()
         var generalSettingState = GeneralSettingReducer.State()
@@ -93,6 +94,8 @@ struct SettingReducer {
         case fetchEhProfileIndexDone(Result<VerifyEhProfileResponse, AppError>)
         case fetchFavoriteCategories
         case fetchFavoriteCategoriesDone(Result<[Int: String], AppError>)
+        case refreshCacheLibrary
+        case refreshCacheLibraryDone
 
         case account(AccountSettingReducer.Action)
         case general(GeneralSettingReducer.Action)
@@ -110,6 +113,7 @@ struct SettingReducer {
     @Dependency(\.deviceClient) private var deviceClient
     @Dependency(\.fileClient) private var fileClient
     @Dependency(\.dfClient) private var dfClient
+    @Dependency(\.cacheClient) private var cacheClient
 
     var body: some Reducer<State, Action> {
         BindingReducer()
@@ -462,6 +466,18 @@ struct SettingReducer {
                 if case .success(let categories) = result {
                     state.user.favoriteCategories = categories
                 }
+                return .none
+
+            case .refreshCacheLibrary:
+                guard !state.isRefreshingCacheLibrary else { return .none }
+                state.isRefreshingCacheLibrary = true
+                return .run { send in
+                    await cacheClient.refresh()
+                    await send(.refreshCacheLibraryDone)
+                }
+
+            case .refreshCacheLibraryDone:
+                state.isRefreshingCacheLibrary = false
                 return .none
 
             case .account(.login(.loginDone)):

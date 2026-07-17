@@ -916,10 +916,11 @@
 "cache_setting_view.title.allows_cellular_access" = "モバイルデータ通信を使用";
 "cache_setting_view.title.resumes_automatically" = "起動時に未完了のキャッシュを再開";
 "cache_setting_view.title.location" = "ファイルの保存先";
+"cache_setting_view.title.refresh_library" = "キャッシュ一覧を更新";
 "cache_setting_view.section.title.download" = "ダウンロード";
 "cache_setting_view.section.title.storage" = "ストレージ";
 "cache_setting_view.section.footer.download" = "原寸画像はより多くのストレージを使用します。変更は新しくキャッシュするギャラリーに適用されます。";
-"cache_setting_view.section.footer.storage" = "キャッシュしたページは「ファイル > このiPhone内 > EhPanda > Downloads」で確認できます。";
+"cache_setting_view.section.footer.storage" = "キャッシュしたページは「ファイル > このiPhone内 > EhPanda > Downloads」で確認できます。更新すると、JHenTai のダウンロードを含む互換フォルダの追加や削除が同期されます。";
 "cache_setting_view.value.standard" = "標準";
 "cache_setting_view.value.original" = "原寸";
 

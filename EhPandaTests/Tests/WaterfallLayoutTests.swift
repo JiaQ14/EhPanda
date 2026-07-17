@@ -631,6 +631,114 @@ private final class WaterfallLayoutTestCell: UICollectionViewCell {
     }
 }
 
+final class JHenTaiCacheImporterTests: XCTestCase {
+    private var directoryURL: URL!
+
+    override func setUpWithError() throws {
+        directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("123456 - Imported Gallery", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+    }
+
+    override func tearDownWithError() throws {
+        if let directoryURL {
+            try? FileManager.default.removeItem(
+                at: directoryURL.deletingLastPathComponent()
+            )
+        }
+    }
+
+    func testImportsJHenTaiMetadataAndZeroBasedPageFiles() throws {
+        try writeMetadata(pageCount: 3, downloadsOriginalImages: true)
+        try Data([0x01]).write(to: directoryURL.appendingPathComponent("0.jpg"))
+        try Data([0x02, 0x03]).write(to: directoryURL.appendingPathComponent("2.png"))
+
+        let item = try XCTUnwrap(
+            JHenTaiCacheImporter.importItem(
+                from: directoryURL,
+                maximumMetadataByteCount: 1_000_000
+            )
+        )
+
+        XCTAssertEqual(item.id, "123456")
+        XCTAssertEqual(item.displayTitle, "Imported Gallery")
+        XCTAssertEqual(item.gallery.category, .manga)
+        XCTAssertEqual(item.pageCount, 3)
+        XCTAssertEqual(item.pageFiles, [1: "0.jpg", 3: "2.png"])
+        XCTAssertEqual(item.coverFileName, "0.jpg")
+        XCTAssertEqual(item.remoteImageURLs[2]?.absoluteString, "https://example.com/1.jpg")
+        XCTAssertEqual(
+            item.originalImageURLs[2]?.absoluteString,
+            "https://example.com/original-1.jpg"
+        )
+        XCTAssertEqual(item.imageQuality, .original)
+        XCTAssertEqual(item.status, .paused)
+        XCTAssertEqual(item.byteCount, 3)
+    }
+
+    func testMarksFullyImportedJHenTaiGalleryCompleted() throws {
+        try writeMetadata(pageCount: 2, downloadsOriginalImages: false)
+        try Data([0x01]).write(to: directoryURL.appendingPathComponent("0.webp"))
+        try Data([0x02]).write(to: directoryURL.appendingPathComponent("1.jpeg"))
+
+        let item = try XCTUnwrap(
+            JHenTaiCacheImporter.importItem(
+                from: directoryURL,
+                maximumMetadataByteCount: 1_000_000
+            )
+        )
+
+        XCTAssertEqual(item.cachedPageCount, 2)
+        XCTAssertEqual(item.status, .completed)
+        XCTAssertTrue(item.isComplete)
+        XCTAssertEqual(item.imageQuality, .standard)
+    }
+
+    func testRejectsDirectoryWithoutJHenTaiMetadata() {
+        XCTAssertNil(
+            JHenTaiCacheImporter.importItem(
+                from: directoryURL,
+                maximumMetadataByteCount: 1_000_000
+            )
+        )
+    }
+
+    private func writeMetadata(
+        pageCount: Int,
+        downloadsOriginalImages: Bool
+    ) throws {
+        let images = (0..<pageCount).map { index in
+            [
+                "url": "https://example.com/\(index).jpg",
+                "originalImageUrl": "https://example.com/original-\(index).jpg",
+                "downloadStatus": 4
+            ] as [String: Any]
+        }
+        let imagesData = try JSONSerialization.data(withJSONObject: images)
+        let payload: [String: Any] = [
+            "gallery": [
+                "gid": 123456,
+                "token": "token",
+                "title": "Imported Gallery",
+                "category": "Manga",
+                "pageCount": pageCount,
+                "galleryUrl": "https://e-hentai.org/g/123456/token/",
+                "uploader": "Uploader",
+                "publishTime": "2026-07-18 12:30:00",
+                "insertTime": "2026-07-18 12:31:00",
+                "downloadOriginalImage": downloadsOriginalImages
+            ],
+            "images": try XCTUnwrap(String(data: imagesData, encoding: .utf8))
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try data.write(to: directoryURL.appendingPathComponent("metadata"))
+    }
+}
+
 final class GalleryIdentityTests: XCTestCase {
     func testEqualGalleryValuesHaveEqualHashes() {
         let first = makeGallery(title: "First")

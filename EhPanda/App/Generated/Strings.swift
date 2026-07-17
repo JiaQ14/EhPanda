@@ -323,6 +323,8 @@ internal enum L10n {
         internal static let imageQuality = L10n.tr("Localizable", "cache_setting_view.title.image_quality", fallback: "Image quality")
         /// Files folder
         internal static let location = L10n.tr("Localizable", "cache_setting_view.title.location", fallback: "Files folder")
+        /// Refresh Cache Library
+        internal static let refreshLibrary = L10n.tr("Localizable", "cache_setting_view.title.refresh_library", fallback: "Refresh Cache Library")
         /// Resume unfinished caches at launch
         internal static let resumesAutomatically = L10n.tr("Localizable", "cache_setting_view.title.resumes_automatically", fallback: "Resume unfinished caches at launch")
       }

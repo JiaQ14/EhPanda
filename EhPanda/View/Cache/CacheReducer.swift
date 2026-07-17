@@ -22,6 +22,7 @@ struct CacheReducer {
         var items = [GalleryCacheItem]()
         var searchText = ""
         var hasStartedObservation = false
+        var hasRefreshedLibrary = false
         var hasRestoredDownloads = false
         var detailState: Heap<DetailReducer.State?> = .init(.init())
 
@@ -74,16 +75,24 @@ struct CacheReducer {
                     state.hasStartedObservation = true
                     effects.append(.send(.observeUpdates))
                 }
+                let shouldRefreshLibrary = !state.hasRefreshedLibrary
+                if shouldRefreshLibrary {
+                    state.hasRefreshedLibrary = true
+                }
                 let shouldRestoreDownloads = !state.hasRestoredDownloads && resumesAutomatically
                 if !state.hasRestoredDownloads {
                     state.hasRestoredDownloads = true
                 }
-                effects.append(.run { _ in
-                    await cacheClient.refresh()
-                    if shouldRestoreDownloads {
-                        await cacheClient.restoreInterrupted(options)
-                    }
-                })
+                if shouldRefreshLibrary || shouldRestoreDownloads {
+                    effects.append(.run { _ in
+                        if shouldRefreshLibrary {
+                            await cacheClient.refresh()
+                        }
+                        if shouldRestoreDownloads {
+                            await cacheClient.restoreInterrupted(options)
+                        }
+                    })
+                }
                 return effects.isEmpty ? .none : .merge(effects)
 
             case .observeUpdates:

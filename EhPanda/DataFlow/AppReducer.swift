@@ -64,10 +64,7 @@ struct AppReducer {
                     case .active:
                         let threshold = state.settingState.setting.autoLockPolicy.rawValue
                         let blurRadius = state.settingState.setting.backgroundBlurRadius
-                        return .merge(
-                            .send(.appLock(.onBecomeActive(threshold, blurRadius))),
-                            .send(.cache(.refresh))
-                        )
+                        return .send(.appLock(.onBecomeActive(threshold, blurRadius)))
 
                     case .inactive:
                         let blurRadius = state.settingState.setting.backgroundBlurRadius

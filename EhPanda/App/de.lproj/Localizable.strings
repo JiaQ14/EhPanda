@@ -916,10 +916,11 @@
 "cache_setting_view.title.allows_cellular_access" = "Mobile Daten verwenden";
 "cache_setting_view.title.resumes_automatically" = "Unvollständige Cache-Downloads beim Start fortsetzen";
 "cache_setting_view.title.location" = "Dateiordner";
+"cache_setting_view.title.refresh_library" = "Cache-Liste aktualisieren";
 "cache_setting_view.section.title.download" = "Download";
 "cache_setting_view.section.title.storage" = "Speicher";
 "cache_setting_view.section.footer.download" = "Originalbilder benötigen mehr Speicherplatz. Änderungen gelten für neu angelegte Caches.";
-"cache_setting_view.section.footer.storage" = "Zwischengespeicherte Seiten sind unter Dateien > Auf meinem iPhone > EhPanda > Downloads verfügbar.";
+"cache_setting_view.section.footer.storage" = "Zwischengespeicherte Seiten sind unter Dateien > Auf meinem iPhone > EhPanda > Downloads verfügbar. Beim Aktualisieren werden hinzugefügte oder entfernte kompatible Ordner synchronisiert, einschließlich JHenTai-Downloads.";
 "cache_setting_view.value.standard" = "Standard";
 "cache_setting_view.value.original" = "Original";
 

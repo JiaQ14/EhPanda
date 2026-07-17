@@ -109,7 +109,11 @@ private extension SettingView {
                 imageQuality: $store.setting.cacheImageQuality,
                 concurrentDownloads: $store.setting.cacheConcurrentDownloads,
                 allowsCellularAccess: $store.setting.cacheAllowsCellularAccess,
-                resumesAutomatically: $store.setting.cacheResumesAutomatically
+                resumesAutomatically: $store.setting.cacheResumesAutomatically,
+                isRefreshingLibrary: store.isRefreshingCacheLibrary,
+                refreshLibraryAction: {
+                    store.send(.refreshCacheLibrary)
+                }
             )
             .tint(store.setting.accentColor)
         }

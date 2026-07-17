@@ -10,6 +10,8 @@ struct CacheSettingView: View {
     @Binding var concurrentDownloads: Int
     @Binding var allowsCellularAccess: Bool
     @Binding var resumesAutomatically: Bool
+    let isRefreshingLibrary: Bool
+    let refreshLibraryAction: () -> Void
 
     var body: some View {
         Form {
@@ -51,6 +53,20 @@ struct CacheSettingView: View {
                     L10n.Localizable.CacheSettingView.Title.location,
                     value: "Downloads"
                 )
+                Button(action: refreshLibraryAction) {
+                    HStack {
+                        Label(
+                            L10n.Localizable.CacheSettingView.Title.refreshLibrary,
+                            systemImage: "arrow.clockwise"
+                        )
+                        Spacer()
+                        if isRefreshingLibrary {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+                }
+                .disabled(isRefreshingLibrary)
             } header: {
                 Text(L10n.Localizable.CacheSettingView.Section.Title.storage)
             } footer: {

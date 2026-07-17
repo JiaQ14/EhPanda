@@ -916,10 +916,11 @@
 "cache_setting_view.title.allows_cellular_access" = "Use cellular data";
 "cache_setting_view.title.resumes_automatically" = "Resume unfinished caches at launch";
 "cache_setting_view.title.location" = "Files folder";
+"cache_setting_view.title.refresh_library" = "Refresh Cache Library";
 "cache_setting_view.section.title.download" = "Download";
 "cache_setting_view.section.title.storage" = "Storage";
 "cache_setting_view.section.footer.download" = "Original images use more storage. Changes apply to newly cached galleries.";
-"cache_setting_view.section.footer.storage" = "Cached pages are available in Files > On My iPhone > EhPanda > Downloads.";
+"cache_setting_view.section.footer.storage" = "Cached pages are available in Files > On My iPhone > EhPanda > Downloads. Refresh to sync compatible folders added or removed in Files, including JHenTai downloads.";
 "cache_setting_view.value.standard" = "Standard";
 "cache_setting_view.value.original" = "Original";
 

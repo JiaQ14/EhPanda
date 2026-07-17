@@ -916,10 +916,11 @@
 "cache_setting_view.title.allows_cellular_access" = "允許使用行動數據";
 "cache_setting_view.title.resumes_automatically" = "啟動時繼續未完成的快取";
 "cache_setting_view.title.location" = "檔案目錄";
+"cache_setting_view.title.refresh_library" = "重新整理快取列表";
 "cache_setting_view.section.title.download" = "下載";
 "cache_setting_view.section.title.storage" = "儲存空間";
 "cache_setting_view.section.footer.download" = "原圖會佔用更多儲存空間。畫質變更僅適用於之後新增的快取。";
-"cache_setting_view.section.footer.storage" = "快取圖片可在「檔案 > 我的 iPhone > EhPanda > Downloads」中查看。";
+"cache_setting_view.section.footer.storage" = "快取圖片可在「檔案 > 我的 iPhone > EhPanda > Downloads」中查看。重新整理可同步在「檔案」中新增或刪除的相容資料夾，包括 JHenTai 下載。";
 "cache_setting_view.value.standard" = "標準圖";
 "cache_setting_view.value.original" = "原圖";
 
