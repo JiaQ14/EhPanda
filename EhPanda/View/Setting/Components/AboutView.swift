@@ -180,10 +180,6 @@ struct AboutView: View {
             text: L10n.Constant.App.Acknowledgement.Text.swiftyBeaver
         ),
         .init(
-            urlString: L10n.Constant.App.Acknowledgement.Link.waterfallGrid,
-            text: L10n.Constant.App.Acknowledgement.Text.waterfallGrid
-        ),
-        .init(
             urlString: L10n.Constant.App.Acknowledgement.Link.swiftyOpenCC,
             text: L10n.Constant.App.Acknowledgement.Text.swiftyOpenCC
         ),

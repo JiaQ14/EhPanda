@@ -30,6 +30,7 @@ struct FrontpageView: View {
         GenericList(
             galleries: store.filteredGalleries,
             setting: setting,
+            translationRevision: tagTranslator.renderRevision,
             pageNumber: store.pageNumber,
             loadingState: store.loadingState,
             footerLoadingState: store.footerLoadingState,

@@ -29,6 +29,7 @@ struct HistoryView: View {
         GenericList(
             galleries: store.filteredGalleries,
             setting: setting,
+            translationRevision: tagTranslator.renderRevision,
             pageNumber: nil,
             loadingState: store.loadingState,
             footerLoadingState: .idle,

@@ -48,8 +48,6 @@ internal enum L10n {
           internal static let ttProgressHUD = L10n.tr("Constant", "app.acknowledgement.link.ttProgressHUD", fallback: "https://github.com/honkmaster/TTProgressHUD")
           /// https://github.com/jathu/UIImageColors
           internal static let uiImageColors = L10n.tr("Constant", "app.acknowledgement.link.uiImageColors", fallback: "https://github.com/jathu/UIImageColors")
-          /// https://github.com/paololeonardi/WaterfallGrid
-          internal static let waterfallGrid = L10n.tr("Constant", "app.acknowledgement.link.waterfallGrid", fallback: "https://github.com/paololeonardi/WaterfallGrid")
         }
         internal enum Text {
           /// AlertKit
@@ -84,8 +82,6 @@ internal enum L10n {
           internal static let ttProgressHUD = L10n.tr("Constant", "app.acknowledgement.text.ttProgressHUD", fallback: "TTProgressHUD")
           /// UIImageColors
           internal static let uiImageColors = L10n.tr("Constant", "app.acknowledgement.text.uiImageColors", fallback: "UIImageColors")
-          /// WaterfallGrid
-          internal static let waterfallGrid = L10n.tr("Constant", "app.acknowledgement.text.waterfallGrid", fallback: "WaterfallGrid")
         }
       }
       internal enum CodeLevelContributor {

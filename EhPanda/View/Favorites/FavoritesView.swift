@@ -63,6 +63,8 @@ struct FavoritesView: View {
                 GenericList(
                     galleries: store.galleries ?? [],
                     setting: setting,
+                    translationRevision: tagTranslator.renderRevision,
+                    datasetIdentity: store.index,
                     pageNumber: store.pageNumber,
                     loadingState: store.loadingState ?? .idle,
                     footerLoadingState: store.footerLoadingState ?? .idle,

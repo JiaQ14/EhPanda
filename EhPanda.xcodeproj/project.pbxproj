@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0DE10000000000000000010 /* WaterfallCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000010 /* WaterfallCollectionView.swift */; };
+		C0DE10000000000000000011 /* WaterfallLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000011 /* WaterfallLayoutTests.swift */; };
 		CACE10000000000000000001 /* GalleryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000001 /* GalleryCache.swift */; };
 		CACE10000000000000000002 /* CacheClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000002 /* CacheClient.swift */; };
 		CACE10000000000000000003 /* CacheReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000003 /* CacheReducer.swift */; };
@@ -112,7 +114,6 @@
 		AB58A5B22776B99000C0D285 /* AppReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB58A5B12776B99000C0D285 /* AppReducer.swift */; };
 		AB5BE67926B95FDD007D4A55 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB5BE67826B95FDD007D4A55 /* ShareViewController.swift */; };
 		AB5BE68026B95FDD007D4A55 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB5BE67626B95FDD007D4A55 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		AB60D0E9274C7ECE00F899AB /* WaterfallGrid in Frameworks */ = {isa = PBXBuildFile; productRef = AB60D0E8274C7ECE00F899AB /* WaterfallGrid */; };
 		AB63EADB2699AC8200090535 /* AppEnvMO+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB63EADA2699AC8200090535 /* AppEnvMO+CoreDataProperties.swift */; };
 		AB63EADD2699AC9100090535 /* AppEnvMO+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB63EADC2699AC9100090535 /* AppEnvMO+CoreDataClass.swift */; };
 		AB6505A026B0027800F91E9D /* SwiftUIPager in Frameworks */ = {isa = PBXBuildFile; productRef = AB65059F26B0027800F91E9D /* SwiftUIPager */; };
@@ -455,6 +456,8 @@
 		AB706FA4278C3DDE0025A48A /* PreviewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewsView.swift; sourceTree = "<group>"; };
 		AB7B29F126AC471E00EE1F14 /* Model5toModel6MigrationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model5toModel6MigrationPolicy.swift; sourceTree = "<group>"; };
 		AB7B29F526AC741600EE1F14 /* GenericList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericList.swift; sourceTree = "<group>"; };
+		C0DE00000000000000000010 /* WaterfallCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallCollectionView.swift; sourceTree = "<group>"; };
+		C0DE00000000000000000011 /* WaterfallLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallLayoutTests.swift; sourceTree = "<group>"; };
 		AB7BF2A827A63C89001865A3 /* Language.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Language.swift; sourceTree = "<group>"; };
 		AB7BF2AA27A642FB001865A3 /* BrowsingCountry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingCountry.swift; sourceTree = "<group>"; };
 		AB7BF2B627A9652F001865A3 /* Greeting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Greeting.swift; sourceTree = "<group>"; };
@@ -637,7 +640,6 @@
 				AB17574027678B3400FD64E2 /* UIImageColors in Frameworks */,
 				AB2EB9A2280251F600011A8A /* AlertKit in Frameworks */,
 				ABD7005926B1C31500DC59C9 /* Kanna in Frameworks */,
-				AB60D0E9274C7ECE00F899AB /* WaterfallGrid in Frameworks */,
 				ABC4A0792751B40E00968A4F /* Kingfisher in Frameworks */,
 				EAE63E2129E2A6330048C601 /* SwiftyBeaver in Frameworks */,
 				AB26F59927ACDB4200AB3468 /* FilePicker in Frameworks */,
@@ -1118,6 +1120,7 @@
 		ABA12F2E27D49AD10021922D /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				C0DE00000000000000000011 /* WaterfallLayoutTests.swift */,
 				ABD9770C27B65A5300983DE7 /* Parser */,
 			);
 			path = Tests;
@@ -1303,6 +1306,7 @@
 			children = (
 				AB24C564276758D00085C33A /* Cells */,
 				AB7B29F526AC741600EE1F14 /* GenericList.swift */,
+				C0DE00000000000000000010 /* WaterfallCollectionView.swift */,
 				ABD4032726B7967F00001B8C /* CategoryView.swift */,
 				ABF45ACD25F3313D00ECB568 /* Placeholder.swift */,
 				ABF45AC725F3313D00ECB568 /* TagCloudView.swift */,
@@ -1600,7 +1604,6 @@
 				AB65059F26B0027800F91E9D /* SwiftUIPager */,
 				ABD7005826B1C31500DC59C9 /* Kanna */,
 				ABAC82FD26BC4A96009F5026 /* OpenCC */,
-				AB60D0E8274C7ECE00F899AB /* WaterfallGrid */,
 				ABC4A0782751B40E00968A4F /* Kingfisher */,
 				AB17573C27675B1E00FD64E2 /* Colorful */,
 				AB17573F27678B3400FD64E2 /* UIImageColors */,
@@ -1678,7 +1681,6 @@
 				AB65059E26B0027800F91E9D /* XCRemoteSwiftPackageReference "SwiftUIPager" */,
 				ABD7005726B1C31500DC59C9 /* XCRemoteSwiftPackageReference "Kanna" */,
 				ABAC82FC26BC4866009F5026 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */,
-				AB60D0E7274C7ECE00F899AB /* XCRemoteSwiftPackageReference "WaterfallGrid" */,
 				ABC4A0772751B40E00968A4F /* XCRemoteSwiftPackageReference "Kingfisher" */,
 				AB17573B27675B1E00FD64E2 /* XCRemoteSwiftPackageReference "Colorful" */,
 				AB17573E27678B3400FD64E2 /* XCRemoteSwiftPackageReference "UIImageColors" */,
@@ -1848,6 +1850,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE10000000000000000010 /* WaterfallCollectionView.swift in Sources */,
 				CACE10000000000000000001 /* GalleryCache.swift in Sources */,
 				CACE10000000000000000002 /* CacheClient.swift in Sources */,
 				CACE10000000000000000003 /* CacheReducer.swift in Sources */,
@@ -2040,6 +2043,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE10000000000000000011 /* WaterfallLayoutTests.swift in Sources */,
 				AB31CD3D27B66F7D00F40E0A /* GalleryImageURLParserTests.swift in Sources */,
 				AB0CFB8227BBBFCE004BD372 /* EhSettingParserTests.swift in Sources */,
 				AB31CD4327B676C300F40E0A /* GalleryMPVKeysParserTests.swift in Sources */,
@@ -2498,14 +2502,6 @@
 				kind = branch;
 			};
 		};
-		AB60D0E7274C7ECE00F899AB /* XCRemoteSwiftPackageReference "WaterfallGrid" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/paololeonardi/WaterfallGrid";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
-			};
-		};
 		AB65059E26B0027800F91E9D /* XCRemoteSwiftPackageReference "SwiftUIPager" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/fermoya/SwiftUIPager";
@@ -2607,11 +2603,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AB2EB9A32802521700011A8A /* XCRemoteSwiftPackageReference "DeprecatedAPI" */;
 			productName = DeprecatedAPI;
-		};
-		AB60D0E8274C7ECE00F899AB /* WaterfallGrid */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AB60D0E7274C7ECE00F899AB /* XCRemoteSwiftPackageReference "WaterfallGrid" */;
-			productName = WaterfallGrid;
 		};
 		AB65059F26B0027800F91E9D /* SwiftUIPager */ = {
 			isa = XCSwiftPackageProductDependency;

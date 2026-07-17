@@ -15,8 +15,6 @@ where TagCell: View, Element: Equatable & Identifiable, ID == Element.ID {
     private let spacing: Double
     private let content: (Element) -> TagCell
 
-    @State private var totalHeight = CGFloat.zero
-
     init<Data: RandomAccessCollection>(
         data: Data, id: KeyPath<Element, ID> = \Element.id, spacing: Double = 4,
         @ViewBuilder content: @escaping (Element) -> TagCell
@@ -28,57 +26,133 @@ where TagCell: View, Element: Equatable & Identifiable, ID == Element.ID {
     }
 
     var body: some View {
-        VStack {
-            GeometryReader { geometry in
-                generateContent(in: geometry)
+        TagCloudLayout(spacing: spacing) {
+            ForEach(data, id: id) { element in
+                content(element)
             }
         }
-        .frame(height: totalHeight)
     }
 }
 
-private extension TagCloudView {
-    func generateContent(in proxy: GeometryProxy) -> some View {
-        ZStack(alignment: .topLeading) {
-            var width = CGFloat.zero
-            var height = CGFloat.zero
-            ForEach(data, id: id) { content in
-                self.content(content)
-                    .padding([.trailing, .bottom], spacing)
-                    .alignmentGuide(.leading, computeValue: { [proxyWidth = proxy.size.width] dimensions in
-                        if abs(width - dimensions.width) > proxyWidth {
-                            width = 0
-                            height -= dimensions.height
-                        }
-                        let result = width
-                        if content == data.last {
-                            width = 0 // last item
-                        } else {
-                            width -= dimensions.width
-                        }
-                        return result
-                    })
-                    .alignmentGuide(.top, computeValue: { _ in
-                        let result = height
-                        if content == data.last {
-                            height = 0 // last item
-                        }
-                        return result
-                    })
-            }
-        }
-        .background(viewHeightReader(binding: $totalHeight))
+private struct TagCloudLayout: Layout {
+    typealias Cache = TagCloudLayoutCache
+
+    let spacing: CGFloat
+
+    func makeCache(subviews: Subviews) -> Cache {
+        .init()
     }
 
-    func viewHeightReader(binding: Binding<CGFloat>) -> some View {
-        GeometryReader { geometry -> Color in
-            let rect = geometry.frame(in: .local)
-            DispatchQueue.main.async {
-                binding.wrappedValue = rect.size.height
-            }
-            return .clear
+    func updateCache(_ cache: inout Cache, subviews: Subviews) {
+        cache = .init()
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout Cache
+    ) -> CGSize {
+        let result = layout(
+            subviews: subviews,
+            width: proposal.width ?? .greatestFiniteMagnitude,
+            cache: &cache
+        )
+        return .init(
+            width: proposal.width ?? result.contentWidth,
+            height: result.contentHeight
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout Cache
+    ) {
+        let result = layout(
+            subviews: subviews,
+            width: bounds.width,
+            cache: &cache
+        )
+        for (index, subview) in subviews.enumerated() {
+            subview.place(
+                at: .init(
+                    x: bounds.minX + result.origins[index].x,
+                    y: bounds.minY + result.origins[index].y
+                ),
+                anchor: .topLeading,
+                proposal: .init(result.sizes[index])
+            )
         }
     }
+
+    private func layout(
+        subviews: Subviews,
+        width: CGFloat,
+        cache: inout Cache
+    ) -> TagCloudLayoutResult {
+        let availableWidth = max(width, 0)
+        let key = TagCloudLayoutCache.Key(
+            availableWidth: availableWidth,
+            spacing: spacing,
+            subviewCount: subviews.count
+        )
+        if cache.key == key, let result = cache.result {
+            return result
+        }
+
+        var origins = [CGPoint]()
+        var sizes = [CGSize]()
+        var currentX = CGFloat.zero
+        var currentY = CGFloat.zero
+        var rowHeight = CGFloat.zero
+        var contentWidth = CGFloat.zero
+
+        for subview in subviews {
+            let proposedWidth = availableWidth.isFinite ? availableWidth : nil
+            let size = subview.sizeThatFits(
+                .init(width: proposedWidth, height: nil)
+            )
+            if currentX > 0, currentX + size.width > availableWidth {
+                currentX = 0
+                currentY += rowHeight + spacing
+                rowHeight = 0
+            }
+
+            origins.append(.init(x: currentX, y: currentY))
+            sizes.append(size)
+            contentWidth = max(contentWidth, currentX + size.width)
+            currentX += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+
+        let result = TagCloudLayoutResult(
+            origins: origins,
+            sizes: sizes,
+            contentWidth: contentWidth,
+            contentHeight: subviews.isEmpty ? 0 : currentY + rowHeight
+        )
+        cache = .init(key: key, result: result)
+        return result
+    }
+}
+
+private struct TagCloudLayoutCache {
+    struct Key: Equatable {
+        let availableWidth: CGFloat
+        let spacing: CGFloat
+        let subviewCount: Int
+    }
+
+    var key: Key?
+    var result: TagCloudLayoutResult?
+}
+
+private struct TagCloudLayoutResult {
+    let origins: [CGPoint]
+    let sizes: [CGSize]
+    let contentWidth: CGFloat
+    let contentHeight: CGFloat
 }
 
 struct TagCloudCell: View {

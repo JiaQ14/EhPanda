@@ -38,11 +38,7 @@ struct DetailSearchReducer {
         }
 
         mutating func insertGalleries(_ galleries: [Gallery]) {
-            galleries.forEach { gallery in
-                if !self.galleries.contains(gallery) {
-                    self.galleries.append(gallery)
-                }
-            }
+            self.galleries.appendUniqueGalleries(galleries)
         }
     }
 

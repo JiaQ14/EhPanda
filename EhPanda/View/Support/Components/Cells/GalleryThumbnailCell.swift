@@ -8,14 +8,22 @@ import Kingfisher
 
 struct GalleryThumbnailCell: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
 
     private let gallery: Gallery
     private let setting: Setting
+    private let availableWidth: CGFloat
     private let translateAction: ((String) -> (String, TagTranslation?))?
 
-    init(gallery: Gallery, setting: Setting, translateAction: ((String) -> (String, TagTranslation?))? = nil) {
+    init(
+        gallery: Gallery,
+        setting: Setting,
+        availableWidth: CGFloat = Defaults.ImageSize.rowW * 2,
+        translateAction: ((String) -> (String, TagTranslation?))? = nil
+    ) {
         self.gallery = gallery
         self.setting = setting
+        self.availableWidth = availableWidth
         self.translateAction = translateAction
     }
 
@@ -25,6 +33,13 @@ struct GalleryThumbnailCell: View {
     private var tagColor: Color {
         colorScheme == .light ? Color(.systemGray5) : Color(.systemGray4)
     }
+    private var coverPixelSize: CGSize {
+        let width = max(availableWidth, 1)
+        return .init(
+            width: width * displayScale,
+            height: width / Defaults.ImageSize.webtoonMinAspect * displayScale
+        )
+    }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -32,11 +47,15 @@ struct GalleryThumbnailCell: View {
         VStack(alignment: .leading, spacing: 0) {
             KFImage(gallery.coverURL)
                 .placeholder { Placeholder(style: .activity(ratio: Defaults.ImageSize.rowAspect)) }
+                .downsampling(size: coverPixelSize)
+                .backgroundDecode()
+                .loadDiskFileSynchronously(false)
+                .cancelOnDisappear(true)
                 .imageModifier(WebtoonModifier(
                     minAspect: Defaults.ImageSize.webtoonMinAspect,
                     idealAspect: Defaults.ImageSize.webtoonIdealAspect
                 ))
-                .fade(duration: 0.25).resizable().scaledToFit().overlay {
+                .fade(duration: 0.15).resizable().scaledToFit().overlay {
                     VStack {
                         HStack {
                             Spacer()

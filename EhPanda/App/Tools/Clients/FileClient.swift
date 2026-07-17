@@ -75,7 +75,11 @@ extension FileClient {
                 continuation.resume(returning: .failure(.parseFailed))
                 return
             }
-                continuation.resume(returning: .success(.init(hasCustomTranslations: true, translations: translations)))
+                continuation.resume(returning: .success(.init(
+                    hasCustomTranslations: true,
+                    updatedDate: .now,
+                    translations: translations
+                )))
             }
         }
     )

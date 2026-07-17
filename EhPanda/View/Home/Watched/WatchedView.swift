@@ -31,6 +31,7 @@ struct WatchedView: View {
                 GenericList(
                     galleries: store.galleries,
                     setting: setting,
+                    translationRevision: tagTranslator.renderRevision,
                     pageNumber: store.pageNumber,
                     loadingState: store.loadingState,
                     footerLoadingState: store.footerLoadingState,

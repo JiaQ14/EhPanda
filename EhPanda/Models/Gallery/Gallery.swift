@@ -9,6 +9,9 @@ struct Gallery: Identifiable, Codable, Equatable, Hashable {
     static func == (lhs: Gallery, rhs: Gallery) -> Bool {
         lhs.gid == rhs.gid
     }
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(gid)
+    }
 
     static func mockGalleries(count: Int, randomID: Bool = true) -> [Gallery] {
         guard randomID, count > 0 else {
@@ -84,6 +87,13 @@ struct Gallery: Identifiable, Codable, Equatable, Hashable {
     let coverURL: URL?
     let galleryURL: URL?
     var lastOpenDate: Date?
+}
+
+extension Array where Element == Gallery {
+    mutating func appendUniqueGalleries(_ galleries: [Gallery]) {
+        var existingIDs = Set(map(\.id))
+        append(contentsOf: galleries.filter { existingIDs.insert($0.id).inserted })
+    }
 }
 
 extension Gallery: DateFormattable, CustomStringConvertible {

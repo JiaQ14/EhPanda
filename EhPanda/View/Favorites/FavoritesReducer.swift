@@ -49,11 +49,7 @@ struct FavoritesReducer {
         }
 
         mutating func insertGalleries(index: Int, galleries: [Gallery]) {
-            galleries.forEach { gallery in
-                if rawGalleries[index]?.contains(gallery) == false {
-                    rawGalleries[index]?.append(gallery)
-                }
-            }
+            rawGalleries[index]?.appendUniqueGalleries(galleries)
         }
     }
 

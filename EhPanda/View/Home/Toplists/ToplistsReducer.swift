@@ -59,11 +59,7 @@ struct ToplistsReducer {
         }
 
         mutating func insertGalleries(type: ToplistsType, galleries: [Gallery]) {
-            galleries.forEach { gallery in
-                if rawGalleries[type]?.contains(gallery) == false {
-                    rawGalleries[type]?.append(gallery)
-                }
-            }
+            rawGalleries[type]?.appendUniqueGalleries(galleries)
         }
     }
 

@@ -33,6 +33,8 @@ struct ToplistsView: View {
         GenericList(
             galleries: store.filteredGalleries ?? [],
             setting: setting,
+            translationRevision: tagTranslator.renderRevision,
+            datasetIdentity: store.type,
             pageNumber: store.pageNumber,
             loadingState: store.loadingState ?? .idle,
             footerLoadingState: store.footerLoadingState ?? .idle,

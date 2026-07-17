@@ -4,12 +4,13 @@
 //
 
 import SwiftUI
-import WaterfallGrid
 import ComposableArchitecture
 
 struct GenericList: View {
     private let galleries: [Gallery]
     private let setting: Setting
+    private let translationRevision: TagTranslator.RenderRevision?
+    private let datasetIdentity: AnyHashable
     private let pageNumber: PageNumber?
     private let loadingState: LoadingState
     private let footerLoadingState: LoadingState
@@ -19,7 +20,10 @@ struct GenericList: View {
     private let translateAction: ((String) -> (String, TagTranslation?))?
 
     init(
-        galleries: [Gallery], setting: Setting, pageNumber: PageNumber?,
+        galleries: [Gallery], setting: Setting,
+        translationRevision: TagTranslator.RenderRevision? = nil,
+        datasetIdentity: AnyHashable = AnyHashable(0),
+        pageNumber: PageNumber?,
         loadingState: LoadingState, footerLoadingState: LoadingState,
         fetchAction: (() -> Void)? = nil,
         fetchMoreAction: (() -> Void)? = nil,
@@ -28,6 +32,8 @@ struct GenericList: View {
     ) {
         self.galleries = galleries
         self.setting = setting
+        self.translationRevision = translationRevision
+        self.datasetIdentity = datasetIdentity
         self.pageNumber = pageNumber
         self.loadingState = loadingState
         self.footerLoadingState = footerLoadingState
@@ -47,10 +53,14 @@ struct GenericList: View {
                         footerLoadingState: footerLoadingState, fetchMoreAction: fetchMoreAction,
                         navigateAction: navigateAction, translateAction: translateAction
                     )
+                    .refreshable { fetchAction?() }
                 case .thumbnail:
                     WaterfallList(
-                        galleries: galleries, setting: setting, pageNumber: pageNumber,
-                        footerLoadingState: footerLoadingState, fetchMoreAction: fetchMoreAction,
+                        galleries: galleries, setting: setting,
+                        translationRevision: translationRevision,
+                        datasetIdentity: datasetIdentity, pageNumber: pageNumber,
+                        loadingState: loadingState, footerLoadingState: footerLoadingState,
+                        fetchAction: fetchAction, fetchMoreAction: fetchMoreAction,
                         navigateAction: navigateAction, translateAction: translateAction
                     )
                 }
@@ -65,7 +75,6 @@ struct GenericList: View {
                 .zIndex(1)
         }
         .animation(.easeInOut(duration: 0.2), value: loadingState)
-        .refreshable { fetchAction?() }
     }
 }
 
@@ -116,7 +125,10 @@ private struct DetailList: View {
             .listRowInsets(.init(top: 4, leading: 16, bottom: 4, trailing: 16))
             .listRowSeparator(.visible)
             .onAppear {
-                if gallery == galleries.last {
+                if gallery == galleries.last,
+                   pageNumber?.hasNextPage() == true,
+                   footerLoadingState == .idle
+                {
                     fetchMoreAction?()
                 }
             }
@@ -132,74 +144,54 @@ private struct DetailList: View {
 private struct WaterfallList: View {
     private let galleries: [Gallery]
     private let setting: Setting
+    private let translationRevision: TagTranslator.RenderRevision?
+    private let datasetIdentity: AnyHashable
     private let pageNumber: PageNumber?
+    private let loadingState: LoadingState
     private let footerLoadingState: LoadingState
+    private let fetchAction: (() -> Void)?
     private let fetchMoreAction: (() -> Void)?
     private let navigateAction: ((String) -> Void)?
     private let translateAction: ((String) -> (String, TagTranslation?))?
 
-    private var columnsInPortrait: Int {
-        DeviceUtil.isPadWidth ? 4 : 2
-    }
-    private var columnsInLandscape: Int {
-        DeviceUtil.isPadWidth ? 5 : 2
-    }
-
-    private var hasNextPage: Bool {
-        pageNumber?.hasNextPage() == true
-    }
-
     init(
-        galleries: [Gallery], setting: Setting, pageNumber: PageNumber?,
-        footerLoadingState: LoadingState,
+        galleries: [Gallery], setting: Setting,
+        translationRevision: TagTranslator.RenderRevision?,
+        datasetIdentity: AnyHashable,
+        pageNumber: PageNumber?,
+        loadingState: LoadingState, footerLoadingState: LoadingState,
+        fetchAction: (() -> Void)?,
         fetchMoreAction: (() -> Void)?,
         navigateAction: ((String) -> Void)? = nil,
         translateAction: ((String) -> (String, TagTranslation?))? = nil
     ) {
         self.galleries = galleries
         self.setting = setting
+        self.translationRevision = translationRevision
+        self.datasetIdentity = datasetIdentity
         self.pageNumber = pageNumber
+        self.loadingState = loadingState
         self.footerLoadingState = footerLoadingState
+        self.fetchAction = fetchAction
         self.fetchMoreAction = fetchMoreAction
         self.navigateAction = navigateAction
         self.translateAction = translateAction
     }
 
     var body: some View {
-        ScrollView {
-            WaterfallGrid(galleries) { gallery in
-                Button {
-                    navigateAction?(gallery.id)
-                } label: {
-                    GalleryThumbnailCell(gallery: gallery, setting: setting, translateAction: translateAction)
-                        .tint(.primary).multilineTextAlignment(.leading)
-                }
-                .buttonStyle(.plain)
-            }
-            .gridStyle(
-                columnsInPortrait: columnsInPortrait, columnsInLandscape: columnsInLandscape,
-                spacing: 12, animation: nil
-            )
-            .padding(.horizontal, DeviceUtil.isPadWidth ? 16 : 12)
-            .padding(.top, 8)
-
-            if hasNextPage {
-                if footerLoadingState == .idle {
-                    Color.clear
-                        .frame(height: 1)
-                        .accessibilityHidden(true)
-                        .onAppear {
-                            fetchMoreAction?()
-                        }
-                } else {
-                    FetchMoreFooter(
-                        loadingState: footerLoadingState,
-                        retryAction: fetchMoreAction
-                    )
-                }
-            }
-        }
-        .contentMargins(.bottom, 16, for: .scrollContent)
+        WaterfallCollectionView(
+            galleries: galleries,
+            setting: setting,
+            translationRevision: translationRevision,
+            datasetIdentity: datasetIdentity,
+            pageNumber: pageNumber,
+            loadingState: loadingState,
+            footerLoadingState: footerLoadingState,
+            fetchAction: fetchAction,
+            fetchMoreAction: fetchMoreAction,
+            navigateAction: navigateAction,
+            translateAction: translateAction
+        )
         .background(Color(uiColor: .systemGroupedBackground))
     }
 }

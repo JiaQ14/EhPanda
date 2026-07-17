@@ -8,6 +8,7 @@ import Kingfisher
 
 struct GalleryDetailCell: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
 
     private let gallery: Gallery
     private let setting: Setting
@@ -22,11 +23,21 @@ struct GalleryDetailCell: View {
     private var tagColor: Color {
         colorScheme == .light ? Color(.systemGray5) : Color(.systemGray4)
     }
+    private var coverPixelSize: CGSize {
+        .init(
+            width: Defaults.ImageSize.rowW * displayScale,
+            height: Defaults.ImageSize.rowH * displayScale
+        )
+    }
 
     var body: some View {
         HStack(spacing: 10) {
             KFImage(gallery.coverURL)
                 .placeholder { Placeholder(style: .activity(ratio: Defaults.ImageSize.rowAspect)) }
+                .downsampling(size: coverPixelSize)
+                .backgroundDecode()
+                .loadDiskFileSynchronously(false)
+                .cancelOnDisappear(true)
                 .defaultModifier().scaledToFit().frame(width: Defaults.ImageSize.rowW, height: Defaults.ImageSize.rowH)
             VStack(alignment: .leading, spacing: 5) {
                 Text(gallery.title).lineLimit(3).font(.headline).foregroundStyle(.primary)
@@ -66,7 +77,6 @@ struct GalleryDetailCell: View {
                 }
                 .padding(.top, 1)
             }
-            .drawingGroup()
         }
         .padding(.vertical, 5).padding(.leading, -10).padding(.trailing, -5)
     }

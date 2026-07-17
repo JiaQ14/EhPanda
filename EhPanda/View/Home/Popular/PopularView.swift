@@ -28,7 +28,9 @@ struct PopularView: View {
         let content =
         GenericList(
             galleries: store.filteredGalleries,
-            setting: setting, pageNumber: nil,
+            setting: setting,
+            translationRevision: tagTranslator.renderRevision,
+            pageNumber: nil,
             loadingState: store.loadingState,
             footerLoadingState: .idle,
             fetchAction: { store.send(.fetchGalleries) },
