@@ -44,35 +44,33 @@ struct GenericList: View {
     }
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                switch setting.listDisplayMode {
-                case .detail:
-                    DetailList(
-                        galleries: galleries, setting: setting, pageNumber: pageNumber,
-                        footerLoadingState: footerLoadingState, fetchMoreAction: fetchMoreAction,
-                        navigateAction: navigateAction, translateAction: translateAction
-                    )
-                    .refreshable { fetchAction?() }
-                case .thumbnail:
-                    WaterfallList(
-                        galleries: galleries, setting: setting,
-                        translationRevision: translationRevision,
-                        datasetIdentity: datasetIdentity, pageNumber: pageNumber,
-                        loadingState: loadingState, footerLoadingState: footerLoadingState,
-                        fetchAction: fetchAction, fetchMoreAction: fetchMoreAction,
-                        navigateAction: navigateAction, translateAction: translateAction
-                    )
-                }
+        Group {
+            switch setting.listDisplayMode {
+            case .detail:
+                DetailList(
+                    galleries: galleries, setting: setting, pageNumber: pageNumber,
+                    footerLoadingState: footerLoadingState, fetchMoreAction: fetchMoreAction,
+                    navigateAction: navigateAction, translateAction: translateAction
+                )
+                .refreshable { fetchAction?() }
+            case .thumbnail:
+                WaterfallList(
+                    galleries: galleries, setting: setting,
+                    translationRevision: translationRevision,
+                    datasetIdentity: datasetIdentity, pageNumber: pageNumber,
+                    loadingState: loadingState, footerLoadingState: footerLoadingState,
+                    fetchAction: fetchAction, fetchMoreAction: fetchMoreAction,
+                    navigateAction: navigateAction, translateAction: translateAction
+                )
             }
-            .opacity(loadingState == .idle ? 1 : 0).zIndex(2)
-
-            LoadingView()
-                .opacity(loadingState == .loading ? 1 : 0).zIndex(0)
-
-            ErrorView(error: loadingState.failed ?? .unknown, action: fetchAction)
-                .opacity([.idle, .loading].contains(loadingState) ? 0 : 1)
-                .zIndex(1)
+        }
+        .opacity(loadingState == .idle ? 1 : 0)
+        .overlay {
+            if loadingState == .loading {
+                LoadingView()
+            } else if let error = loadingState.failed {
+                ErrorView(error: error, action: fetchAction)
+            }
         }
         .animation(.easeInOut(duration: 0.2), value: loadingState)
     }
@@ -192,6 +190,7 @@ private struct WaterfallList: View {
             navigateAction: navigateAction,
             translateAction: translateAction
         )
+        .ignoresSafeArea(.container, edges: .top)
         .background(Color(uiColor: .systemGroupedBackground))
     }
 }

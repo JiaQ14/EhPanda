@@ -23,52 +23,20 @@ struct TabBarView: View {
                     set: { store.send(.tabBar(.setTabBarItemType($0))) }
                 )
             ) {
-                ForEach(TabBarItemType.allCases) { type in
-                    Tab(value: type, role: type == .search ? .search : nil) {
-                        switch type {
-                        case .home:
-                            HomeView(
-                                store: store.scope(state: \.homeState, action: \.home),
-                                user: store.settingState.user,
-                                setting: $store.settingState.setting,
-                                blurRadius: store.appLockState.blurRadius,
-                                tagTranslator: store.settingState.tagTranslator
-                            )
-                        case .favorites:
-                            FavoritesView(
-                                store: store.scope(state: \.favoritesState, action: \.favorites),
-                                user: store.settingState.user,
-                                setting: $store.settingState.setting,
-                                blurRadius: store.appLockState.blurRadius,
-                                tagTranslator: store.settingState.tagTranslator
-                            )
-                        case .cache:
-                            CacheView(
-                                store: store.scope(state: \.cacheState, action: \.cache),
-                                user: store.settingState.user,
-                                setting: $store.settingState.setting,
-                                blurRadius: store.appLockState.blurRadius,
-                                tagTranslator: store.settingState.tagTranslator
-                            )
-                        case .search:
-                            SearchRootView(
-                                store: store.scope(state: \.searchRootState, action: \.searchRoot),
-                                user: store.settingState.user,
-                                setting: $store.settingState.setting,
-                                blurRadius: store.appLockState.blurRadius,
-                                tagTranslator: store.settingState.tagTranslator
-                            )
-                        case .setting:
-                            SettingView(
-                                store: store.scope(state: \.settingState, action: \.setting),
-                                blurRadius: store.appLockState.blurRadius
-                            )
-                        }
+                ForEach(TabBarItemType.allCases.filter { $0 != .search }) { type in
+                    Tab(value: type) {
+                        tabContent(for: type)
                     } label: {
                         type.label()
                     }
                 }
+                Tab(value: .search, role: .search) {
+                    tabContent(for: .search)
+                } label: {
+                    TabBarItemType.search.label()
+                }
             }
+            .tabViewSearchActivation(.searchTabSelection)
             .accentColor(store.settingState.setting.accentColor)
             .autoBlur(radius: store.appLockState.blurRadius)
             Button {
@@ -115,6 +83,49 @@ struct TabBarView: View {
         .onChange(of: scenePhase) { _, newValue in store.send(.onScenePhaseChange(newValue)) }
         .onOpenURL { store.send(.appRoute(.handleDeepLink($0))) }
     }
+
+    @ViewBuilder
+    private func tabContent(for type: TabBarItemType) -> some View {
+        switch type {
+        case .home:
+            HomeView(
+                store: store.scope(state: \.homeState, action: \.home),
+                user: store.settingState.user,
+                setting: $store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator
+            )
+        case .favorites:
+            FavoritesView(
+                store: store.scope(state: \.favoritesState, action: \.favorites),
+                user: store.settingState.user,
+                setting: $store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator
+            )
+        case .cache:
+            CacheView(
+                store: store.scope(state: \.cacheState, action: \.cache),
+                user: store.settingState.user,
+                setting: $store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator
+            )
+        case .search:
+            SearchRootView(
+                store: store.scope(state: \.searchRootState, action: \.searchRoot),
+                user: store.settingState.user,
+                setting: $store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator
+            )
+        case .setting:
+            SettingView(
+                store: store.scope(state: \.settingState, action: \.setting),
+                blurRadius: store.appLockState.blurRadius
+            )
+        }
+    }
 }
 
 // MARK: TabType
@@ -146,15 +157,15 @@ extension TabBarItemType {
     var symbol: SFSymbol {
         switch self {
         case .home:
-            return .houseCircle
+            return .house
         case .favorites:
-            return .heartCircle
+            return .heart
         case .cache:
             return .squareAndArrowDown
         case .search:
-            return .magnifyingglassCircle
+            return .magnifyingglass
         case .setting:
-            return .gearshapeCircle
+            return .gearshape
         }
     }
     func label() -> Label<Text, Image> {

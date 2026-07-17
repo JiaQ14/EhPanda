@@ -48,7 +48,7 @@ struct WaterfallCollectionView: UIViewRepresentable {
         )
         collectionView.alwaysBounceVertical = true
         collectionView.backgroundColor = .systemGroupedBackground
-        collectionView.contentInsetAdjustmentBehavior = .automatic
+        collectionView.contentInsetAdjustmentBehavior = .always
         collectionView.keyboardDismissMode = .interactive
         collectionView.showsVerticalScrollIndicator = true
 
@@ -296,6 +296,9 @@ extension WaterfallCollectionView {
             invalidatePendingMeasurements(for: identifiersWithInvalidMeasurements)
 
             let galleryExtraHeight: CGFloat = parent.setting.showsTagsInList ? 210 : 125
+            if replacesDataset {
+                layout?.resetColumnAssignments()
+            }
             layout?.setItems(
                 newItemIdentifiers,
                 estimatedGalleryExtraHeight: galleryExtraHeight,
@@ -978,7 +981,8 @@ enum WaterfallLayoutCalculator {
         columnCount: Int,
         spacing: CGFloat,
         sectionInsets: UIEdgeInsets,
-        items: [WaterfallLayoutItem]
+        items: [WaterfallLayoutItem],
+        columnAssignments: [Int?]? = nil
     ) -> WaterfallLayoutResult {
         guard containerWidth > 0, columnCount > 0 else {
             return .init(frames: [], contentHeight: 0)
@@ -995,7 +999,10 @@ enum WaterfallLayoutCalculator {
         var state = initialState(columnCount: columnCount, sectionInsets: sectionInsets)
         var frames = [CGRect]()
 
-        for item in items {
+        for (index, item) in items.enumerated() {
+            let assignedColumn = columnAssignments.flatMap {
+                $0.indices.contains(index) ? $0[index] : nil
+            }
             frames.append(
                 place(
                     item: item,
@@ -1003,6 +1010,7 @@ enum WaterfallLayoutCalculator {
                     itemWidth: itemWidth,
                     spacing: spacing,
                     sectionInsets: sectionInsets,
+                    columnIndex: assignedColumn,
                     state: &state
                 )
             )
@@ -1030,6 +1038,7 @@ enum WaterfallLayoutCalculator {
         itemWidth: CGFloat,
         spacing: CGFloat,
         sectionInsets: UIEdgeInsets,
+        columnIndex preferredColumnIndex: Int? = nil,
         state: inout WaterfallLayoutState
     ) -> CGRect {
         let height = max(1, item.height)
@@ -1045,16 +1054,23 @@ enum WaterfallLayoutCalculator {
             )
             state.columnBottoms = Array(repeating: frame.maxY, count: state.columnBottoms.count)
         } else {
-            let shortestBottom = state.columnBottoms.min() ?? sectionInsets.top
-            let columnIndex = state.columnBottoms.firstIndex(of: shortestBottom) ?? 0
-            let y = shortestBottom
-                + (state.hasPlacedItem && shortestBottom > sectionInsets.top ? spacing : 0)
+            let columnIndex = preferredColumnIndex.flatMap {
+                state.columnBottoms.indices.contains($0) ? $0 : nil
+            } ?? shortestColumnIndex(in: state)
+            let columnBottom = state.columnBottoms[columnIndex]
+            let y = columnBottom
+                + (state.hasPlacedItem && columnBottom > sectionInsets.top ? spacing : 0)
             let x = sectionInsets.left + CGFloat(columnIndex) * (itemWidth + spacing)
             frame = CGRect(x: x, y: y, width: itemWidth, height: height)
             state.columnBottoms[columnIndex] = frame.maxY
         }
         state.hasPlacedItem = true
         return frame
+    }
+
+    fileprivate static func shortestColumnIndex(in state: WaterfallLayoutState) -> Int {
+        let shortestBottom = state.columnBottoms.min() ?? 0
+        return state.columnBottoms.firstIndex(of: shortestBottom) ?? 0
     }
 }
 
@@ -1064,6 +1080,7 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
     private var itemIdentifiers = [WaterfallItemID]()
     private var indexPathsByIdentifier = [WaterfallItemID: IndexPath]()
     private var measuredHeights = [WaterfallItemID: CGFloat]()
+    private var columnAssignments = [WaterfallItemID: Int]()
     private var itemAttributes = [UICollectionViewLayoutAttributes]()
     private var statesAfterItems = [WaterfallLayoutState]()
     private var itemIndexesByVerticalBucket = [Int: [Int]]()
@@ -1108,6 +1125,9 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
             itemIdentifiers = newItemIdentifiers
             let validIdentifiers = Set(newItemIdentifiers)
             measuredHeights = measuredHeights.filter { validIdentifiers.contains($0.key) }
+            columnAssignments = columnAssignments.filter {
+                validIdentifiers.contains($0.key)
+            }
             indexPathsByIdentifier = Dictionary(
                 uniqueKeysWithValues: newItemIdentifiers.enumerated().map {
                     ($0.element, IndexPath(item: $0.offset, section: 0))
@@ -1182,6 +1202,12 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
         indexPathsByIdentifier[itemIdentifier]
     }
 
+    func resetColumnAssignments() {
+        guard !columnAssignments.isEmpty else { return }
+        columnAssignments.removeAll()
+        markInvalid(from: 0, through: max(0, itemIdentifiers.count - 1))
+    }
+
     func acceptsMeasuredWidth(_ width: CGFloat, for itemIdentifier: WaterfallItemID) -> Bool {
         let expectedWidth = itemIdentifier == .footer
             ? currentFullWidth
@@ -1204,6 +1230,9 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
             || abs(lastDisplayScale - displayScale) > 0.01
         if geometryChanged {
             measuredHeights.removeAll()
+            if lastColumnCount != 0, lastColumnCount != columnCount {
+                columnAssignments.removeAll()
+            }
             markInvalid(from: 0, through: max(0, itemIdentifiers.count - 1))
         }
 
@@ -1271,12 +1300,26 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
                 ),
                 spansAllColumns: identifier == .footer
             )
+            let assignedColumn: Int?
+            if identifier == .footer {
+                assignedColumn = nil
+                columnAssignments[identifier] = nil
+            } else if let existingColumn = columnAssignments[identifier],
+                      state.columnBottoms.indices.contains(existingColumn)
+            {
+                assignedColumn = existingColumn
+            } else {
+                let shortestColumn = WaterfallLayoutCalculator.shortestColumnIndex(in: state)
+                assignedColumn = shortestColumn
+                columnAssignments[identifier] = shortestColumn
+            }
             let frame = WaterfallLayoutCalculator.place(
                 item: item,
                 containerWidth: bounds.width,
                 itemWidth: currentItemWidth,
                 spacing: Self.spacing,
                 sectionInsets: sectionInsets,
+                columnIndex: assignedColumn,
                 state: &state
             )
             let attributes = UICollectionViewLayoutAttributes(

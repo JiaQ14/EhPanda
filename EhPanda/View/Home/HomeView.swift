@@ -102,7 +102,6 @@ struct HomeView: View {
                 store.send(.fetchAllGalleries)
             }
         }
-        .toolbar(content: toolbar)
         .navigationTitle(L10n.Localizable.HomeView.Title.home)
     }
 
@@ -131,20 +130,6 @@ struct HomeView: View {
         )
     }
 
-    private func toolbar() -> some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                store.send(.fetchAllGalleries)
-            } label: {
-                if store.popularLoadingState == .loading {
-                    ProgressView()
-                } else {
-                    Image(systemSymbol: .arrowCounterclockwise)
-                }
-            }
-            .disabled(store.popularLoadingState == .loading)
-        }
-    }
 }
 
 // MARK: Navigation

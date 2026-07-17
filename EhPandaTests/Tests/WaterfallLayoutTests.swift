@@ -123,10 +123,18 @@ final class WaterfallLayoutTests: XCTestCase {
             identifiers: identifiers,
             measuredHeights: heights
         )
+        let stableColumns = columnAssignments(
+            identifiers: identifiers,
+            layout: harness.layout
+        )
 
         assertLayout(
             harness.layout,
-            matches: expectedLayout(identifiers: identifiers, heights: heights)
+            matches: expectedLayout(
+                identifiers: identifiers,
+                heights: heights,
+                columnAssignments: stableColumns
+            )
         )
 
         heights[.gallery("gallery-1")] = 242
@@ -138,8 +146,49 @@ final class WaterfallLayoutTests: XCTestCase {
 
         assertLayout(
             harness.layout,
-            matches: expectedLayout(identifiers: identifiers, heights: heights)
+            matches: expectedLayout(
+                identifiers: identifiers,
+                heights: heights,
+                columnAssignments: stableColumns
+            )
         )
+    }
+
+    @MainActor
+    func testMeasuredHeightUpdatesKeepGalleryColumnsStable() {
+        let identifiers = galleryIdentifiers(count: 12) + [.footer]
+        let harness = WaterfallLayoutHarness(
+            identifiers: identifiers,
+            measuredHeights: [:]
+        )
+        let originalColumns = Dictionary(
+            uniqueKeysWithValues: identifiers.compactMap { identifier in
+                harness.layout.indexPath(for: identifier).flatMap {
+                    harness.layout.layoutAttributesForItem(at: $0).map {
+                        (identifier, $0.frame.minX)
+                    }
+                }
+            }
+        )
+
+        var updatedHeights = Dictionary(
+            uniqueKeysWithValues: identifiers.enumerated().map { index, identifier in
+                (identifier, identifier == .footer ? 50 : CGFloat(40 + index * 17))
+            }
+        )
+        updatedHeights[.gallery("gallery-0")] = 1_200
+        harness.updateMeasuredHeights(updatedHeights)
+
+        for identifier in identifiers {
+            guard let indexPath = harness.layout.indexPath(for: identifier),
+                  let attributes = harness.layout.layoutAttributesForItem(at: indexPath),
+                  let originalX = originalColumns[identifier]
+            else {
+                XCTFail("Missing layout attributes for \(identifier)")
+                continue
+            }
+            XCTAssertEqual(attributes.frame.minX, originalX, accuracy: 0.001)
+        }
     }
 
     @MainActor
@@ -150,6 +199,10 @@ final class WaterfallLayoutTests: XCTestCase {
             identifiers: identifiers,
             measuredHeights: heights
         )
+        var stableColumns = columnAssignments(
+            identifiers: identifiers,
+            layout: harness.layout
+        )
 
         heights[.gallery("gallery-2")] = 260
         heights[.gallery("gallery-9")] = 54
@@ -157,7 +210,11 @@ final class WaterfallLayoutTests: XCTestCase {
             .gallery("gallery-2"): 260,
             .gallery("gallery-9"): 54
         ])
-        var expected = expectedLayout(identifiers: identifiers, heights: heights)
+        var expected = expectedLayout(
+            identifiers: identifiers,
+            heights: heights,
+            columnAssignments: stableColumns
+        )
         assertSpatialQueries(harness.layout, expected: expected)
 
         identifiers.removeLast()
@@ -171,8 +228,16 @@ final class WaterfallLayoutTests: XCTestCase {
                 uniqueKeysWithValues: appendedIdentifiers.map { ($0, heights[$0]!) }
             )
         )
+        stableColumns = columnAssignments(
+            identifiers: identifiers,
+            layout: harness.layout
+        )
 
-        expected = expectedLayout(identifiers: identifiers, heights: heights)
+        expected = expectedLayout(
+            identifiers: identifiers,
+            heights: heights,
+            columnAssignments: stableColumns
+        )
         assertLayout(harness.layout, matches: expected)
         assertSpatialQueries(harness.layout, expected: expected)
     }
@@ -198,7 +263,14 @@ final class WaterfallLayoutTests: XCTestCase {
             measuredHeights: appendedHeights
         )
 
-        let expected = expectedLayout(identifiers: identifiers, heights: heights)
+        let expected = expectedLayout(
+            identifiers: identifiers,
+            heights: heights,
+            columnAssignments: columnAssignments(
+                identifiers: identifiers,
+                layout: harness.layout
+            )
+        )
         assertLayout(harness.layout, matches: expected)
         assertSpatialQueries(harness.layout, expected: expected)
         XCTAssertEqual(harness.itemIdentifiers, identifiers)
@@ -269,7 +341,8 @@ final class WaterfallLayoutTests: XCTestCase {
 
     private func expectedLayout(
         identifiers: [WaterfallItemID],
-        heights: [WaterfallItemID: CGFloat]
+        heights: [WaterfallItemID: CGFloat],
+        columnAssignments: [Int?]? = nil
     ) -> WaterfallLayoutResult {
         WaterfallLayoutCalculator.calculate(
             containerWidth: waterfallTestWidth,
@@ -281,8 +354,22 @@ final class WaterfallLayoutTests: XCTestCase {
                     height: heights[$0]!,
                     spansAllColumns: $0 == .footer
                 )
-            }
+            },
+            columnAssignments: columnAssignments
         )
+    }
+
+    private func columnAssignments(
+        identifiers: [WaterfallItemID],
+        layout: WaterfallCollectionLayout
+    ) -> [Int?] {
+        identifiers.map { identifier in
+            guard identifier != .footer,
+                  let indexPath = layout.indexPath(for: identifier),
+                  let attributes = layout.layoutAttributesForItem(at: indexPath)
+            else { return nil }
+            return attributes.frame.midX < waterfallTestWidth / 2 ? 0 : 1
+        }
     }
 
     private func assertLayout(
@@ -567,6 +654,46 @@ final class GalleryIdentityTests: XCTestCase {
             postedDate: .distantPast,
             coverURL: nil,
             galleryURL: nil
+        )
+    }
+}
+
+final class WebLoginCompletionPolicyTests: XCTestCase {
+    func testExistingCredentialsDoNotCompleteBeforeLoginPageIsPresented() {
+        var policy = WebLoginCompletionPolicy()
+
+        XCTAssertFalse(
+            policy.shouldComplete(
+                navigationURL: URL(string: "https://forums.e-hentai.org/index.php"),
+                hasCredentials: true
+            )
+        )
+    }
+
+    func testLoginPageDoesNotCompleteWithExistingCredentials() {
+        var policy = WebLoginCompletionPolicy()
+
+        XCTAssertFalse(
+            policy.shouldComplete(
+                navigationURL: Defaults.URL.webLogin,
+                hasCredentials: true
+            )
+        )
+        XCTAssertTrue(policy.hasPresentedLoginPage)
+    }
+
+    func testAuthenticatedNavigationCompletesAfterPresentingLoginPage() {
+        var policy = WebLoginCompletionPolicy()
+        _ = policy.shouldComplete(
+            navigationURL: Defaults.URL.webLogin,
+            hasCredentials: false
+        )
+
+        XCTAssertTrue(
+            policy.shouldComplete(
+                navigationURL: URL(string: "https://forums.e-hentai.org/index.php"),
+                hasCredentials: true
+            )
         )
     }
 }
