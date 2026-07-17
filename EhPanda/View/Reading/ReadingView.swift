@@ -10,6 +10,7 @@ import ComposableArchitecture
 
 struct ReadingView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
 
     @Bindable var store: StoreOf<ReadingReducer>
     private let gid: String
@@ -212,17 +213,21 @@ struct ReadingView: View {
         let isDualPage = setting.enablesDualPageMode && setting.readingDirection != .vertical && DeviceUtil.isLandscape
         let cacheDirectoryIdentifier = store.cacheDirectoryIdentifier
         let cachePageIdentifiers = store.cachePageIdentifiers
+        let pageModel = ReadingPageModel(
+            first: imageStackConfig.isFirstAvailable
+                ? readingImageModel(index: imageStackConfig.firstIndex)
+                : nil,
+            second: imageStackConfig.isSecondAvailable
+                ? readingImageModel(index: imageStackConfig.secondIndex)
+                : nil
+        )
         HorizontalImageStack(
             index: index,
             isDualPage: isDualPage,
             isDatabaseLoading: store.databaseLoadingState != .idle,
             backgroundColor: backgroundColor,
-            config: imageStackConfig,
-            imageURLs: store.imageURLs,
-            originalImageURLs: store.originalImageURLs,
-            loadingStates: store.imageURLLoadingStates,
+            pageModel: pageModel,
             enablesLiveText: liveTextHandler.enablesLiveText,
-            liveTextGroups: liveTextHandler.liveTextGroups,
             focusedLiveTextGroup: liveTextHandler.focusedLiveTextGroup,
             liveTextTapAction: liveTextHandler.setFocusedLiveTextGroup,
             fetchAction: { store.send(.fetchImageURLs($0)) },
@@ -243,6 +248,17 @@ struct ReadingView: View {
             copyImageAction: { store.send(.copyImage($0)) },
             saveImageAction: { store.send(.saveImage($0)) },
             shareImageAction: { store.send(.shareImage($0)) }
+        )
+        .equatable()
+    }
+
+    private func readingImageModel(index: Int) -> ReadingImageModel {
+        .init(
+            index: index,
+            imageURL: store.imageURLs[index],
+            originalImageURL: store.originalImageURLs[index],
+            loadingState: store.imageURLLoadingStates[index] ?? .idle,
+            liveTextGroups: liveTextHandler.liveTextGroups[index] ?? []
         )
     }
 }
@@ -270,11 +286,22 @@ extension ReadingView {
             Logger.info("analyzeImageForLiveText duplicated", context: ["index": index])
             return
         }
-        guard let key = store.imageURLs[index]?.cacheKey else {
+        guard let url = store.imageURLs[index] else {
             Logger.info("analyzeImageForLiveText URL not found", context: ["index": index])
             return
         }
-        KingfisherManager.shared.cache.retrieveImage(forKey: key) { result in
+        let key = url.cacheKey
+        let isDualPage =
+            setting.enablesDualPageMode
+            && setting.readingDirection != .vertical
+            && DeviceUtil.isLandscape
+        let options: KingfisherOptionsInfo = url.isGIF
+            ? []
+            : [.processor(ReadingImageSizing.processor(
+                isDualPage: isDualPage,
+                displayScale: displayScale
+            ))]
+        KingfisherManager.shared.cache.retrieveImage(forKey: key, options: options) { result in
             switch result {
             case .success(let result):
                 if let image = result.image, let cgImage = image.cgImage {
@@ -355,17 +382,13 @@ extension ReadingView {
 }
 
 // MARK: HorizontalImageStack
-private struct HorizontalImageStack: View {
+private struct HorizontalImageStack: View, Equatable {
     private let index: Int
     private let isDualPage: Bool
     private let isDatabaseLoading: Bool
     private let backgroundColor: Color
-    private let config: ImageStackConfig
-    private let imageURLs: [Int: URL]
-    private let originalImageURLs: [Int: URL]
-    private let loadingStates: [Int: LoadingState]
+    private let pageModel: ReadingPageModel
     private let enablesLiveText: Bool
-    private let liveTextGroups: [Int: [LiveTextGroup]]
     private let focusedLiveTextGroup: LiveTextGroup?
     private let liveTextTapAction: (LiveTextGroup) -> Void
     private let fetchAction: (Int) -> Void
@@ -380,9 +403,8 @@ private struct HorizontalImageStack: View {
 
     init(
         index: Int, isDualPage: Bool, isDatabaseLoading: Bool, backgroundColor: Color,
-        config: ImageStackConfig, imageURLs: [Int: URL], originalImageURLs: [Int: URL],
-        loadingStates: [Int: LoadingState], enablesLiveText: Bool,
-        liveTextGroups: [Int: [LiveTextGroup]], focusedLiveTextGroup: LiveTextGroup?,
+        pageModel: ReadingPageModel, enablesLiveText: Bool,
+        focusedLiveTextGroup: LiveTextGroup?,
         liveTextTapAction: @escaping (LiveTextGroup) -> Void,
         fetchAction: @escaping (Int) -> Void,
         refetchAction: @escaping (Int) -> Void, prefetchAction: @escaping (Int) -> Void,
@@ -394,12 +416,8 @@ private struct HorizontalImageStack: View {
         self.isDualPage = isDualPage
         self.isDatabaseLoading = isDatabaseLoading
         self.backgroundColor = backgroundColor
-        self.config = config
-        self.imageURLs = imageURLs
-        self.originalImageURLs = originalImageURLs
-        self.loadingStates = loadingStates
+        self.pageModel = pageModel
         self.enablesLiveText = enablesLiveText
-        self.liveTextGroups = liveTextGroups
         self.focusedLiveTextGroup = focusedLiveTextGroup
         self.liveTextTapAction = liveTextTapAction
         self.fetchAction = fetchAction
@@ -413,26 +431,42 @@ private struct HorizontalImageStack: View {
         self.shareImageAction = shareImageAction
     }
 
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.index == rhs.index
+            && lhs.isDualPage == rhs.isDualPage
+            && lhs.isDatabaseLoading == rhs.isDatabaseLoading
+            && lhs.backgroundColor == rhs.backgroundColor
+            && lhs.pageModel == rhs.pageModel
+            && lhs.enablesLiveText == rhs.enablesLiveText
+            && lhs.focusedLiveTextGroup == rhs.focusedLiveTextGroup
+    }
+
     var body: some View {
         HStack(spacing: 0) {
-            if config.isFirstAvailable {
-                imageContainer(index: config.firstIndex)
+            if let first = pageModel.first {
+                imageContainer(model: first)
             }
-            if config.isSecondAvailable {
-                imageContainer(index: config.secondIndex)
+            if let second = pageModel.second {
+                imageContainer(model: second)
+            }
+        }
+        .onAppear(perform: loadPageIfNeeded)
+        .onChange(of: isDatabaseLoading) { _, isLoading in
+            if !isLoading {
+                loadPageIfNeeded()
             }
         }
     }
 
-    func imageContainer(index: Int) -> some View {
+    func imageContainer(model: ReadingImageModel) -> some View {
         ImageContainer(
-            index: index,
-            imageURL: imageURLs[index],
-            loadingState: loadingStates[index] ?? .idle,
+            index: model.index,
+            imageURL: model.imageURL,
+            loadingState: model.loadingState,
             isDualPage: isDualPage,
             backgroundColor: backgroundColor,
             enablesLiveText: enablesLiveText,
-            liveTextGroups: liveTextGroups[index] ?? [],
+            liveTextGroups: model.liveTextGroups,
             focusedLiveTextGroup: focusedLiveTextGroup,
             liveTextTapAction: liveTextTapAction,
             refetchAction: refetchAction,
@@ -440,20 +474,21 @@ private struct HorizontalImageStack: View {
             loadSucceededAction: loadSucceededAction,
             loadFailedAction: loadFailedAction
         )
-        .onAppear {
-            if !isDatabaseLoading {
-                if imageURLs[index] == nil {
-                    fetchAction(index)
-                }
-                prefetchAction(index)
-            }
-        }
-        .contextMenu { contextMenuItems(index: index) }
+        .contextMenu { contextMenuItems(model: model) }
     }
-    @ViewBuilder private func contextMenuItems(index: Int) -> some View {
-        if imageURLs[index]?.isFileURL != true {
+
+    private func loadPageIfNeeded() {
+        guard !isDatabaseLoading else { return }
+        for model in pageModel.images where model.imageURL == nil {
+            fetchAction(model.index)
+        }
+        prefetchAction(index)
+    }
+
+    @ViewBuilder private func contextMenuItems(model: ReadingImageModel) -> some View {
+        if model.imageURL?.isFileURL != true {
             Button {
-                refetchAction(index)
+                refetchAction(model.index)
             } label: {
                 Label(
                     L10n.Localizable.ReadingView.ContextMenu.Button.reload,
@@ -461,7 +496,7 @@ private struct HorizontalImageStack: View {
                 )
             }
         }
-        if let imageURL = imageURLs[index] {
+        if let imageURL = model.imageURL {
             Button {
                 copyImageAction(imageURL)
             } label: {
@@ -472,7 +507,7 @@ private struct HorizontalImageStack: View {
             } label: {
                 Label(L10n.Localizable.ReadingView.ContextMenu.Button.save, systemSymbol: .squareAndArrowDown)
             }
-            if let originalImageURL = originalImageURLs[index] {
+            if let originalImageURL = model.originalImageURL {
                 Button {
                     saveImageAction(originalImageURL)
                 } label: {
@@ -493,11 +528,19 @@ private struct HorizontalImageStack: View {
 
 // MARK: ImageContainer
 private struct ImageContainer: View {
+    @Environment(\.displayScale) private var displayScale
+
     private var width: CGFloat {
         DeviceUtil.windowW / (isDualPage ? 2 : 1)
     }
     private var height: CGFloat {
         width / Defaults.ImageSize.contentAspect
+    }
+    private var targetPixelSize: CGSize {
+        ReadingImageSizing.targetPixelSize(
+            isDualPage: isDualPage,
+            displayScale: displayScale
+        )
     }
 
     private let index: Int
@@ -554,28 +597,38 @@ private struct ImageContainer: View {
         if url?.isGIF != true {
             KFImage(url)
                 .placeholder(placeholder)
+                .setProcessor(DownsamplingImageProcessor(size: targetPixelSize))
+                .cacheOriginalImage(url?.isFileURL != true)
                 .cacheMemoryOnly(url?.isFileURL == true)
-                .defaultModifier(withRoundedCorners: false)
+                .backgroundDecode()
+                .loadDiskFileSynchronously(false)
+                .cancelOnDisappear(true)
+                .resizable()
                 .onSuccess(onSuccess).onFailure(onFailure)
         } else {
             KFAnimatedImage(url)
                 .placeholder(placeholder)
                 .cacheMemoryOnly(url?.isFileURL == true)
-                .fade(duration: 0.25)
+                .backgroundDecode()
+                .loadDiskFileSynchronously(false)
+                .cancelOnDisappear(true)
                 .onSuccess(onSuccess).onFailure(onFailure)
         }
     }
 
     var body: some View {
         if loadingState == .idle {
-            image(url: imageURL).scaledToFit().overlay(
-                LiveTextView(
-                    liveTextGroups: liveTextGroups,
-                    focusedLiveTextGroup: focusedLiveTextGroup,
-                    tapAction: liveTextTapAction
-                )
-                .opacity(enablesLiveText ? 1 : 0)
-            )
+            image(url: imageURL)
+                .scaledToFit()
+                .overlay {
+                    if enablesLiveText {
+                        LiveTextView(
+                            liveTextGroups: liveTextGroups,
+                            focusedLiveTextGroup: focusedLiveTextGroup,
+                            tapAction: liveTextTapAction
+                        )
+                    }
+                }
         } else {
             ZStack {
                 backgroundColor
@@ -620,6 +673,47 @@ struct ImageStackConfig {
     let secondIndex: Int
     let isFirstAvailable: Bool
     let isSecondAvailable: Bool
+}
+
+private struct ReadingPageModel: Equatable {
+    let first: ReadingImageModel?
+    let second: ReadingImageModel?
+
+    var images: [ReadingImageModel] {
+        [first, second].compactMap { $0 }
+    }
+}
+
+private struct ReadingImageModel: Equatable {
+    let index: Int
+    let imageURL: URL?
+    let originalImageURL: URL?
+    let loadingState: LoadingState
+    let liveTextGroups: [LiveTextGroup]
+}
+
+private enum ReadingImageSizing {
+    static func targetPixelSize(
+        isDualPage: Bool,
+        displayScale: CGFloat
+    ) -> CGSize {
+        let pointWidth = DeviceUtil.windowW / (isDualPage ? 2 : 1)
+        let pixelWidth = max(pointWidth * displayScale, 1)
+        return .init(
+            width: pixelWidth,
+            height: pixelWidth / Defaults.ImageSize.contentAspect
+        )
+    }
+
+    static func processor(
+        isDualPage: Bool,
+        displayScale: CGFloat
+    ) -> DownsamplingImageProcessor {
+        .init(size: targetPixelSize(
+            isDualPage: isDualPage,
+            displayScale: displayScale
+        ))
+    }
 }
 
 enum AutoPlayPolicy: Int, CaseIterable, Identifiable {

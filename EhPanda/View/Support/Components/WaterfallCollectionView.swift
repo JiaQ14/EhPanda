@@ -302,8 +302,21 @@ extension WaterfallCollectionView {
             layout?.setItems(
                 newItemIdentifiers,
                 estimatedGalleryExtraHeight: galleryExtraHeight,
+                estimatedGalleryExtraHeightProvider: { [weak self] identifier, itemWidth in
+                    guard let self,
+                          case .gallery(let id) = identifier,
+                          let gallery = self.galleriesByID[id]
+                    else { return galleryExtraHeight }
+                    return GalleryThumbnailCell.informationHeight(
+                        gallery: gallery,
+                        setting: self.parent.setting,
+                        availableWidth: itemWidth,
+                        translateAction: self.parent.translateAction
+                    )
+                },
                 estimatedFooterHeight: parent.footerLoadingState == .idle ? 1 : 50
             )
+            layout?.invalidateEstimatedHeights(for: identifiersWithInvalidMeasurements)
             if settingChanged || sizeEnvironmentChanged || translationChanged {
                 layout?.removeAllMeasuredHeights()
             } else {
@@ -378,6 +391,7 @@ private extension WaterfallCollectionView.Coordinator {
             )
         }
         cell.backgroundConfiguration = .clear()
+        cell.clipsToBounds = true
 
         switch itemIdentifier {
         case .gallery(let id):
@@ -400,6 +414,12 @@ private extension WaterfallCollectionView.Coordinator {
                     gallery: gallery,
                     setting: setting,
                     availableWidth: itemWidth,
+                    informationHeight: GalleryThumbnailCell.informationHeight(
+                        gallery: gallery,
+                        setting: setting,
+                        availableWidth: itemWidth,
+                        translateAction: translateAction
+                    ),
                     translateAction: translateAction
                 )
                 .tint(.primary)
@@ -461,6 +481,9 @@ private extension WaterfallCollectionView.Coordinator {
         for itemIdentifier: WaterfallItemID,
         generation: Int
     ) {
+        // Gallery cards have a deterministic cover and information height. Applying
+        // delayed SwiftUI measurements would move every item below the measured card.
+        guard itemIdentifier == .footer else { return }
         guard height.isFinite,
               height > 0,
               width.isFinite,
@@ -899,7 +922,9 @@ private final class WaterfallHostingCell: UICollectionViewCell {
     override func preferredLayoutAttributesFitting(
         _ layoutAttributes: UICollectionViewLayoutAttributes
     ) -> UICollectionViewLayoutAttributes {
-        _ = measureAndReport(width: layoutAttributes.size.width)
+        if itemIdentifier == .footer {
+            _ = measureAndReport(width: layoutAttributes.size.width)
+        }
         return layoutAttributes
     }
 
@@ -1093,6 +1118,8 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
     private var invalidThroughIndex = 0
 
     private var estimatedGalleryExtraHeight: CGFloat = 125
+    private var estimatedGalleryExtraHeightProvider:
+        ((WaterfallItemID, CGFloat) -> CGFloat)?
     private var estimatedFooterHeight: CGFloat = 1
 
     private(set) var currentItemWidth: CGFloat = 0
@@ -1110,8 +1137,11 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
     func setItems(
         _ newItemIdentifiers: [WaterfallItemID],
         estimatedGalleryExtraHeight newGalleryExtraHeight: CGFloat,
+        estimatedGalleryExtraHeightProvider newGalleryExtraHeightProvider:
+            ((WaterfallItemID, CGFloat) -> CGFloat)? = nil,
         estimatedFooterHeight newFooterHeight: CGFloat
     ) {
+        estimatedGalleryExtraHeightProvider = newGalleryExtraHeightProvider
         if itemIdentifiers != newItemIdentifiers {
             let commonPrefixCount = zip(itemIdentifiers, newItemIdentifiers)
                 .prefix { $0.0 == $0.1 }
@@ -1189,6 +1219,14 @@ final class WaterfallCollectionLayout: UICollectionViewLayout {
         if let first = affectedIndices.min(), let last = affectedIndices.max() {
             markInvalid(from: first, through: last)
         }
+    }
+
+    func invalidateEstimatedHeights(for identifiers: Set<WaterfallItemID>) {
+        let affectedIndices = identifiers.compactMap {
+            indexPathsByIdentifier[$0]?.item
+        }
+        guard let first = affectedIndices.min() else { return }
+        markInvalid(from: first, through: max(first, itemIdentifiers.count - 1))
     }
 
     func itemIdentifier(at indexPath: IndexPath) -> WaterfallItemID? {
@@ -1445,7 +1483,11 @@ private extension WaterfallCollectionLayout {
     func estimatedHeight(for identifier: WaterfallItemID, itemWidth: CGFloat) -> CGFloat {
         switch identifier {
         case .gallery:
-            return itemWidth / Defaults.ImageSize.rowAspect + estimatedGalleryExtraHeight
+            let informationHeight = estimatedGalleryExtraHeightProvider?(
+                identifier,
+                itemWidth
+            ) ?? estimatedGalleryExtraHeight
+            return itemWidth / Defaults.ImageSize.rowAspect + informationHeight
         case .footer:
             return estimatedFooterHeight
         }

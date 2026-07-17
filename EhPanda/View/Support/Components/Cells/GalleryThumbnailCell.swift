@@ -13,17 +13,26 @@ struct GalleryThumbnailCell: View {
     private let gallery: Gallery
     private let setting: Setting
     private let availableWidth: CGFloat
+    private let informationHeight: CGFloat
     private let translateAction: ((String) -> (String, TagTranslation?))?
 
     init(
         gallery: Gallery,
         setting: Setting,
         availableWidth: CGFloat = Defaults.ImageSize.rowW * 2,
+        informationHeight: CGFloat? = nil,
         translateAction: ((String) -> (String, TagTranslation?))? = nil
     ) {
         self.gallery = gallery
         self.setting = setting
         self.availableWidth = availableWidth
+        self.informationHeight = informationHeight
+            ?? Self.informationHeight(
+                gallery: gallery,
+                setting: setting,
+                availableWidth: availableWidth,
+                translateAction: translateAction
+            )
         self.translateAction = translateAction
     }
 
@@ -37,8 +46,53 @@ struct GalleryThumbnailCell: View {
         let width = max(availableWidth, 1)
         return .init(
             width: width * displayScale,
-            height: width / Defaults.ImageSize.webtoonMinAspect * displayScale
+            height: width / Defaults.ImageSize.rowAspect * displayScale
         )
+    }
+    static func informationHeight(
+        gallery: Gallery,
+        setting: Setting,
+        availableWidth: CGFloat,
+        translateAction: ((String) -> (String, TagTranslation?))? = nil
+    ) -> CGFloat {
+        let contentWidth = max(availableWidth - 20, 1)
+        let titleCharactersPerLine = max(Int(contentWidth / 8), 1)
+        let titleLines = min(
+            3,
+            max(1, Int(ceil(Double(gallery.title.count) / Double(titleCharactersPerLine))))
+        )
+        var height = 68 + CGFloat(titleLines) * 18
+
+        let tagContents = gallery.tagContents(maximum: setting.listTagsNumberMaximum)
+        guard setting.showsTagsInList, !tagContents.isEmpty else {
+            return ceil(height)
+        }
+
+        var rowCount = 1
+        var rowWidth = CGFloat.zero
+        for content in tagContents {
+            let translation = translateAction?(content.rawNamespace + content.text).1
+            let text = translation?.displayValue ?? content.text
+            let imageWidth: CGFloat =
+                setting.showsImagesInTags && translation?.valueImageURL != nil ? 14 : 0
+            let tagWidth = min(
+                contentWidth,
+                max(24, CGFloat(text.count) * 6.5 + imageWidth + 8)
+            )
+            if rowWidth > 0, rowWidth + 4 + tagWidth > contentWidth {
+                rowCount += 1
+                rowWidth = tagWidth
+            } else {
+                rowWidth += (rowWidth > 0 ? 4 : 0) + tagWidth
+            }
+            if rowCount == 4 { break }
+        }
+
+        let visibleRowCount = min(rowCount, 4)
+        height += 5
+            + CGFloat(visibleRowCount) * 18
+            + CGFloat(max(visibleRowCount - 1, 0)) * 4
+        return ceil(height)
     }
 
     var body: some View {
@@ -51,11 +105,15 @@ struct GalleryThumbnailCell: View {
                 .backgroundDecode()
                 .loadDiskFileSynchronously(false)
                 .cancelOnDisappear(true)
-                .imageModifier(WebtoonModifier(
-                    minAspect: Defaults.ImageSize.webtoonMinAspect,
-                    idealAspect: Defaults.ImageSize.webtoonIdealAspect
-                ))
-                .fade(duration: 0.15).resizable().scaledToFit().overlay {
+                .fade(duration: 0.15)
+                .resizable()
+                .scaledToFill()
+                .frame(
+                    width: availableWidth,
+                    height: availableWidth / Defaults.ImageSize.rowAspect
+                )
+                .clipped()
+                .overlay {
                     VStack {
                         HStack {
                             Spacer()
@@ -101,6 +159,8 @@ struct GalleryThumbnailCell: View {
                 RatingView(rating: gallery.rating).foregroundColor(.yellow).font(.caption)
             }
             .padding(10)
+            .frame(height: informationHeight, alignment: .top)
+            .clipped()
         }
         .background(backgroundColor)
         .clipShape(shape)

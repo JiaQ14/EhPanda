@@ -75,6 +75,7 @@ struct ReadingReducer {
         var mpvSkipServerIdentifiers = [Int: String]()
         var cacheDirectoryIdentifier: UUID?
         var cachePageIdentifiers = [Int: UUID]()
+        var prefetchLimitsByIndex = [Int: Int]()
 
         var showsPanel = false
         var showsSliderPreview = false
@@ -497,6 +498,11 @@ struct ReadingReducer {
                 }
 
             case .prefetchImages(let index, let prefetchLimit):
+                guard state.prefetchLimitsByIndex[index] != prefetchLimit else {
+                    return .none
+                }
+                state.prefetchLimitsByIndex[index] = prefetchLimit
+
                 func getPrefetchImageURLs(range: ClosedRange<Int>) -> [URL] {
                     (range.lowerBound...range.upperBound).compactMap { index in
                         if let url = state.imageURLs[index] {

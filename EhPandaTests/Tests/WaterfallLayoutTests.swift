@@ -10,6 +10,36 @@ import XCTest
 private let waterfallTestWidth: CGFloat = 390
 
 final class WaterfallLayoutTests: XCTestCase {
+    func testThumbnailInformationHeightIsStableAndContentDependent() {
+        var shortTitleGallery = Gallery.preview
+        shortTitleGallery.title = "Short"
+        var longTitleGallery = Gallery.preview
+        longTitleGallery.title = String(repeating: "Long title ", count: 12)
+        var setting = Setting()
+        setting.showsTagsInList = false
+
+        let shortHeight = GalleryThumbnailCell.informationHeight(
+            gallery: shortTitleGallery,
+            setting: setting,
+            availableWidth: 180
+        )
+        let longHeight = GalleryThumbnailCell.informationHeight(
+            gallery: longTitleGallery,
+            setting: setting,
+            availableWidth: 180
+        )
+
+        XCTAssertEqual(
+            shortHeight,
+            GalleryThumbnailCell.informationHeight(
+                gallery: shortTitleGallery,
+                setting: setting,
+                availableWidth: 180
+            )
+        )
+        XCTAssertGreaterThan(longHeight, shortHeight)
+    }
+
     func testPlacesItemsInShortestColumnAndBreaksTiesToLeadingColumn() {
         let result = WaterfallLayoutCalculator.calculate(
             containerWidth: 220,
