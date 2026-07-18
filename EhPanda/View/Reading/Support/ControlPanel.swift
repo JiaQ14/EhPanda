@@ -7,7 +7,7 @@ import SwiftUI
 import Kingfisher
 
 // MARK: ControlPanel
-struct ControlPanel<G: Gesture>: View {
+struct ControlPanel: View {
     @Binding private var showsPanel: Bool
     @Binding private var showsSliderPreview: Bool
     @Binding private var sliderValue: Float
@@ -17,7 +17,6 @@ struct ControlPanel<G: Gesture>: View {
 
     private let range: ClosedRange<Float>
     private let previewURLs: [Int: URL]
-    private let dismissGesture: G
     private let dismissAction: () -> Void
     private let navigateSettingAction: () -> Void
     private let reloadAllImagesAction: () -> Void
@@ -27,7 +26,7 @@ struct ControlPanel<G: Gesture>: View {
     init(
         showsPanel: Binding<Bool>, showsSliderPreview: Binding<Bool>, sliderValue: Binding<Float>,
         setting: Binding<Setting>, enablesLiveText: Binding<Bool>, autoPlayPolicy: Binding<AutoPlayPolicy>,
-        range: ClosedRange<Float>, previewURLs: [Int: URL], dismissGesture: G,
+        range: ClosedRange<Float>, previewURLs: [Int: URL],
         dismissAction: @escaping () -> Void,
         navigateSettingAction: @escaping () -> Void,
         reloadAllImagesAction: @escaping () -> Void,
@@ -42,7 +41,6 @@ struct ControlPanel<G: Gesture>: View {
         _autoPlayPolicy = autoPlayPolicy
         self.range = range
         self.previewURLs = previewURLs
-        self.dismissGesture = dismissGesture
         self.dismissAction = dismissAction
         self.navigateSettingAction = navigateSettingAction
         self.reloadAllImagesAction = reloadAllImagesAction
@@ -73,7 +71,6 @@ struct ControlPanel<G: Gesture>: View {
                     showsSliderPreview: $showsSliderPreview,
                     sliderValue: $sliderValue, previewURLs: previewURLs, range: range,
                     isReversed: setting.readingDirection == .rightToLeft,
-                    dismissGesture: dismissGesture, dismissAction: dismissAction,
                     fetchPreviewURLsAction: fetchPreviewURLsAction
                 )
                 .animation(.default, value: showsSliderPreview)
@@ -138,13 +135,15 @@ private struct UpperPanel: View {
 
             Spacer()
 
-            HStack(spacing: 20) {
+            HStack(spacing: 4) {
                 Button {
                     enablesLiveText.toggle()
                 } label: {
                     Image(systemSymbol: .viewfinderCircle)
                         .symbolVariant(enablesLiveText ? .fill : .none)
                         .font(.title2)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
 
                 if DeviceUtil.isLandscape && setting.readingDirection != .vertical {
@@ -170,6 +169,8 @@ private struct UpperPanel: View {
                         Image(systemSymbol: .rectangleSplit2x1)
                             .symbolVariant(setting.enablesDualPageMode ? .fill : .none)
                             .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                 }
 
@@ -188,6 +189,8 @@ private struct UpperPanel: View {
                 } label: {
                     Image(systemSymbol: .timer)
                         .font(.title2)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
 
@@ -207,31 +210,32 @@ private struct UpperPanel: View {
                 }
                 .buttonStyle(.borderless)
                 .font(.title2)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 20)
+            .padding(8)
             .glassEffect(.regular.interactive())
         }
         .foregroundStyle(.primary)
         .padding(.horizontal, 20)
+        .background(Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture {}
     }
 }
 
 // MARK: LowerPanel
-private struct LowerPanel<G: Gesture>: View {
+private struct LowerPanel: View {
     @Binding private var showsSliderPreview: Bool
     @Binding private var sliderValue: Float
     private let previewURLs: [Int: URL]
     private let range: ClosedRange<Float>
     private let isReversed: Bool
-    private let dismissGesture: G
-    private let dismissAction: () -> Void
     private let fetchPreviewURLsAction: (Int) -> Void
 
     init(
         showsSliderPreview: Binding<Bool>, sliderValue: Binding<Float>,
         previewURLs: [Int: URL], range: ClosedRange<Float>, isReversed: Bool,
-        dismissGesture: G, dismissAction: @escaping () -> Void,
         fetchPreviewURLsAction: @escaping (Int) -> Void
     ) {
         _showsSliderPreview = showsSliderPreview
@@ -239,60 +243,49 @@ private struct LowerPanel<G: Gesture>: View {
         self.previewURLs = previewURLs
         self.range = range
         self.isReversed = isReversed
-        self.dismissGesture = dismissGesture
-        self.dismissAction = dismissAction
         self.fetchPreviewURLsAction = fetchPreviewURLsAction
     }
 
     var body: some View {
-        VStack(spacing: 30) {
-            Button(action: dismissAction) {
-                Image(systemSymbol: .xmark)
-                    .foregroundColor(.primary)
-                    .font(.title2)
-                    .frame(width: 44, height: 44)
-            }
-            .glassEffect(.regular.interactive())
-            .gesture(dismissGesture)
-            .opacity(showsSliderPreview ? 0 : 1)
+        VStack(spacing: 0) {
+            SliderPreivew(
+                showsSliderPreview: $showsSliderPreview,
+                sliderValue: $sliderValue,
+                previewURLs: previewURLs,
+                range: range,
+                isReversed: isReversed,
+                fetchPreviewURLsAction: fetchPreviewURLsAction
+            )
 
-            VStack(spacing: 0) {
-                SliderPreivew(
-                    showsSliderPreview: $showsSliderPreview,
-                    sliderValue: $sliderValue,
-                    previewURLs: previewURLs,
-                    range: range,
-                    isReversed: isReversed,
-                    fetchPreviewURLsAction: fetchPreviewURLsAction
+            HStack {
+                Text(isReversed ? "\(Int(range.upperBound))" : "\(Int(range.lowerBound))")
+                    .fontWeight(.medium)
+                    .font(.caption)
+                    .padding()
+
+                Slider(
+                    value: $sliderValue,
+                    in: range,
+                    onEditingChanged: { if !$0 { showsSliderPreview = false } }
+                )
+                .frame(width: DeviceUtil.windowW * 0.6)
+                .rotationEffect(.init(degrees: isReversed ? 180 : 0))
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity)
+                        .onChanged({ if $0 { showsSliderPreview = true } })
                 )
 
-                HStack {
-                    Text(isReversed ? "\(Int(range.upperBound))" : "\(Int(range.lowerBound))")
-                        .fontWeight(.medium)
-                        .font(.caption)
-                        .padding()
-
-                    Slider(
-                        value: $sliderValue,
-                        in: range,
-                        onEditingChanged: { if !$0 { showsSliderPreview = false } }
-                    )
-                    .frame(width: DeviceUtil.windowW * 0.6)
-                    .rotationEffect(.init(degrees: isReversed ? 180 : 0))
-                    .simultaneousGesture(
-                        LongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity)
-                            .onChanged({ if $0 { showsSliderPreview = true } })
-                    )
-
-                    Text(isReversed ? "\(Int(range.lowerBound))" : "\(Int(range.upperBound))")
-                        .fontWeight(.medium)
-                        .font(.caption)
-                        .padding()
-                }
+                Text(isReversed ? "\(Int(range.lowerBound))" : "\(Int(range.upperBound))")
+                    .fontWeight(.medium)
+                    .font(.caption)
+                    .padding()
             }
-            .glassEffect(in: .rect(cornerRadius: 16))
-            .padding(.horizontal, SliderPreivew.outerPadding)
         }
+        .background(Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture {}
+        .glassEffect(in: .rect(cornerRadius: 16))
+        .padding(.horizontal, SliderPreivew.outerPadding)
     }
 }
 

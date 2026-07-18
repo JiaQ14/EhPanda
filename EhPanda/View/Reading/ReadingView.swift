@@ -160,7 +160,6 @@ struct ReadingView: View {
                 autoPlayPolicy: .init(get: { autoPlayHandler.policy }, set: { setAutoPlayPolocy($0) }),
                 range: 1...Float(store.gallery.pageCount),
                 previewURLs: store.previewURLs,
-                dismissGesture: controlPanelDismissGesture,
                 dismissAction: { store.send(.onPerformDismiss) },
                 navigateSettingAction: { store.send(.setNavigation(.readingSetting())) },
                 reloadAllImagesAction: { store.send(.reloadAllWebImages) },
@@ -319,13 +318,6 @@ extension ReadingView {
         DragGesture(minimumDistance: .zero, coordinateSpace: .local)
             .onChanged(gestureHandler.onDragGestureChanged)
             .onEnded(gestureHandler.onDragGestureEnded)
-    }
-    var controlPanelDismissGesture: some Gesture {
-        DragGesture().onEnded {
-            gestureHandler.onControlPanelDismissGestureEnded(
-                value: $0, dismissAction: { store.send(.onPerformDismiss) }
-            )
-        }
     }
 }
 

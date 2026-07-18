@@ -116,10 +116,4 @@ final class GestureHandler: ObservableObject {
         }
     }
 
-    func onControlPanelDismissGestureEnded(value: DragGesture.Value, dismissAction: @escaping () -> Void) {
-        Logger.info("onControlPanelDismissGestureEnded", context: ["value": value])
-        if value.predictedEndTranslation.height > 30 {
-            dismissAction()
-        }
-    }
 }

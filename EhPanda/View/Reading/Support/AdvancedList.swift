@@ -822,6 +822,7 @@ private final class ReadingImageSlotView: UIView {
         clipsToBounds = true
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
+        imageView.isUserInteractionEnabled = true
         imageAnalysisInteraction.preferredInteractionTypes = .automaticTextOnly
         imageView.addInteraction(imageAnalysisInteraction)
 
