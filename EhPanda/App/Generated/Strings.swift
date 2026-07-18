@@ -36,8 +36,6 @@ internal enum L10n {
           internal static let swiftGen = L10n.tr("Constant", "app.acknowledgement.link.swiftGen", fallback: "https://github.com/SwiftGen/SwiftGen")
           /// https://github.com/pointfreeco/swiftui-navigation
           internal static let swiftUINavigation = L10n.tr("Constant", "app.acknowledgement.link.swiftUINavigation", fallback: "https://github.com/pointfreeco/swiftui-navigation")
-          /// https://github.com/fermoya/SwiftUIPager
-          internal static let swiftUIPager = L10n.tr("Constant", "app.acknowledgement.link.swiftUIPager", fallback: "https://github.com/fermoya/SwiftUIPager")
           /// https://github.com/SwiftyBeaver/SwiftyBeaver
           internal static let swiftyBeaver = L10n.tr("Constant", "app.acknowledgement.link.swiftyBeaver", fallback: "https://github.com/SwiftyBeaver/SwiftyBeaver")
           /// https://github.com/ddddxxx/SwiftyOpenCC
@@ -70,8 +68,6 @@ internal enum L10n {
           internal static let swiftGen = L10n.tr("Constant", "app.acknowledgement.text.swiftGen", fallback: "SwiftGen")
           /// SwiftUI Navigation
           internal static let swiftUINavigation = L10n.tr("Constant", "app.acknowledgement.text.swiftUINavigation", fallback: "SwiftUI Navigation")
-          /// SwiftUIPager
-          internal static let swiftUIPager = L10n.tr("Constant", "app.acknowledgement.text.swiftUIPager", fallback: "SwiftUIPager")
           /// SwiftyBeaver
           internal static let swiftyBeaver = L10n.tr("Constant", "app.acknowledgement.text.swiftyBeaver", fallback: "SwiftyBeaver")
           /// SwiftyOpenCC

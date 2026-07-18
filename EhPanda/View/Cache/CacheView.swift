@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import Kingfisher
 import ComposableArchitecture
 
 struct CacheView: View {
@@ -44,12 +43,32 @@ struct CacheView: View {
         }
     }
 
-    private var activeItems: [GalleryCacheItem] {
-        filteredItems.filter { !$0.isComplete }
+    private var orderedItems: [GalleryCacheItem] {
+        filteredItems.sorted { $0.createdDate > $1.createdDate }
     }
 
-    private var completedItems: [GalleryCacheItem] {
-        filteredItems.filter(\.isComplete)
+    private var displayGalleries: [Gallery] {
+        orderedItems.map { item in
+            var gallery = item.gallery
+            gallery.title = displayTitle(for: item)
+            gallery.pageCount = item.pageCount
+            return gallery
+        }
+    }
+
+    private var listPresentations: [String: GalleryListPresentation] {
+        Dictionary(uniqueKeysWithValues: orderedItems.map { item in
+            (
+                item.id,
+                GalleryListPresentation(
+                    coverURL: item.coverFileURL
+                        ?? item.detail.coverURL
+                        ?? item.gallery.coverURL,
+                    status: listStatus(for: item),
+                    actionRevision: cacheActionRevision
+                )
+            )
+        })
     }
 
     var body: some View {
@@ -61,6 +80,8 @@ struct CacheView: View {
                         systemImage: "square.and.arrow.down",
                         description: Text(L10n.Localizable.CacheView.Empty.Description.cache)
                     )
+                } else if filteredItems.isEmpty {
+                    ContentUnavailableView.search(text: store.searchText)
                 } else {
                     cacheList
                 }
@@ -105,76 +126,24 @@ struct CacheView: View {
     }
 
     private var cacheList: some View {
-        List {
-            if !activeItems.isEmpty {
-                Section(L10n.Localizable.CacheView.Section.Title.inProgress) {
-                    ForEach(activeItems) { item in
-                        cacheRow(item)
-                    }
-                }
+        GenericList(
+            galleries: displayGalleries,
+            setting: setting,
+            translationRevision: tagTranslator.renderRevision,
+            datasetIdentity: "cache-library",
+            presentations: listPresentations,
+            actionsProvider: listActions,
+            pageNumber: nil,
+            loadingState: .idle,
+            footerLoadingState: .idle,
+            navigateAction: { store.send(.openDetail($0)) },
+            translateAction: {
+                tagTranslator.lookup(
+                    word: $0,
+                    returnOriginal: !setting.translatesTags
+                )
             }
-            if !completedItems.isEmpty {
-                Section(L10n.Localizable.CacheView.Section.Title.completed) {
-                    ForEach(completedItems) { item in
-                        cacheRow(item)
-                    }
-                }
-            }
-            if filteredItems.isEmpty {
-                ContentUnavailableView.search(text: store.searchText)
-                    .listRowBackground(Color.clear)
-            }
-        }
-        .listStyle(.insetGrouped)
-    }
-
-    private func cacheRow(_ item: GalleryCacheItem) -> some View {
-        CacheRow(
-            item: item,
-            title: displayTitle(for: item)
-        ) { action in
-            switch action {
-            case .open:
-                store.send(.openDetail(item.id))
-            case .pause:
-                store.send(.pause(item.id))
-            case .resume:
-                store.send(.resume(item.id, options))
-            case .delete:
-                store.send(.delete(item.id))
-            }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                store.send(.delete(item.id))
-            } label: {
-                Label(L10n.Localizable.CacheView.Button.delete, systemImage: "trash")
-            }
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            if item.status.isActive {
-                Button {
-                    store.send(.pause(item.id))
-                } label: {
-                    Label(L10n.Localizable.CacheView.Button.pause, systemImage: "pause.fill")
-                }
-                .tint(.orange)
-            } else if !item.isComplete {
-                Button {
-                    store.send(.resume(item.id, options))
-                } label: {
-                    Label(
-                        item.status == .failed
-                            ? L10n.Localizable.CacheView.Button.retry
-                            : L10n.Localizable.CacheView.Button.resume,
-                        systemImage: item.status == .failed
-                            ? "arrow.clockwise"
-                            : "play.fill"
-                    )
-                }
-                .tint(.green)
-            }
-        }
+        )
     }
 
     private func displayTitle(for item: GalleryCacheItem) -> String {
@@ -185,6 +154,119 @@ struct CacheView: View {
             return title
         }
         return item.detail.title.isEmpty ? item.gallery.title : item.detail.title
+    }
+
+    private func listStatus(for item: GalleryCacheItem) -> GalleryListStatus {
+        let pages = L10n.Localizable.CacheView.Value.pages(
+            "\(item.cachedPageCount)",
+            "\(item.pageCount)"
+        )
+        let detailText = item.byteCount > 0
+            ? [
+                pages,
+                ByteCountFormatter.string(
+                    fromByteCount: item.byteCount,
+                    countStyle: .file
+                )
+            ].joined(separator: "  ")
+            : pages
+
+        return GalleryListStatus(
+            text: item.status.value,
+            detailText: detailText,
+            message: item.status == .failed ? item.errorDescription : nil,
+            systemImage: statusSymbol(for: item.status),
+            tone: statusTone(for: item.status),
+            progress: item.isComplete ? nil : item.progress
+        )
+    }
+
+    private var cacheActionRevision: AnyHashable {
+        AnyHashable([
+            setting.cacheImageQuality.rawValue,
+            setting.cacheConcurrentDownloads,
+            setting.cacheAllowsCellularAccess ? 1 : 0,
+            setting.bypassesSNIFiltering ? 1 : 0
+        ])
+    }
+
+    private func listActions(for gid: String) -> [GalleryListAction] {
+        guard let item = store.items.first(where: { $0.id == gid }) else {
+            return []
+        }
+
+        var actions = [GalleryListAction]()
+        if item.status.isActive {
+            actions.append(
+                GalleryListAction(
+                    title: L10n.Localizable.CacheView.Button.pause,
+                    systemImage: "pause.fill",
+                    role: .normal,
+                    edge: .leading,
+                    tint: .orange,
+                    action: { store.send(.pause(gid)) }
+                )
+            )
+        } else if !item.isComplete {
+            actions.append(
+                GalleryListAction(
+                    title: item.status == .failed
+                        ? L10n.Localizable.CacheView.Button.retry
+                        : L10n.Localizable.CacheView.Button.resume,
+                    systemImage: item.status == .failed
+                        ? "arrow.clockwise"
+                        : "play.fill",
+                    role: .normal,
+                    edge: .leading,
+                    tint: .green,
+                    action: { store.send(.resume(gid, options)) }
+                )
+            )
+        }
+
+        actions.append(
+            GalleryListAction(
+                title: L10n.Localizable.CacheView.Button.delete,
+                systemImage: "trash",
+                role: .destructive,
+                edge: .trailing,
+                tint: .red,
+                action: { store.send(.delete(gid)) }
+            )
+        )
+        return actions
+    }
+
+    private func statusSymbol(for status: GalleryCacheStatus) -> String {
+        switch status {
+        case .queued:
+            return "clock"
+        case .resolving:
+            return "link"
+        case .downloading:
+            return "arrow.down.circle.fill"
+        case .paused:
+            return "pause.circle.fill"
+        case .completed:
+            return "checkmark.circle.fill"
+        case .failed:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func statusTone(
+        for status: GalleryCacheStatus
+    ) -> GalleryListStatusTone {
+        switch status {
+        case .completed:
+            return .success
+        case .failed:
+            return .failure
+        case .paused:
+            return .warning
+        case .queued, .resolving, .downloading:
+            return .accent
+        }
     }
 
     @ToolbarContentBuilder
@@ -217,171 +299,6 @@ struct CacheView: View {
                 Image(systemName: "ellipsis.circle")
             }
             .accessibilityLabel(L10n.Localizable.CacheView.Button.more)
-        }
-    }
-}
-
-private enum CacheRowAction {
-    case open
-    case pause
-    case resume
-    case delete
-}
-
-private struct CacheRow: View {
-    let item: GalleryCacheItem
-    let title: String
-    let action: (CacheRowAction) -> Void
-
-    private var statusText: String {
-        switch item.status {
-        case .queued:
-            return L10n.Localizable.CacheView.Status.queued
-        case .resolving:
-            return L10n.Localizable.CacheView.Status.resolving
-        case .downloading:
-            return L10n.Localizable.CacheView.Status.downloading
-        case .paused:
-            return L10n.Localizable.CacheView.Status.paused
-        case .completed:
-            return L10n.Localizable.CacheView.Status.completed
-        case .failed:
-            return L10n.Localizable.CacheView.Status.failed
-        }
-    }
-
-    private var detailText: String {
-        let pages = L10n.Localizable.CacheView.Value.pages(
-            "\(item.cachedPageCount)",
-            "\(item.pageCount)"
-        )
-        guard item.byteCount > 0 else { return pages }
-        return [
-            pages,
-            ByteCountFormatter.string(fromByteCount: item.byteCount, countStyle: .file)
-        ]
-        .joined(separator: "  ")
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                action(.open)
-            } label: {
-                HStack(spacing: 12) {
-                    cover
-                        .frame(width: 54, height: 76)
-                        .clipShape(.rect(cornerRadius: 6))
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(title)
-                            .font(.body.weight(.semibold))
-                            .lineLimit(2)
-
-                        HStack(spacing: 5) {
-                            Image(systemName: statusSymbol)
-                            Text(statusText)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(statusColor)
-
-                        if item.status == .failed,
-                           let errorDescription = item.errorDescription,
-                           !errorDescription.isEmpty
-                        {
-                            Text(errorDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-
-                        if !item.isComplete {
-                            ProgressView(value: item.progress)
-                                .progressViewStyle(.linear)
-                        }
-
-                        Text(detailText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 4)
-                }
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-
-            Menu {
-                if item.status.isActive {
-                    Button {
-                        action(.pause)
-                    } label: {
-                        Label(L10n.Localizable.CacheView.Button.pause, systemImage: "pause.fill")
-                    }
-                } else if !item.isComplete {
-                    Button {
-                        action(.resume)
-                    } label: {
-                        Label(
-                            item.status == .failed
-                                ? L10n.Localizable.CacheView.Button.retry
-                                : L10n.Localizable.CacheView.Button.resume,
-                            systemImage: item.status == .failed
-                                ? "arrow.clockwise"
-                                : "play.fill"
-                        )
-                    }
-                }
-                Button(role: .destructive) {
-                    action(.delete)
-                } label: {
-                    Label(L10n.Localizable.CacheView.Button.delete, systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .frame(width: 32, height: 44)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var cover: some View {
-        let url = item.coverFileURL ?? item.detail.coverURL ?? item.gallery.coverURL
-        return KFImage(url)
-            .placeholder { Color(.secondarySystemFill) }
-            .cacheMemoryOnly(url?.isFileURL == true)
-            .defaultModifier(withRoundedCorners: false)
-            .scaledToFill()
-    }
-
-    private var statusSymbol: String {
-        switch item.status {
-        case .queued:
-            return "clock"
-        case .resolving:
-            return "link"
-        case .downloading:
-            return "arrow.down.circle.fill"
-        case .paused:
-            return "pause.circle.fill"
-        case .completed:
-            return "checkmark.circle.fill"
-        case .failed:
-            return "exclamationmark.triangle.fill"
-        }
-    }
-
-    private var statusColor: Color {
-        switch item.status {
-        case .completed:
-            return .green
-        case .failed:
-            return .red
-        case .paused:
-            return .orange
-        case .queued, .resolving, .downloading:
-            return .accentColor
         }
     }
 }

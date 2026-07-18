@@ -172,10 +172,6 @@ struct AboutView: View {
             text: L10n.Constant.App.Acknowledgement.Text.kingfisher
         ),
         .init(
-            urlString: L10n.Constant.App.Acknowledgement.Link.swiftUIPager,
-            text: L10n.Constant.App.Acknowledgement.Text.swiftUIPager
-        ),
-        .init(
             urlString: L10n.Constant.App.Acknowledgement.Link.swiftyBeaver,
             text: L10n.Constant.App.Acknowledgement.Text.swiftyBeaver
         ),

@@ -18,6 +18,8 @@ struct WaterfallCollectionView: UIViewRepresentable {
     let setting: Setting
     let translationRevision: TagTranslator.RenderRevision?
     let datasetIdentity: AnyHashable
+    let presentations: [String: GalleryListPresentation]
+    let actionsProvider: ((String) -> [GalleryListAction])?
     let pageNumber: PageNumber?
     let loadingState: LoadingState
     let footerLoadingState: LoadingState
@@ -83,6 +85,7 @@ extension WaterfallCollectionView {
 
         private var galleriesByID = [String: Gallery]()
         private var gallerySignatures = [String: GalleryRenderSignature]()
+        private var presentationsByID = [String: GalleryListPresentation]()
         private var itemIdentifiers = [WaterfallItemID]()
         private var settingSignature: WaterfallSettingSignature
         private var environment: WaterfallHostEnvironment
@@ -168,6 +171,7 @@ extension WaterfallCollectionView {
             let oldLoadingState = loadingState
             let oldFooterLoadingState = footerLoadingState
             let oldItemIdentifiers = itemIdentifiers
+            let oldPresentationsByID = presentationsByID
             let existingSnapshot = dataSource.snapshot()
 
             self.parent = parent
@@ -197,12 +201,14 @@ extension WaterfallCollectionView {
 
             var newGalleriesByID = [String: Gallery]()
             var newGallerySignatures = [String: GalleryRenderSignature]()
+            var newPresentationsByID = [String: GalleryListPresentation]()
             var newItemIdentifiers = [WaterfallItemID]()
             var seenIDs = Set<String>()
 
             for gallery in parent.galleries where seenIDs.insert(gallery.id).inserted {
                 newGalleriesByID[gallery.id] = gallery
                 newGallerySignatures[gallery.id] = .init(gallery: gallery)
+                newPresentationsByID[gallery.id] = parent.presentations[gallery.id]
                 newItemIdentifiers.append(.gallery(gallery.id))
             }
             if parent.pageNumber?.hasNextPage() == true {
@@ -217,6 +223,15 @@ extension WaterfallCollectionView {
             let translationChanged = oldTranslationRevision != translationRevision
             let changedGalleryIDs = newGallerySignatures.compactMap { id, signature in
                 gallerySignatures[id] == signature ? nil : id
+            }
+            let presentationIDs = Set(oldPresentationsByID.keys)
+                .union(newPresentationsByID.keys)
+            let changedPresentationIDs = presentationIDs.filter {
+                oldPresentationsByID[$0] != newPresentationsByID[$0]
+            }
+            let presentationLayoutChangedIDs = changedPresentationIDs.filter {
+                (oldPresentationsByID[$0]?.status != nil)
+                    != (newPresentationsByID[$0]?.status != nil)
             }
             let footerChanged = oldFooterLoadingState != footerLoadingState
             let structureChanged = itemIdentifiers != newItemIdentifiers
@@ -238,11 +253,13 @@ extension WaterfallCollectionView {
                     || sizeEnvironmentChanged
                     || translationChanged
                     || !changedGalleryIDs.isEmpty
+                    || !presentationLayoutChangedIDs.isEmpty
                     || footerChanged
                 )
             let anchor = shouldPreserveAnchor ? captureAnchor(in: collectionView) : nil
             galleriesByID = newGalleriesByID
             gallerySignatures = newGallerySignatures
+            presentationsByID = newPresentationsByID
             itemIdentifiers = newItemIdentifiers
 
             let validItemIdentifiers = Set(newItemIdentifiers)
@@ -273,6 +290,11 @@ extension WaterfallCollectionView {
                         .filter(oldItemSet.contains)
                 )
             }
+            identifiersToReconfigure.formUnion(
+                changedPresentationIDs
+                    .map(WaterfallItemID.gallery)
+                    .filter(oldItemSet.contains)
+            )
             if footerChanged, oldItemSet.contains(.footer), newItemIdentifiers.contains(.footer) {
                 identifiersToReconfigure.insert(.footer)
             }
@@ -289,13 +311,20 @@ extension WaterfallCollectionView {
                 identifiersWithInvalidMeasurements.formUnion(
                     changedGalleryIDs.map(WaterfallItemID.gallery)
                 )
+                identifiersWithInvalidMeasurements.formUnion(
+                    presentationLayoutChangedIDs.map(WaterfallItemID.gallery)
+                )
             }
             if footerChanged {
                 identifiersWithInvalidMeasurements.insert(.footer)
             }
             invalidatePendingMeasurements(for: identifiersWithInvalidMeasurements)
 
-            let galleryExtraHeight: CGFloat = parent.setting.showsTagsInList ? 210 : 125
+            let galleryExtraHeight: CGFloat =
+                (parent.setting.showsTagsInList ? 210 : 125)
+                + (parent.presentations.isEmpty
+                    ? 0
+                    : GalleryThumbnailCell.statusInformationHeight)
             if replacesDataset {
                 layout?.resetColumnAssignments()
             }
@@ -311,6 +340,7 @@ extension WaterfallCollectionView {
                         gallery: gallery,
                         setting: self.parent.setting,
                         availableWidth: itemWidth,
+                        presentation: self.presentationsByID[id],
                         translateAction: self.parent.translateAction
                     )
                 },
@@ -320,7 +350,11 @@ extension WaterfallCollectionView {
             if settingChanged || sizeEnvironmentChanged || translationChanged {
                 layout?.removeAllMeasuredHeights()
             } else {
-                layout?.removeMeasuredHeights(for: changedGalleryIDs.map(WaterfallItemID.gallery))
+                layout?.removeMeasuredHeights(
+                    for: Set(changedGalleryIDs)
+                        .union(presentationLayoutChangedIDs)
+                        .map(WaterfallItemID.gallery)
+                )
             }
             if footerChanged {
                 layout?.removeMeasuredHeights(for: [.footer])
@@ -405,6 +439,8 @@ private extension WaterfallCollectionView.Coordinator {
                 ?? Defaults.ImageSize.rowW * 2
             let setting = parent.setting
             let environment = environment
+            let presentation = presentationsByID[id]
+            let actions = parent.actionsProvider?(id) ?? []
             let translateAction: (String) -> (String, TagTranslation?) = { [weak self] word in
                 self?.parent.translateAction?(word) ?? (word, nil)
             }
@@ -418,11 +454,13 @@ private extension WaterfallCollectionView.Coordinator {
                         gallery: gallery,
                         setting: setting,
                         availableWidth: itemWidth,
+                        presentation: presentation,
                         translateAction: translateAction
                     ),
+                    presentation: presentation,
+                    actions: actions,
                     translateAction: translateAction
                 )
-                .tint(.primary)
                 .multilineTextAlignment(.leading)
                 .environment(\.colorScheme, environment.colorScheme)
                 .environment(\.dynamicTypeSize, environment.dynamicTypeSize)
@@ -690,9 +728,16 @@ private extension WaterfallCollectionView.Coordinator {
 
         let token = UUID()
         let processor = DownsamplingImageProcessor(size: targetSize)
+        var options: KingfisherOptionsInfo = [
+            .processor(processor),
+            .backgroundDecode
+        ]
+        if url.isFileURL {
+            options.append(.cacheMemoryOnly)
+        }
         let prefetcher = ImagePrefetcher(
             urls: [url],
-            options: [.processor(processor), .backgroundDecode]
+            options: options
         ) { [weak self] _, _, _ in
             DispatchQueue.main.async { [weak self] in
                 guard self?.prefetchers[galleryID]?.token == token else { return }
@@ -757,7 +802,8 @@ extension WaterfallCollectionView.Coordinator:
         for indexPath in indexPaths {
             guard let itemIdentifier = dataSource.itemIdentifier(for: indexPath),
                   case .gallery(let id) = itemIdentifier,
-                  let url = galleriesByID[id]?.coverURL
+                  let url = presentationsByID[id]?.coverURL
+                    ?? galleriesByID[id]?.coverURL
             else { continue }
             startPrefetching(galleryID: id, url: url, targetSize: targetSize)
         }

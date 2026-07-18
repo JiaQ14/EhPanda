@@ -5,7 +5,6 @@
 
 import SwiftUI
 import Kingfisher
-import SwiftUIPager
 import ComposableArchitecture
 
 struct ReadingView: View {
@@ -21,7 +20,7 @@ struct ReadingView: View {
     @StateObject private var autoPlayHandler = AutoPlayHandler()
     @StateObject private var gestureHandler = GestureHandler()
     @StateObject private var pageHandler = PageHandler()
-    @StateObject private var page: Page = .first()
+    @State private var pageIndex = 0
 
     init(
         store: StoreOf<ReadingReducer>,
@@ -35,6 +34,9 @@ struct ReadingView: View {
 
     private var backgroundColor: Color {
         colorScheme == .light ? Color(.systemGray4) : Color(.systemGray6)
+    }
+    private var backgroundUIColor: UIColor {
+        colorScheme == .light ? .systemGray4 : .systemGray6
     }
 
     var body: some View {
@@ -94,30 +96,54 @@ struct ReadingView: View {
             backgroundColor.ignoresSafeArea()
 
             GeometryReader { proxy in
-                ZStack {
-                    if setting.readingDirection == .vertical {
-                        AdvancedList(
-                            page: page,
-                            data: store.state.containerDataSource(setting: setting),
-                            id: \.self,
-                            spacing: setting.contentDividerHeight,
-                            topContentInset: setting.avoidsStatusBarInVerticalMode
-                                ? proxy.safeAreaInsets.top : 0,
-                            content: imageStack
+                let pages = store.state.containerDataSource(setting: setting)
+                let isVertical = setting.readingDirection == .vertical
+                let isDualPage =
+                    setting.enablesDualPageMode
+                    && !isVertical
+                    && DeviceUtil.isLandscape
+                let cacheDirectoryIdentifier = store.cacheDirectoryIdentifier
+                let cachePageIdentifiers = store.cachePageIdentifiers
+
+                ReadingCollectionView(
+                    pageIndex: $pageIndex,
+                    pages: pages,
+                    axis: isVertical ? .vertical : .horizontal,
+                    isRightToLeft: setting.readingDirection == .rightToLeft,
+                    spacing: setting.contentDividerHeight,
+                    topInset: isVertical && setting.avoidsStatusBarInVerticalMode
+                        ? proxy.safeAreaInsets.top : 0,
+                    isDualPage: isDualPage,
+                    isDatabaseLoading: store.databaseLoadingState != .idle,
+                    isScrollEnabled: gestureHandler.scale == 1,
+                    reloadID: store.forceRefreshID,
+                    backgroundColor: backgroundUIColor,
+                    pageModel: {
+                        readingPageModel(index: $0)
+                    },
+                    fetchAction: { store.send(.fetchImageURLs($0)) },
+                    refetchAction: { store.send(.refetchImageURLs($0)) },
+                    prefetchAction: {
+                        store.send(.prefetchImages($0, setting.prefetchLimit))
+                    },
+                    retryAction: { store.send(.retryImage($0)) },
+                    loadSucceededAction: {
+                        store.send(.onWebImageSucceeded($0))
+                    },
+                    loadFailedAction: {
+                        store.send(
+                            .onWebImageFailed(
+                                $0,
+                                $1,
+                                cacheDirectoryIdentifier,
+                                cachePageIdentifiers[$0]
+                            )
                         )
-                        .scrollDisabled(gestureHandler.scale != 1)
-                    } else {
-                        Pager(
-                            page: page,
-                            data: store.state.containerDataSource(setting: setting),
-                            id: \.self,
-                            content: imageStack
-                        )
-                        .horizontal(setting.readingDirection == .rightToLeft ? .endToStart : .startToEnd)
-                        .swipeInteractionArea(.allAvailable)
-                        .allowsDragging(gestureHandler.scale == 1)
-                    }
-                }
+                    },
+                    copyImageAction: { store.send(.copyImage($0)) },
+                    saveImageAction: { store.send(.saveImage($0)) },
+                    shareImageAction: { store.send(.shareImage($0)) }
+                )
                 .scaleEffect(gestureHandler.scale, anchor: gestureHandler.scaleAnchor)
                 .offset(gestureHandler.offset)
                 .highPriorityGesture(
@@ -128,8 +154,6 @@ struct ReadingView: View {
                 .simultaneousGesture(magnificationGesture)
                 .ignoresSafeArea()
             }
-            .id(store.databaseLoadingState)
-            .id(store.forceRefreshID)
 
             ControlPanel(
                 showsPanel: $store.showsPanel,
@@ -153,8 +177,8 @@ struct ReadingView: View {
     private func changeTriggers<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
              // Page
-            .onChange(of: page.index) { _, newValue in
-                Logger.info("page.index changed", context: ["pageIndex": newValue])
+            .onChange(of: pageIndex) { _, newValue in
+                Logger.info("pageIndex changed", context: ["pageIndex": newValue])
                 let newValue = pageHandler.mapFromPager(
                     index: newValue, pageCount: store.gallery.pageCount, setting: setting
                 )
@@ -177,6 +201,15 @@ struct ReadingView: View {
             .onChange(of: store.readingProgress) { _, newValue in
                 Logger.info("store.readingProgress changed", context: ["readingProgress": newValue])
                 pageHandler.sliderValue = .init(newValue)
+            }
+            .onChange(of: setting.readingDirection) {
+                setPageIndex(sliderValue: pageHandler.sliderValue)
+            }
+            .onChange(of: setting.enablesDualPageMode) {
+                setPageIndex(sliderValue: pageHandler.sliderValue)
+            }
+            .onChange(of: setting.exceptCover) {
+                setPageIndex(sliderValue: pageHandler.sliderValue)
             }
 
             // AutoPlay
@@ -208,12 +241,9 @@ struct ReadingView: View {
             }
     }
 
-    @ViewBuilder private func imageStack(index: Int) -> some View {
+    private func readingPageModel(index: Int) -> ReadingPageModel {
         let imageStackConfig = store.state.imageContainerConfigs(index: index, setting: setting)
-        let isDualPage = setting.enablesDualPageMode && setting.readingDirection != .vertical && DeviceUtil.isLandscape
-        let cacheDirectoryIdentifier = store.cacheDirectoryIdentifier
-        let cachePageIdentifiers = store.cachePageIdentifiers
-        let pageModel = ReadingPageModel(
+        return ReadingPageModel(
             first: imageStackConfig.isFirstAvailable
                 ? readingImageModel(index: imageStackConfig.firstIndex)
                 : nil,
@@ -221,35 +251,6 @@ struct ReadingView: View {
                 ? readingImageModel(index: imageStackConfig.secondIndex)
                 : nil
         )
-        HorizontalImageStack(
-            index: index,
-            isDualPage: isDualPage,
-            isDatabaseLoading: store.databaseLoadingState != .idle,
-            backgroundColor: backgroundColor,
-            pageModel: pageModel,
-            enablesLiveText: liveTextHandler.enablesLiveText,
-            focusedLiveTextGroup: liveTextHandler.focusedLiveTextGroup,
-            liveTextTapAction: liveTextHandler.setFocusedLiveTextGroup,
-            fetchAction: { store.send(.fetchImageURLs($0)) },
-            refetchAction: { store.send(.refetchImageURLs($0)) },
-            prefetchAction: { store.send(.prefetchImages($0, setting.prefetchLimit)) },
-            retryAction: { store.send(.retryImage($0)) },
-            loadSucceededAction: { store.send(.onWebImageSucceeded($0)) },
-            loadFailedAction: {
-                store.send(
-                    .onWebImageFailed(
-                        $0,
-                        $1,
-                        cacheDirectoryIdentifier,
-                        cachePageIdentifiers[$0]
-                    )
-                )
-            },
-            copyImageAction: { store.send(.copyImage($0)) },
-            saveImageAction: { store.send(.saveImage($0)) },
-            shareImageAction: { store.send(.shareImage($0)) }
-        )
-        .equatable()
     }
 
     private func readingImageModel(index: Int) -> ReadingImageModel {
@@ -258,7 +259,10 @@ struct ReadingView: View {
             imageURL: store.imageURLs[index],
             originalImageURL: store.originalImageURLs[index],
             loadingState: store.imageURLLoadingStates[index] ?? .idle,
-            liveTextGroups: liveTextHandler.liveTextGroups[index] ?? []
+            enablesLiveText: liveTextHandler.enablesLiveText,
+            liveTextGroups: liveTextHandler.liveTextGroups[index] ?? [],
+            focusedLiveTextGroup: liveTextHandler.focusedLiveTextGroup,
+            liveTextTapAction: liveTextHandler.setFocusedLiveTextGroup
         )
     }
 }
@@ -269,16 +273,24 @@ extension ReadingView {
         let newValue = pageHandler.mapToPager(
             index: .init(sliderValue), setting: setting
         )
-        if page.index != newValue {
-            page.update(.new(index: newValue))
-            Logger.info("Pager.update", context: ["update": newValue])
+        if pageIndex != newValue {
+            updatePageIndex(newValue)
+            Logger.info("Reader.update", context: ["update": newValue])
         }
     }
     func setAutoPlayPolocy(_ policy: AutoPlayPolicy) {
         autoPlayHandler.setPolicy(policy, updatePageAction: {
-            page.update(.next)
-            Logger.info("Pager.update", context: ["update": "next"])
+            updatePageIndex(pageIndex + 1)
+            Logger.info("Reader.update", context: ["update": "next"])
         })
+    }
+    func updatePageIndex(_ newValue: Int) {
+        let pageCount = store.state.containerDataSource(setting: setting).count
+        guard pageCount > 0 else {
+            pageIndex = 0
+            return
+        }
+        pageIndex = min(max(newValue, 0), pageCount - 1)
     }
     func analyzeImageForLiveText(index: Int) {
         Logger.info("analyzeImageForLiveText", context: ["index": index])
@@ -334,9 +346,9 @@ extension ReadingView {
                 gestureHandler.onSingleTapGestureEnded(
                     readingDirection: setting.readingDirection,
                     setPageIndexOffsetAction: {
-                        let newValue = page.index + $0
-                        page.update(.new(index: newValue))
-                        Logger.info("Pager.update", context: ["update": newValue])
+                        let newValue = pageIndex + $0
+                        updatePageIndex(newValue)
+                        Logger.info("Reader.update", context: ["update": newValue])
                     },
                     toggleShowsPanelAction: { store.send(.toggleShowsPanel) }
                 )
@@ -381,284 +393,6 @@ extension ReadingView {
     }
 }
 
-// MARK: HorizontalImageStack
-private struct HorizontalImageStack: View, Equatable {
-    private let index: Int
-    private let isDualPage: Bool
-    private let isDatabaseLoading: Bool
-    private let backgroundColor: Color
-    private let pageModel: ReadingPageModel
-    private let enablesLiveText: Bool
-    private let focusedLiveTextGroup: LiveTextGroup?
-    private let liveTextTapAction: (LiveTextGroup) -> Void
-    private let fetchAction: (Int) -> Void
-    private let refetchAction: (Int) -> Void
-    private let prefetchAction: (Int) -> Void
-    private let retryAction: (Int) -> Void
-    private let loadSucceededAction: (Int) -> Void
-    private let loadFailedAction: (Int, URL?) -> Void
-    private let copyImageAction: (URL) -> Void
-    private let saveImageAction: (URL) -> Void
-    private let shareImageAction: (URL) -> Void
-
-    init(
-        index: Int, isDualPage: Bool, isDatabaseLoading: Bool, backgroundColor: Color,
-        pageModel: ReadingPageModel, enablesLiveText: Bool,
-        focusedLiveTextGroup: LiveTextGroup?,
-        liveTextTapAction: @escaping (LiveTextGroup) -> Void,
-        fetchAction: @escaping (Int) -> Void,
-        refetchAction: @escaping (Int) -> Void, prefetchAction: @escaping (Int) -> Void,
-        retryAction: @escaping (Int) -> Void, loadSucceededAction: @escaping (Int) -> Void,
-        loadFailedAction: @escaping (Int, URL?) -> Void, copyImageAction: @escaping (URL) -> Void,
-        saveImageAction: @escaping (URL) -> Void, shareImageAction: @escaping (URL) -> Void
-    ) {
-        self.index = index
-        self.isDualPage = isDualPage
-        self.isDatabaseLoading = isDatabaseLoading
-        self.backgroundColor = backgroundColor
-        self.pageModel = pageModel
-        self.enablesLiveText = enablesLiveText
-        self.focusedLiveTextGroup = focusedLiveTextGroup
-        self.liveTextTapAction = liveTextTapAction
-        self.fetchAction = fetchAction
-        self.refetchAction = refetchAction
-        self.prefetchAction = prefetchAction
-        self.retryAction = retryAction
-        self.loadSucceededAction = loadSucceededAction
-        self.loadFailedAction = loadFailedAction
-        self.copyImageAction = copyImageAction
-        self.saveImageAction = saveImageAction
-        self.shareImageAction = shareImageAction
-    }
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.index == rhs.index
-            && lhs.isDualPage == rhs.isDualPage
-            && lhs.isDatabaseLoading == rhs.isDatabaseLoading
-            && lhs.backgroundColor == rhs.backgroundColor
-            && lhs.pageModel == rhs.pageModel
-            && lhs.enablesLiveText == rhs.enablesLiveText
-            && lhs.focusedLiveTextGroup == rhs.focusedLiveTextGroup
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            if let first = pageModel.first {
-                imageContainer(model: first)
-            }
-            if let second = pageModel.second {
-                imageContainer(model: second)
-            }
-        }
-        .onAppear(perform: loadPageIfNeeded)
-        .onChange(of: isDatabaseLoading) { _, isLoading in
-            if !isLoading {
-                loadPageIfNeeded()
-            }
-        }
-    }
-
-    func imageContainer(model: ReadingImageModel) -> some View {
-        ImageContainer(
-            index: model.index,
-            imageURL: model.imageURL,
-            loadingState: model.loadingState,
-            isDualPage: isDualPage,
-            backgroundColor: backgroundColor,
-            enablesLiveText: enablesLiveText,
-            liveTextGroups: model.liveTextGroups,
-            focusedLiveTextGroup: focusedLiveTextGroup,
-            liveTextTapAction: liveTextTapAction,
-            retryAction: retryAction,
-            loadSucceededAction: loadSucceededAction,
-            loadFailedAction: loadFailedAction
-        )
-        .contextMenu { contextMenuItems(model: model) }
-    }
-
-    private func loadPageIfNeeded() {
-        guard !isDatabaseLoading else { return }
-        for model in pageModel.images where model.imageURL == nil {
-            fetchAction(model.index)
-        }
-        prefetchAction(index)
-    }
-
-    @ViewBuilder private func contextMenuItems(model: ReadingImageModel) -> some View {
-        if model.imageURL?.isFileURL != true {
-            Button {
-                refetchAction(model.index)
-            } label: {
-                Label(
-                    L10n.Localizable.ReadingView.ContextMenu.Button.reload,
-                    systemSymbol: .arrowCounterclockwise
-                )
-            }
-        }
-        if let imageURL = model.imageURL {
-            Button {
-                copyImageAction(imageURL)
-            } label: {
-                Label(L10n.Localizable.ReadingView.ContextMenu.Button.copy, systemSymbol: .plusSquareOnSquare)
-            }
-            Button {
-                saveImageAction(imageURL)
-            } label: {
-                Label(L10n.Localizable.ReadingView.ContextMenu.Button.save, systemSymbol: .squareAndArrowDown)
-            }
-            if let originalImageURL = model.originalImageURL {
-                Button {
-                    saveImageAction(originalImageURL)
-                } label: {
-                    Label(
-                        L10n.Localizable.ReadingView.ContextMenu.Button.saveOriginal,
-                        systemSymbol: .squareAndArrowDownOnSquare
-                    )
-                }
-            }
-            Button {
-                shareImageAction(imageURL)
-            } label: {
-                Label(L10n.Localizable.ReadingView.ContextMenu.Button.share, systemSymbol: .squareAndArrowUp)
-            }
-        }
-    }
-}
-
-// MARK: ImageContainer
-private struct ImageContainer: View {
-    @Environment(\.displayScale) private var displayScale
-
-    private var width: CGFloat {
-        DeviceUtil.windowW / (isDualPage ? 2 : 1)
-    }
-    private var height: CGFloat {
-        width / Defaults.ImageSize.contentAspect
-    }
-    private var targetPixelSize: CGSize {
-        ReadingImageSizing.targetPixelSize(
-            isDualPage: isDualPage,
-            displayScale: displayScale
-        )
-    }
-
-    private let index: Int
-    private let imageURL: URL?
-    private let loadingState: LoadingState
-    private let isDualPage: Bool
-    private let backgroundColor: Color
-    private let enablesLiveText: Bool
-    private let liveTextGroups: [LiveTextGroup]
-    private let focusedLiveTextGroup: LiveTextGroup?
-    private let liveTextTapAction: (LiveTextGroup) -> Void
-    private let retryAction: (Int) -> Void
-    private let loadSucceededAction: (Int) -> Void
-    private let loadFailedAction: (Int, URL?) -> Void
-
-    init(
-        index: Int, imageURL: URL?,
-        loadingState: LoadingState,
-        isDualPage: Bool,
-        backgroundColor: Color,
-        enablesLiveText: Bool,
-        liveTextGroups: [LiveTextGroup],
-        focusedLiveTextGroup: LiveTextGroup?,
-        liveTextTapAction: @escaping (LiveTextGroup) -> Void,
-        retryAction: @escaping (Int) -> Void,
-        loadSucceededAction: @escaping (Int) -> Void,
-        loadFailedAction: @escaping (Int, URL?) -> Void
-    ) {
-        self.index = index
-        self.imageURL = imageURL
-        self.loadingState = loadingState
-        self.isDualPage = isDualPage
-        self.backgroundColor = backgroundColor
-        self.enablesLiveText = enablesLiveText
-        self.liveTextGroups = liveTextGroups
-        self.focusedLiveTextGroup = focusedLiveTextGroup
-        self.liveTextTapAction = liveTextTapAction
-        self.retryAction = retryAction
-        self.loadSucceededAction = loadSucceededAction
-        self.loadFailedAction = loadFailedAction
-    }
-
-    private func placeholder(_ progress: Progress) -> some View {
-        Placeholder(style: .progress(
-            pageNumber: index, progress: progress,
-            isDualPage: isDualPage, backgroundColor: backgroundColor
-        ))
-        .frame(width: width, height: height)
-    }
-    @ViewBuilder private func image(url: URL?) -> some View {
-        if url?.isGIF != true {
-            KFImage(url)
-                .placeholder(placeholder)
-                .setProcessor(DownsamplingImageProcessor(size: targetPixelSize))
-                .cacheOriginalImage(url?.isFileURL != true)
-                .cacheMemoryOnly(url?.isFileURL == true)
-                .backgroundDecode()
-                .loadDiskFileSynchronously(false)
-                .cancelOnDisappear(true)
-                .resizable()
-                .onSuccess(onSuccess).onFailure(onFailure)
-        } else {
-            KFAnimatedImage(url)
-                .placeholder(placeholder)
-                .cacheMemoryOnly(url?.isFileURL == true)
-                .backgroundDecode()
-                .loadDiskFileSynchronously(false)
-                .cancelOnDisappear(true)
-                .onSuccess(onSuccess).onFailure(onFailure)
-        }
-    }
-
-    var body: some View {
-        if loadingState == .idle {
-            image(url: imageURL)
-                .scaledToFit()
-                .overlay {
-                    if enablesLiveText {
-                        LiveTextView(
-                            liveTextGroups: liveTextGroups,
-                            focusedLiveTextGroup: focusedLiveTextGroup,
-                            tapAction: liveTextTapAction
-                        )
-                    }
-                }
-        } else {
-            ZStack {
-                backgroundColor
-                VStack {
-                    Text(String(index)).font(.largeTitle.bold())
-                        .foregroundColor(.gray).padding(.bottom, 30)
-                    ZStack {
-                        Button(action: reloadImage) {
-                            Image(systemSymbol: .exclamationmarkArrowTriangle2Circlepath)
-                        }
-                        .font(.system(size: 30, weight: .medium)).foregroundColor(.gray)
-                        .opacity(loadingState == .loading ? 0 : 1)
-                        ProgressView().opacity(loadingState == .loading ? 1 : 0)
-                    }
-                }
-            }
-            .frame(width: width, height: height)
-        }
-    }
-    private func reloadImage() {
-        if loadingState.failed != nil {
-            retryAction(index)
-        }
-    }
-    private func onSuccess(_: RetrieveImageResult) {
-        loadSucceededAction(index)
-    }
-    private func onFailure(_: KingfisherError) {
-        if imageURL != nil {
-            loadFailedAction(index, imageURL)
-        }
-    }
-}
-
 // MARK: Definition
 struct ImageStackConfig {
     let firstIndex: Int
@@ -667,7 +401,7 @@ struct ImageStackConfig {
     let isSecondAvailable: Bool
 }
 
-private struct ReadingPageModel: Equatable {
+struct ReadingPageModel: Equatable {
     let first: ReadingImageModel?
     let second: ReadingImageModel?
 
@@ -676,12 +410,25 @@ private struct ReadingPageModel: Equatable {
     }
 }
 
-private struct ReadingImageModel: Equatable {
+struct ReadingImageModel: Equatable {
     let index: Int
     let imageURL: URL?
     let originalImageURL: URL?
     let loadingState: LoadingState
+    let enablesLiveText: Bool
     let liveTextGroups: [LiveTextGroup]
+    let focusedLiveTextGroup: LiveTextGroup?
+    let liveTextTapAction: (LiveTextGroup) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.index == rhs.index
+            && lhs.imageURL == rhs.imageURL
+            && lhs.originalImageURL == rhs.originalImageURL
+            && lhs.loadingState == rhs.loadingState
+            && lhs.enablesLiveText == rhs.enablesLiveText
+            && lhs.liveTextGroups == rhs.liveTextGroups
+            && lhs.focusedLiveTextGroup == rhs.focusedLiveTextGroup
+    }
 }
 
 private enum ReadingImageSizing {

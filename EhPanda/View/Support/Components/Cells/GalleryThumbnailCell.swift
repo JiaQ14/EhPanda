@@ -7,6 +7,8 @@ import SwiftUI
 import Kingfisher
 
 struct GalleryThumbnailCell: View {
+    static let statusInformationHeight: CGFloat = 68
+
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
 
@@ -14,6 +16,8 @@ struct GalleryThumbnailCell: View {
     private let setting: Setting
     private let availableWidth: CGFloat
     private let informationHeight: CGFloat
+    private let presentation: GalleryListPresentation?
+    private let actions: [GalleryListAction]
     private let translateAction: ((String) -> (String, TagTranslation?))?
 
     init(
@@ -21,16 +25,21 @@ struct GalleryThumbnailCell: View {
         setting: Setting,
         availableWidth: CGFloat = Defaults.ImageSize.rowW * 2,
         informationHeight: CGFloat? = nil,
+        presentation: GalleryListPresentation? = nil,
+        actions: [GalleryListAction] = [],
         translateAction: ((String) -> (String, TagTranslation?))? = nil
     ) {
         self.gallery = gallery
         self.setting = setting
         self.availableWidth = availableWidth
+        self.presentation = presentation
+        self.actions = actions
         self.informationHeight = informationHeight
             ?? Self.informationHeight(
                 gallery: gallery,
                 setting: setting,
                 availableWidth: availableWidth,
+                presentation: presentation,
                 translateAction: translateAction
             )
         self.translateAction = translateAction
@@ -49,10 +58,15 @@ struct GalleryThumbnailCell: View {
             height: width / Defaults.ImageSize.rowAspect * displayScale
         )
     }
+    private var coverURL: URL? {
+        presentation?.coverURL ?? gallery.coverURL
+    }
+
     static func informationHeight(
         gallery: Gallery,
         setting: Setting,
         availableWidth: CGFloat,
+        presentation: GalleryListPresentation? = nil,
         translateAction: ((String) -> (String, TagTranslation?))? = nil
     ) -> CGFloat {
         let contentWidth = max(availableWidth - 20, 1)
@@ -64,34 +78,37 @@ struct GalleryThumbnailCell: View {
         var height = 68 + CGFloat(titleLines) * 18
 
         let tagContents = gallery.tagContents(maximum: setting.listTagsNumberMaximum)
-        guard setting.showsTagsInList, !tagContents.isEmpty else {
-            return ceil(height)
-        }
-
-        var rowCount = 1
-        var rowWidth = CGFloat.zero
-        for content in tagContents {
-            let translation = translateAction?(content.rawNamespace + content.text).1
-            let text = translation?.displayValue ?? content.text
-            let imageWidth: CGFloat =
-                setting.showsImagesInTags && translation?.valueImageURL != nil ? 14 : 0
-            let tagWidth = min(
-                contentWidth,
-                max(24, CGFloat(text.count) * 6.5 + imageWidth + 8)
-            )
-            if rowWidth > 0, rowWidth + 4 + tagWidth > contentWidth {
-                rowCount += 1
-                rowWidth = tagWidth
-            } else {
-                rowWidth += (rowWidth > 0 ? 4 : 0) + tagWidth
+        if setting.showsTagsInList, !tagContents.isEmpty {
+            var rowCount = 1
+            var rowWidth = CGFloat.zero
+            for content in tagContents {
+                let translation = translateAction?(content.rawNamespace + content.text).1
+                let text = translation?.displayValue ?? content.text
+                let imageWidth: CGFloat =
+                    setting.showsImagesInTags && translation?.valueImageURL != nil ? 14 : 0
+                let tagWidth = min(
+                    contentWidth,
+                    max(24, CGFloat(text.count) * 6.5 + imageWidth + 8)
+                )
+                if rowWidth > 0, rowWidth + 4 + tagWidth > contentWidth {
+                    rowCount += 1
+                    rowWidth = tagWidth
+                } else {
+                    rowWidth += (rowWidth > 0 ? 4 : 0) + tagWidth
+                }
+                if rowCount == 4 { break }
             }
-            if rowCount == 4 { break }
+
+            let visibleRowCount = min(rowCount, 4)
+            height += 5
+                + CGFloat(visibleRowCount) * 18
+                + CGFloat(max(visibleRowCount - 1, 0)) * 4
         }
 
-        let visibleRowCount = min(rowCount, 4)
-        height += 5
-            + CGFloat(visibleRowCount) * 18
-            + CGFloat(max(visibleRowCount - 1, 0)) * 4
+        if presentation?.status != nil {
+            height += statusInformationHeight
+        }
+
         return ceil(height)
     }
 
@@ -99,12 +116,13 @@ struct GalleryThumbnailCell: View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
 
         VStack(alignment: .leading, spacing: 0) {
-            KFImage(gallery.coverURL)
+            KFImage(coverURL)
                 .placeholder { Placeholder(style: .activity(ratio: Defaults.ImageSize.rowAspect)) }
                 .downsampling(size: coverPixelSize)
                 .backgroundDecode()
                 .loadDiskFileSynchronously(false)
                 .cancelOnDisappear(true)
+                .cacheMemoryOnly(coverURL?.isFileURL == true)
                 .fade(duration: 0.15)
                 .resizable()
                 .scaledToFill()
@@ -157,6 +175,20 @@ struct GalleryThumbnailCell: View {
                 }
                 .lineLimit(1).font(.footnote).foregroundStyle(.secondary)
                 RatingView(rating: gallery.rating).foregroundColor(.yellow).font(.caption)
+
+                if let status = presentation?.status {
+                    Divider()
+                    GalleryListStatusView(
+                        status: status,
+                        actions: actions,
+                        compact: true
+                    )
+                    .frame(
+                        height: Self.statusInformationHeight - 10,
+                        alignment: .top
+                    )
+                    .clipped()
+                }
             }
             .padding(10)
             .frame(height: informationHeight, alignment: .top)

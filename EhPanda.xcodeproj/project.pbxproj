@@ -116,7 +116,6 @@
 		AB5BE68026B95FDD007D4A55 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB5BE67626B95FDD007D4A55 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AB63EADB2699AC8200090535 /* AppEnvMO+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB63EADA2699AC8200090535 /* AppEnvMO+CoreDataProperties.swift */; };
 		AB63EADD2699AC9100090535 /* AppEnvMO+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB63EADC2699AC9100090535 /* AppEnvMO+CoreDataClass.swift */; };
-		AB6505A026B0027800F91E9D /* SwiftUIPager in Frameworks */ = {isa = PBXBuildFile; productRef = AB65059F26B0027800F91E9D /* SwiftUIPager */; };
 		AB69CB8026B3DABC00699359 /* AdvancedList.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB69CB7F26B3DABC00699359 /* AdvancedList.swift */; };
 		AB69CB8226B3DAF400699359 /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB69CB8126B3DAF400699359 /* ControlPanel.swift */; };
 		AB6DE897268822390087C579 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB6DE896268822390087C579 /* LogsView.swift */; };
@@ -643,7 +642,6 @@
 				ABC4A0792751B40E00968A4F /* Kingfisher in Frameworks */,
 				EAE63E2129E2A6330048C601 /* SwiftyBeaver in Frameworks */,
 				AB26F59927ACDB4200AB3468 /* FilePicker in Frameworks */,
-				AB6505A026B0027800F91E9D /* SwiftUIPager in Frameworks */,
 				ABD49D5D277C6C9D003D1A07 /* SFSafeSymbols in Frameworks */,
 				ABAC82FE26BC4A96009F5026 /* OpenCC in Frameworks */,
 				AB86AC1027831AD100E61E6A /* ComposableArchitecture in Frameworks */,
@@ -1601,7 +1599,6 @@
 			);
 			name = EhPanda;
 			packageProductDependencies = (
-				AB65059F26B0027800F91E9D /* SwiftUIPager */,
 				ABD7005826B1C31500DC59C9 /* Kanna */,
 				ABAC82FD26BC4A96009F5026 /* OpenCC */,
 				ABC4A0782751B40E00968A4F /* Kingfisher */,
@@ -1678,7 +1675,6 @@
 			);
 			mainGroup = ABC3C74B2593696C00E0C11B;
 			packageReferences = (
-				AB65059E26B0027800F91E9D /* XCRemoteSwiftPackageReference "SwiftUIPager" */,
 				ABD7005726B1C31500DC59C9 /* XCRemoteSwiftPackageReference "Kanna" */,
 				ABAC82FC26BC4866009F5026 /* XCRemoteSwiftPackageReference "SwiftyOpenCC" */,
 				ABC4A0772751B40E00968A4F /* XCRemoteSwiftPackageReference "Kingfisher" */,
@@ -2503,14 +2499,6 @@
 				kind = branch;
 			};
 		};
-		AB65059E26B0027800F91E9D /* XCRemoteSwiftPackageReference "SwiftUIPager" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/fermoya/SwiftUIPager";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
-		};
 		AB86AC0E27831AD100E61E6A /* XCRemoteSwiftPackageReference "swift-composable-architecture" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-composable-architecture";
@@ -2612,11 +2600,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AB2EB9A32802521700011A8A /* XCRemoteSwiftPackageReference "DeprecatedAPI" */;
 			productName = DeprecatedAPI;
-		};
-		AB65059F26B0027800F91E9D /* SwiftUIPager */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AB65059E26B0027800F91E9D /* XCRemoteSwiftPackageReference "SwiftUIPager" */;
-			productName = SwiftUIPager;
 		};
 		AB86AC0F27831AD100E61E6A /* ComposableArchitecture */ = {
 			isa = XCSwiftPackageProductDependency;

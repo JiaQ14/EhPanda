@@ -40,6 +40,38 @@ final class WaterfallLayoutTests: XCTestCase {
         XCTAssertGreaterThan(longHeight, shortHeight)
     }
 
+    func testCacheStatusUsesAStableWaterfallHeight() {
+        var setting = Setting()
+        setting.showsTagsInList = false
+        let presentation = GalleryListPresentation(
+            coverURL: nil,
+            status: GalleryListStatus(
+                text: "Downloading",
+                detailText: "12 / 30",
+                message: nil,
+                systemImage: "arrow.down.circle.fill",
+                tone: .accent,
+                progress: 0.4
+            )
+        )
+        let normalHeight = GalleryThumbnailCell.informationHeight(
+            gallery: .preview,
+            setting: setting,
+            availableWidth: 180
+        )
+        let cacheHeight = GalleryThumbnailCell.informationHeight(
+            gallery: .preview,
+            setting: setting,
+            availableWidth: 180,
+            presentation: presentation
+        )
+
+        XCTAssertEqual(
+            cacheHeight - normalHeight,
+            GalleryThumbnailCell.statusInformationHeight
+        )
+    }
+
     func testPlacesItemsInShortestColumnAndBreaksTiesToLeadingColumn() {
         let result = WaterfallLayoutCalculator.calculate(
             containerWidth: 220,
@@ -933,6 +965,52 @@ final class ReadingImageRetryRouteTests: XCTestCase {
             ),
             .refetch
         )
+    }
+}
+
+final class ReadingPageIndexMapperTests: XCTestCase {
+    func testKeepsLogicalOrderForLeftToRightReading() {
+        XCTAssertEqual(
+            ReadingPageIndexMapper.displayIndex(
+                forLogicalIndex: 2,
+                itemCount: 5,
+                isReversed: false
+            ),
+            2
+        )
+        XCTAssertEqual(
+            ReadingPageIndexMapper.logicalIndex(
+                forDisplayIndex: 2,
+                itemCount: 5,
+                isReversed: false
+            ),
+            2
+        )
+    }
+
+    func testMirrorsLogicalOrderForRightToLeftReading() {
+        XCTAssertEqual(
+            ReadingPageIndexMapper.displayIndex(
+                forLogicalIndex: 0,
+                itemCount: 5,
+                isReversed: true
+            ),
+            4
+        )
+        XCTAssertEqual(
+            ReadingPageIndexMapper.logicalIndex(
+                forDisplayIndex: 3,
+                itemCount: 5,
+                isReversed: true
+            ),
+            1
+        )
+    }
+
+    func testClampsExternalPageUpdatesToAvailableItems() {
+        XCTAssertEqual(ReadingPageIndexMapper.clamped(-1, itemCount: 5), 0)
+        XCTAssertEqual(ReadingPageIndexMapper.clamped(8, itemCount: 5), 4)
+        XCTAssertEqual(ReadingPageIndexMapper.clamped(1, itemCount: 0), 0)
     }
 }
 

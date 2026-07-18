@@ -11,6 +11,8 @@ struct GenericList: View {
     private let setting: Setting
     private let translationRevision: TagTranslator.RenderRevision?
     private let datasetIdentity: AnyHashable
+    private let presentations: [String: GalleryListPresentation]
+    private let actionsProvider: ((String) -> [GalleryListAction])?
     private let pageNumber: PageNumber?
     private let loadingState: LoadingState
     private let footerLoadingState: LoadingState
@@ -23,6 +25,8 @@ struct GenericList: View {
         galleries: [Gallery], setting: Setting,
         translationRevision: TagTranslator.RenderRevision? = nil,
         datasetIdentity: AnyHashable = AnyHashable(0),
+        presentations: [String: GalleryListPresentation] = [:],
+        actionsProvider: ((String) -> [GalleryListAction])? = nil,
         pageNumber: PageNumber?,
         loadingState: LoadingState, footerLoadingState: LoadingState,
         fetchAction: (() -> Void)? = nil,
@@ -34,6 +38,8 @@ struct GenericList: View {
         self.setting = setting
         self.translationRevision = translationRevision
         self.datasetIdentity = datasetIdentity
+        self.presentations = presentations
+        self.actionsProvider = actionsProvider
         self.pageNumber = pageNumber
         self.loadingState = loadingState
         self.footerLoadingState = footerLoadingState
@@ -49,6 +55,8 @@ struct GenericList: View {
             case .detail:
                 DetailList(
                     galleries: galleries, setting: setting, pageNumber: pageNumber,
+                    presentations: presentations,
+                    actionsProvider: actionsProvider,
                     footerLoadingState: footerLoadingState, fetchMoreAction: fetchMoreAction,
                     navigateAction: navigateAction, translateAction: translateAction
                 )
@@ -58,6 +66,8 @@ struct GenericList: View {
                     galleries: galleries, setting: setting,
                     translationRevision: translationRevision,
                     datasetIdentity: datasetIdentity, pageNumber: pageNumber,
+                    presentations: presentations,
+                    actionsProvider: actionsProvider,
                     loadingState: loadingState, footerLoadingState: footerLoadingState,
                     fetchAction: fetchAction, fetchMoreAction: fetchMoreAction,
                     navigateAction: navigateAction, translateAction: translateAction
@@ -81,6 +91,8 @@ private struct DetailList: View {
     private let galleries: [Gallery]
     private let setting: Setting
     private let pageNumber: PageNumber?
+    private let presentations: [String: GalleryListPresentation]
+    private let actionsProvider: ((String) -> [GalleryListAction])?
     private let footerLoadingState: LoadingState
     private let fetchMoreAction: (() -> Void)?
     private let navigateAction: ((String) -> Void)?
@@ -88,6 +100,8 @@ private struct DetailList: View {
 
     init(
         galleries: [Gallery], setting: Setting, pageNumber: PageNumber?,
+        presentations: [String: GalleryListPresentation],
+        actionsProvider: ((String) -> [GalleryListAction])?,
         footerLoadingState: LoadingState,
         fetchMoreAction: (() -> Void)?,
         navigateAction: ((String) -> Void)? = nil,
@@ -96,6 +110,8 @@ private struct DetailList: View {
         self.galleries = galleries
         self.setting = setting
         self.pageNumber = pageNumber
+        self.presentations = presentations
+        self.actionsProvider = actionsProvider
         self.footerLoadingState = footerLoadingState
         self.fetchMoreAction = fetchMoreAction
         self.navigateAction = navigateAction
@@ -113,28 +129,73 @@ private struct DetailList: View {
     }
 
     var body: some View {
-        List(galleries) { gallery in
-            Button {
-                navigateAction?(gallery.id)
-            } label: {
-                GalleryDetailCell(gallery: gallery, setting: setting, translateAction: translateAction)
-            }
-            .buttonStyle(.plain)
-            .listRowInsets(.init(top: 4, leading: 16, bottom: 4, trailing: 16))
-            .listRowSeparator(.visible)
-            .onAppear {
-                if gallery == galleries.last,
-                   pageNumber?.hasNextPage() == true,
-                   footerLoadingState == .idle
-                {
-                    fetchMoreAction?()
+        List {
+            ForEach(galleries) { gallery in
+                let actions = actionsProvider?(gallery.id) ?? []
+
+                GalleryDetailCell(
+                    gallery: gallery,
+                    setting: setting,
+                    presentation: presentations[gallery.id],
+                    actions: actions,
+                    translateAction: translateAction
+                )
+                .contentShape(.rect(cornerRadius: 8))
+                .onTapGesture {
+                    navigateAction?(gallery.id)
                 }
-            }
-            if shouldShowFooter(gallery: gallery) {
-                FetchMoreFooter(loadingState: footerLoadingState, retryAction: fetchMoreAction)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    navigateAction?(gallery.id)
+                }
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    swipeButtons(
+                        actions.filter { $0.edge == .leading }
+                    )
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    swipeButtons(
+                        actions.filter { $0.edge == .trailing }
+                    )
+                }
+                .listRowInsets(
+                    .init(top: 6, leading: 16, bottom: 6, trailing: 16)
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .onAppear {
+                    if gallery == galleries.last,
+                       pageNumber?.hasNextPage() == true,
+                       footerLoadingState == .idle
+                    {
+                        fetchMoreAction?()
+                    }
+                }
+
+                if shouldShowFooter(gallery: gallery) {
+                    FetchMoreFooter(
+                        loadingState: footerLoadingState,
+                        retryAction: fetchMoreAction
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color(uiColor: .systemGroupedBackground))
+    }
+
+    @ViewBuilder
+    private func swipeButtons(_ actions: [GalleryListAction]) -> some View {
+        ForEach(actions.indices, id: \.self) { index in
+            let item = actions[index]
+            Button(role: item.role.buttonRole, action: item.action) {
+                Label(item.title, systemImage: item.systemImage)
+            }
+            .tint(item.tint.color)
+        }
     }
 }
 
@@ -145,6 +206,8 @@ private struct WaterfallList: View {
     private let translationRevision: TagTranslator.RenderRevision?
     private let datasetIdentity: AnyHashable
     private let pageNumber: PageNumber?
+    private let presentations: [String: GalleryListPresentation]
+    private let actionsProvider: ((String) -> [GalleryListAction])?
     private let loadingState: LoadingState
     private let footerLoadingState: LoadingState
     private let fetchAction: (() -> Void)?
@@ -157,6 +220,8 @@ private struct WaterfallList: View {
         translationRevision: TagTranslator.RenderRevision?,
         datasetIdentity: AnyHashable,
         pageNumber: PageNumber?,
+        presentations: [String: GalleryListPresentation],
+        actionsProvider: ((String) -> [GalleryListAction])?,
         loadingState: LoadingState, footerLoadingState: LoadingState,
         fetchAction: (() -> Void)?,
         fetchMoreAction: (() -> Void)?,
@@ -168,6 +233,8 @@ private struct WaterfallList: View {
         self.translationRevision = translationRevision
         self.datasetIdentity = datasetIdentity
         self.pageNumber = pageNumber
+        self.presentations = presentations
+        self.actionsProvider = actionsProvider
         self.loadingState = loadingState
         self.footerLoadingState = footerLoadingState
         self.fetchAction = fetchAction
@@ -182,6 +249,8 @@ private struct WaterfallList: View {
             setting: setting,
             translationRevision: translationRevision,
             datasetIdentity: datasetIdentity,
+            presentations: presentations,
+            actionsProvider: actionsProvider,
             pageNumber: pageNumber,
             loadingState: loadingState,
             footerLoadingState: footerLoadingState,
