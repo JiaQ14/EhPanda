@@ -447,6 +447,7 @@ private struct HistoryGalleriesSection: View {
                             GalleryHistoryCell(gallery: gallery)
                                 .tint(.primary).multilineTextAlignment(.leading)
                         }
+                        .galleryContextMenu(gallery: gallery)
                     }
                     .withHorizontalSpacing()
                 }

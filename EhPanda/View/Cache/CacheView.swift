@@ -171,6 +171,15 @@ struct CacheView: View {
                 )
             }
         )
+        .environment(
+            \.galleryContextMenuConfiguration,
+            .downloadsOnly(
+                user: user,
+                setting: setting,
+                blurRadius: blurRadius,
+                tagTranslator: tagTranslator
+            )
+        )
     }
 
     private func displayTitle(for item: GalleryCacheItem) -> String {

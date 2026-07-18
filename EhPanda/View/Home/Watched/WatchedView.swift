@@ -35,7 +35,7 @@ struct WatchedView: View {
                     pageNumber: store.pageNumber,
                     loadingState: store.loadingState,
                     footerLoadingState: store.footerLoadingState,
-                    fetchAction: { store.send(.fetchGalleries()) },
+                    fetchAction: { await store.send(.fetchGalleries()).finish() },
                     fetchMoreAction: { store.send(.fetchMoreGalleries) },
                     navigateAction: { store.send(.setNavigation(.detail($0))) },
                     translateAction: {

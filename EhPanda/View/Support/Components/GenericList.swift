@@ -16,7 +16,7 @@ struct GenericList: View {
     private let pageNumber: PageNumber?
     private let loadingState: LoadingState
     private let footerLoadingState: LoadingState
-    private let fetchAction: (() -> Void)?
+    private let fetchAction: (() async -> Void)?
     private let fetchMoreAction: (() -> Void)?
     private let navigateAction: ((String) -> Void)?
     private let translateAction: ((String) -> (String, TagTranslation?))?
@@ -29,7 +29,7 @@ struct GenericList: View {
         actionsProvider: ((String) -> [GalleryListAction])? = nil,
         pageNumber: PageNumber?,
         loadingState: LoadingState, footerLoadingState: LoadingState,
-        fetchAction: (() -> Void)? = nil,
+        fetchAction: (() async -> Void)? = nil,
         fetchMoreAction: (() -> Void)? = nil,
         navigateAction: ((String) -> Void)? = nil,
         translateAction: ((String) -> (String, TagTranslation?))? = nil
@@ -60,7 +60,7 @@ struct GenericList: View {
                     footerLoadingState: footerLoadingState, fetchMoreAction: fetchMoreAction,
                     navigateAction: navigateAction, translateAction: translateAction
                 )
-                .refreshable { fetchAction?() }
+                .refreshable { await fetchAction?() }
             case .waterfall:
                 WaterfallList(
                     galleries: galleries, setting: setting,
@@ -74,12 +74,18 @@ struct GenericList: View {
                 )
             }
         }
-        .opacity(loadingState == .idle ? 1 : 0)
+        .opacity(galleries.isEmpty && loadingState != .idle ? 0 : 1)
         .overlay {
-            if loadingState == .loading {
+            if galleries.isEmpty && loadingState == .loading {
                 LoadingView()
-            } else if let error = loadingState.failed {
-                ErrorView(error: error, action: fetchAction)
+            } else if galleries.isEmpty, let error = loadingState.failed {
+                if let fetchAction {
+                    ErrorView(error: error) {
+                        Task { await fetchAction() }
+                    }
+                } else {
+                    ErrorView(error: error)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.2), value: loadingState)
@@ -143,6 +149,7 @@ private struct DetailList: View {
                 .contentShape(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
+                .galleryContextMenu(gallery: gallery, actions: actions)
                 .onTapGesture {
                     navigateAction?(gallery.id)
                 }
@@ -213,7 +220,7 @@ private struct WaterfallList: View {
     private let actionsProvider: ((String) -> [GalleryListAction])?
     private let loadingState: LoadingState
     private let footerLoadingState: LoadingState
-    private let fetchAction: (() -> Void)?
+    private let fetchAction: (() async -> Void)?
     private let fetchMoreAction: (() -> Void)?
     private let navigateAction: ((String) -> Void)?
     private let translateAction: ((String) -> (String, TagTranslation?))?
@@ -226,7 +233,7 @@ private struct WaterfallList: View {
         presentations: [String: GalleryListPresentation],
         actionsProvider: ((String) -> [GalleryListAction])?,
         loadingState: LoadingState, footerLoadingState: LoadingState,
-        fetchAction: (() -> Void)?,
+        fetchAction: (() async -> Void)?,
         fetchMoreAction: (() -> Void)?,
         navigateAction: ((String) -> Void)? = nil,
         translateAction: ((String) -> (String, TagTranslation?))? = nil

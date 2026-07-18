@@ -13,6 +13,8 @@ struct WaterfallCollectionView: UIViewRepresentable {
     @Environment(\.inSheet) private var inSheet
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.locale) private var locale
+    @Environment(\.galleryContextMenuConfiguration)
+    private var galleryContextMenuConfiguration
 
     let galleries: [Gallery]
     let setting: Setting
@@ -23,7 +25,7 @@ struct WaterfallCollectionView: UIViewRepresentable {
     let pageNumber: PageNumber?
     let loadingState: LoadingState
     let footerLoadingState: LoadingState
-    let fetchAction: (() -> Void)?
+    let fetchAction: (() async -> Void)?
     let fetchMoreAction: (() -> Void)?
     let navigateAction: ((String) -> Void)?
     let translateAction: ((String) -> (String, TagTranslation?))?
@@ -113,7 +115,9 @@ extension WaterfallCollectionView {
             datasetIdentity = parent.datasetIdentity
             loadingState = parent.loadingState
             footerLoadingState = parent.footerLoadingState
-            awaitsFullReloadCompletion = parent.loadingState == .loading
+            awaitsFullReloadCompletion =
+                parent.loadingState == .loading
+                && parent.galleries.isEmpty
             super.init()
         }
 
@@ -185,6 +189,7 @@ extension WaterfallCollectionView {
             let datasetIdentityChanged = oldDatasetIdentity != datasetIdentity
             let beganFullReload =
                 oldLoadingState != .loading && loadingState == .loading
+                && oldItemIdentifiers.isEmpty
             if beganFullReload {
                 awaitsFullReloadCompletion = true
                 lastPaginationTrigger = nil
@@ -439,6 +444,7 @@ private extension WaterfallCollectionView.Coordinator {
                 ?? Defaults.ImageSize.rowW * 2
             let setting = parent.setting
             let environment = environment
+            let contextMenuConfiguration = parent.galleryContextMenuConfiguration
             let presentation = presentationsByID[id]
             let actions = parent.actionsProvider?(id) ?? []
             let translateAction: (String) -> (String, TagTranslation?) = { [weak self] word in
@@ -462,11 +468,16 @@ private extension WaterfallCollectionView.Coordinator {
                     translateAction: translateAction
                 )
                 .multilineTextAlignment(.leading)
+                .galleryContextMenu(gallery: gallery, actions: actions)
                 .environment(\.colorScheme, environment.colorScheme)
                 .environment(\.dynamicTypeSize, environment.dynamicTypeSize)
                 .environment(\.inSheet, environment.inSheet)
                 .environment(\.layoutDirection, environment.layoutDirection)
                 .environment(\.locale, environment.locale)
+                .environment(
+                    \.galleryContextMenuConfiguration,
+                    contextMenuConfiguration
+                )
             }
             .margins(.all, 0)
 
@@ -578,7 +589,10 @@ private extension WaterfallCollectionView.Coordinator {
             collectionView?.refreshControl?.endRefreshing()
             return
         }
-        fetchAction()
+        Task { @MainActor [weak self] in
+            await fetchAction()
+            self?.collectionView?.refreshControl?.endRefreshing()
+        }
     }
 
     func fetchMoreIfNeeded(in collectionView: UICollectionView) {

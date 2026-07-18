@@ -830,6 +830,9 @@ private final class ReadingImageSlotView: UIView {
         pageLabel.textColor = .gray
         pageLabel.font = .preferredFont(forTextStyle: .largeTitle)
         pageLabel.adjustsFontForContentSizeCategory = true
+        pageLabel.adjustsFontSizeToFitWidth = true
+        pageLabel.minimumScaleFactor = 0.5
+        pageLabel.numberOfLines = 1
 
         progressView.progress = 0
         progressView.trackTintColor = UIColor.gray.withAlphaComponent(0.25)
@@ -864,8 +867,12 @@ private final class ReadingImageSlotView: UIView {
         placeholderView.frame = bounds
 
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        pageLabel.sizeToFit()
-        pageLabel.center = CGPoint(x: center.x, y: center.y - 48)
+        pageLabel.frame = CGRect(
+            x: 16,
+            y: center.y - 72,
+            width: max(bounds.width - 32, 0),
+            height: 48
+        )
 
         let progressWidth = min(bounds.width * 0.5, 240)
         progressView.frame = CGRect(
@@ -916,7 +923,18 @@ private final class ReadingImageSlotView: UIView {
             updateLiveTextAnalysis()
         }
 
-        guard previousModel != model || sizeChanged || backgroundChanged else {
+        let needsImageLoad =
+            model.loadingState == .idle
+            && model.imageURL != nil
+            && (
+                representedURL != model.imageURL
+                || imageView.image == nil
+            )
+        guard previousModel != model
+                || sizeChanged
+                || backgroundChanged
+                || needsImageLoad
+        else {
             return
         }
 

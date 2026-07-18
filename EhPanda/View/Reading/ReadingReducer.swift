@@ -118,6 +118,21 @@ struct ReadingReducer {
         mutating func markImageURLsFailed(_ error: AppError, indices: ClosedRange<Int>) {
             indices.forEach { markImageURLFailed(error, index: $0) }
         }
+        mutating func resetRemoteImageLoadingState() {
+            previewURLs = .init()
+            thumbnailURLs = .init()
+            imageURLs = imageURLs.filter(\.value.isFileURL)
+            networkImageURLs = .init()
+            originalImageURLs = .init()
+            imageURLLoadingStates = .init()
+            previewLoadingStates = .init()
+            webImageLoadSuccessIndices = .init()
+            prefetchLimitsByIndex = .init()
+            mpvKey = nil
+            mpvImageKeys = .init()
+            mpvSkipServerIdentifiers = .init()
+            forceRefreshID = .init()
+        }
 
         // Image
         func containerDataSource(setting: Setting, isLandscape: Bool = DeviceUtil.isLandscape) -> [Int] {
@@ -303,18 +318,18 @@ struct ReadingReducer {
                 return .none
 
             case .reloadAllWebImages:
-                state.previewURLs = .init()
-                state.thumbnailURLs = .init()
-                state.imageURLs = state.imageURLs.filter(\.value.isFileURL)
-                state.networkImageURLs = .init()
-                state.originalImageURLs = .init()
-                state.mpvKey = nil
-                state.mpvImageKeys = .init()
-                state.mpvSkipServerIdentifiers = .init()
-                state.forceRefreshID = .init()
-                return .run { [state] _ in
-                    await databaseClient.removeImageURLs(gid: state.gallery.id)
-                }
+                state.resetRemoteImageLoadingState()
+                return .merge(
+                    .cancel(id: CancelID.fetchPreviewURLs),
+                    .cancel(id: CancelID.fetchThumbnailURLs),
+                    .cancel(id: CancelID.fetchNormalImageURLs),
+                    .cancel(id: CancelID.refetchNormalImageURLs),
+                    .cancel(id: CancelID.fetchMPVKeys),
+                    .cancel(id: CancelID.fetchMPVImageURL),
+                    .run { [state] _ in
+                        await databaseClient.removeImageURLs(gid: state.gallery.id)
+                    }
+                )
 
             case .retryAllFailedWebImages:
                 let effects: [Effect<Action>] = state.imageURLLoadingStates.compactMap {

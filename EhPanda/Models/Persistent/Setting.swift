@@ -282,19 +282,6 @@ extension Setting {
         return true
     }
 
-    mutating func moveNavigationItems(
-        in group: NavigationItemGroup,
-        from source: IndexSet,
-        to destination: Int
-    ) {
-        switch group {
-        case .tabBar:
-            tabBarItems.move(fromOffsets: source, toOffset: destination)
-        case .more:
-            moreItems.move(fromOffsets: source, toOffset: destination)
-        }
-        normalizeNavigationItems()
-    }
 }
 
 // swiftlint:disable line_length

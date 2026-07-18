@@ -1014,6 +1014,43 @@ final class ReadingPageIndexMapperTests: XCTestCase {
     }
 }
 
+final class ReadingReloadStateTests: XCTestCase {
+    func testReloadClearsRemoteLoadingStateAndKeepsLocalPages() {
+        let localURL = URL(fileURLWithPath: "/tmp/ehpanda-reader-page")
+        let remoteURL = URL(string: "https://example.com/page.jpg")!
+        var state = ReadingReducer.State()
+        state.previewURLs = [1: remoteURL]
+        state.thumbnailURLs = [1: remoteURL]
+        state.imageURLs = [1: remoteURL, 2: localURL]
+        state.networkImageURLs = [1: remoteURL]
+        state.originalImageURLs = [1: remoteURL]
+        state.imageURLLoadingStates = [1: .loading]
+        state.previewLoadingStates = [1: .loading]
+        state.webImageLoadSuccessIndices = [1]
+        state.prefetchLimitsByIndex = [1: 10]
+        state.mpvKey = "key"
+        state.mpvImageKeys = [1: "image-key"]
+        state.mpvSkipServerIdentifiers = [1: "server"]
+        let oldRefreshID = state.forceRefreshID
+
+        state.resetRemoteImageLoadingState()
+
+        XCTAssertEqual(state.imageURLs, [2: localURL])
+        XCTAssertTrue(state.previewURLs.isEmpty)
+        XCTAssertTrue(state.thumbnailURLs.isEmpty)
+        XCTAssertTrue(state.networkImageURLs.isEmpty)
+        XCTAssertTrue(state.originalImageURLs.isEmpty)
+        XCTAssertTrue(state.imageURLLoadingStates.isEmpty)
+        XCTAssertTrue(state.previewLoadingStates.isEmpty)
+        XCTAssertTrue(state.webImageLoadSuccessIndices.isEmpty)
+        XCTAssertTrue(state.prefetchLimitsByIndex.isEmpty)
+        XCTAssertNil(state.mpvKey)
+        XCTAssertTrue(state.mpvImageKeys.isEmpty)
+        XCTAssertTrue(state.mpvSkipServerIdentifiers.isEmpty)
+        XCTAssertNotEqual(state.forceRefreshID, oldRefreshID)
+    }
+}
+
 final class ListDisplayModeTests: XCTestCase {
     func testPersistedThumbnailModeDecodesAsWaterfall() throws {
         let mode = try JSONDecoder().decode(

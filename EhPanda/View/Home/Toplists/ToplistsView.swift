@@ -38,7 +38,7 @@ struct ToplistsView: View {
             pageNumber: store.pageNumber,
             loadingState: store.loadingState ?? .idle,
             footerLoadingState: store.footerLoadingState ?? .idle,
-            fetchAction: { store.send(.fetchGalleries()) },
+            fetchAction: { await store.send(.fetchGalleries()).finish() },
             fetchMoreAction: { store.send(.fetchMoreGalleries) },
             navigateAction: { store.send(.setNavigation(.detail($0))) },
             translateAction: {

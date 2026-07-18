@@ -124,11 +124,13 @@ private struct UpperPanel: View {
                 .glassEffect(.regular.interactive())
 
                 Text(title)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.headline)
+                    .fontWeight(.semibold)
                     .monospacedDigit()
                     .lineLimit(1)
-                    .padding(.horizontal, 16)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .glassEffect(.regular.interactive())
             }
@@ -217,7 +219,7 @@ private struct UpperPanel: View {
             .glassEffect(.regular.interactive())
         }
         .foregroundStyle(.primary)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 12)
         .background(Color.clear)
         .contentShape(Rectangle())
         .onTapGesture {}

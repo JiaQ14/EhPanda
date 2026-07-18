@@ -545,6 +545,8 @@ internal enum L10n {
         internal enum Button {
           /// Detail
           internal static let detail = L10n.tr("Localizable", "detail_view.context_menu.button.detail", fallback: "Detail")
+          /// Remove from Favorites
+          internal static let unfavorite = L10n.tr("Localizable", "detail_view.context_menu.button.unfavorite", fallback: "Remove from Favorites")
           /// Vote down
           internal static let voteDown = L10n.tr("Localizable", "detail_view.context_menu.button.vote_down", fallback: "Vote down")
           /// Vote up

@@ -223,6 +223,7 @@ private struct CardSlideSection: View, Equatable {
                                 .multilineTextAlignment(.leading)
                             }
                             .buttonStyle(.plain)
+                            .galleryContextMenu(gallery: gallery)
                         }
                     }
                     .scrollTargetLayout()
@@ -318,6 +319,7 @@ private struct VerticalCoverStack: View {
                 }
         }
         .buttonStyle(HomePressableButtonStyle())
+        .galleryContextMenu(gallery: gallery)
     }
 
     var body: some View {
@@ -457,6 +459,7 @@ private struct VerticalToplistsStack: View {
                     }
                     .buttonStyle(.plain)
                     .contentShape(Rectangle())
+                    .galleryContextMenu(gallery: galleries[index])
                     if index != galleries.count - 1 {
                         Divider()
                     }

@@ -74,6 +74,7 @@ struct DetailReducer {
         case clearSubStates
         case onPostCommentAppear
         case onAppear(String, Bool)
+        case onPreviewAppear(String)
 
         case toggleShowFullTitle
         case toggleShowUserRating
@@ -93,7 +94,7 @@ struct DetailReducer {
         case updateReadingProgress(Int)
 
         case teardown
-        case fetchDatabaseInfos(String)
+        case fetchDatabaseInfos(String, recordsHistory: Bool = true)
         case fetchDatabaseInfosDone(GalleryState)
         case fetchGalleryDetail
         case fetchGalleryDetailDone(Result<(GalleryDetail, GalleryState, String, Greeting?), AppError>)
@@ -180,6 +181,12 @@ struct DetailReducer {
                     .send(.observeCache(gid))
                 )
 
+            case .onPreviewAppear(let gid):
+                return .merge(
+                    .send(.fetchDatabaseInfos(gid, recordsHistory: false)),
+                    .send(.observeCache(gid))
+                )
+
             case .toggleShowFullTitle:
                 state.showsFullTitle.toggle()
                 return .run(operation: { _ in hapticsClient.generateFeedback(.soft) })
@@ -256,20 +263,25 @@ struct DetailReducer {
             case .teardown:
                 return .merge(CancelID.allCases.map(Effect.cancel(id:)))
 
-            case .fetchDatabaseInfos(let gid):
-                guard let gallery = databaseClient.fetchGallery(gid: gid) else { return .none }
+            case .fetchDatabaseInfos(let gid, let recordsHistory):
+                let gallery = databaseClient.fetchGallery(gid: gid)
+                    ?? (state.gallery.id == gid ? state.gallery : nil)
+                guard let gallery else { return .none }
                 state.gallery = gallery
                 if let detail = databaseClient.fetchGalleryDetail(gid: gid) {
                     state.galleryDetail = detail
                 }
-                return .merge(
-                    .send(.saveGalleryHistory),
+                var effects: [Effect<Action>] = [
                     .run { [galleryID = state.gallery.id] send in
                         guard let dbState = await databaseClient.fetchGalleryState(gid: galleryID) else { return }
                         await send(.fetchDatabaseInfosDone(dbState))
                     }
-                        .cancellable(id: CancelID.fetchDatabaseInfos)
-                )
+                    .cancellable(id: CancelID.fetchDatabaseInfos)
+                ]
+                if recordsHistory {
+                    effects.append(.send(.saveGalleryHistory))
+                }
+                return .merge(effects)
 
             case .fetchDatabaseInfosDone(let galleryState):
                 state.galleryTags = galleryState.tags

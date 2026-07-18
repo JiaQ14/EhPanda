@@ -270,6 +270,7 @@
 "detail_view.toolbar_item.button.torrents" = "トレント";
 "detail_view.toolbar_item.button.share" = "共有";
 "detail_view.context_menu.button.detail" = "詳細";
+"detail_view.context_menu.button.unfavorite" = "お気に入りから削除";
 "detail_view.context_menu.button.withdraw_vote" = "投票を取り消す";
 "detail_view.context_menu.button.vote_up" = "賛成票を投じる";
 "detail_view.context_menu.button.vote_down" = "反対票を投じる";

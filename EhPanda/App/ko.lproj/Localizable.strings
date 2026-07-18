@@ -270,6 +270,7 @@
 "detail_view.toolbar_item.button.torrents" = "토렌트";
 "detail_view.toolbar_item.button.share" = "공유";
 "detail_view.context_menu.button.detail" = "Detail";
+"detail_view.context_menu.button.unfavorite" = "즐겨찾기 해제";
 "detail_view.context_menu.button.withdraw_vote" = "Withdraw vote";
 "detail_view.context_menu.button.vote_up" = "Vote up";
 "detail_view.context_menu.button.vote_down" = "Vote down";

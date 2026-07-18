@@ -38,7 +38,6 @@ struct AppReducer {
         case tabBar(TabBarReducer.Action)
         case more(MoreReducer.Action)
         case moveNavigationItem(AppNavigationItem, NavigationItemGroup, Int)
-        case moveNavigationItems(NavigationItemGroup, IndexSet, Int)
 
         case home(HomeReducer.Action)
         case favorites(FavoritesReducer.Action)
@@ -132,12 +131,6 @@ struct AppReducer {
                         .send(.setting(.syncSetting)),
                         .run { _ in hapticsClient.generateFeedback(.soft) }
                     )
-
-                case .moveNavigationItems(let group, let source, let destination):
-                    state.settingState.setting.moveNavigationItems(
-                        in: group, from: source, to: destination
-                    )
-                    return .send(.setting(.syncSetting))
 
                 case .tabBar(.setTabBarItemType(let type)):
                     var effects = [Effect<Action>]()

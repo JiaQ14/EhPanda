@@ -33,7 +33,7 @@ struct HistoryView: View {
             pageNumber: nil,
             loadingState: store.loadingState,
             footerLoadingState: .idle,
-            fetchAction: { store.send(.fetchGalleries) },
+            fetchAction: { await store.send(.fetchGalleries).finish() },
             navigateAction: { store.send(.setNavigation(.detail($0))) },
             translateAction: {
                 tagTranslator.lookup(word: $0, returnOriginal: !setting.translatesTags)

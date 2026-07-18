@@ -78,6 +78,15 @@ struct TabBarView: View {
             unwrapping: $store.appRouteState.route,
             case: \.hud
         )
+        .environment(
+            \.galleryContextMenuConfiguration,
+            .standard(
+                user: store.settingState.user,
+                setting: store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator
+            )
+        )
         .onChange(of: scenePhase) { _, newValue in store.send(.onScenePhaseChange(newValue)) }
         .onOpenURL { store.send(.appRoute(.handleDeepLink($0))) }
     }
@@ -196,7 +205,7 @@ private struct AppNavigationContent: View {
 
 private struct MoreView: View {
     @Bindable private var store: StoreOf<AppReducer>
-    @State private var editMode: EditMode = .inactive
+    @State private var isEditing = false
 
     init(store: StoreOf<AppReducer>) {
         self.store = store
@@ -213,10 +222,11 @@ private struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
-                if editMode.isEditing {
+                if isEditing {
                     editorSections
                 } else {
                     destinationRows
+                    settingRow
                 }
             }
             .listStyle(.insetGrouped)
@@ -228,18 +238,17 @@ private struct MoreView: View {
             .toolbar {
                 Button {
                     withAnimation {
-                        editMode = editMode.isEditing ? .inactive : .active
+                        isEditing.toggle()
                     }
                 } label: {
                     Label(
-                        editMode.isEditing ? "Done" : "Edit",
-                        systemSymbol: editMode.isEditing ? .checkmark : .pencil
+                        isEditing ? "Done" : "Edit",
+                        systemSymbol: isEditing ? .checkmark : .pencil
                     )
                     .labelStyle(.iconOnly)
                 }
             }
         }
-        .environment(\.editMode, $editMode)
     }
 
     private var moreRoute: Binding<AppNavigationItem?> {
@@ -250,10 +259,17 @@ private struct MoreView: View {
     }
 
     @ViewBuilder private var destinationRows: some View {
-        ForEach(moreItems) { item in
-            destinationRow(item)
+        Section(L10n.Localizable.MoreView.Section.Title.more) {
+            ForEach(moreItems) { item in
+                destinationRow(item)
+            }
         }
-        destinationRow(.setting)
+    }
+
+    private var settingRow: some View {
+        Section {
+            destinationRow(.setting)
+        }
     }
 
     @ViewBuilder private var editorSections: some View {
@@ -270,9 +286,6 @@ private struct MoreView: View {
                     index: index
                 )
             }
-            .onMove {
-                store.send(.moveNavigationItems(.tabBar, $0, $1))
-            }
 
             fixedEditorRow(.more)
                 .dropDestination(for: String.self) { values, _ in
@@ -287,9 +300,6 @@ private struct MoreView: View {
                     group: .more,
                     index: index
                 )
-            }
-            .onMove {
-                store.send(.moveNavigationItems(.more, $0, $1))
             }
         }
     }
@@ -313,7 +323,7 @@ private struct MoreView: View {
         group: NavigationItemGroup,
         index: Int
     ) -> some View {
-        NavigationItemRow(item: item)
+        NavigationItemRow(item: item, showsDragHandle: true)
             .draggable(item.rawValue)
             .dropDestination(for: String.self) { values, location in
                 let insertsAfterRow = location.y > 22
@@ -351,15 +361,18 @@ private struct NavigationItemRow: View {
     private let item: AppNavigationItem
     private let isFixed: Bool
     private let showsDisclosureIndicator: Bool
+    private let showsDragHandle: Bool
 
     init(
         item: AppNavigationItem,
         isFixed: Bool = false,
-        showsDisclosureIndicator: Bool = false
+        showsDisclosureIndicator: Bool = false,
+        showsDragHandle: Bool = false
     ) {
         self.item = item
         self.isFixed = isFixed
         self.showsDisclosureIndicator = showsDisclosureIndicator
+        self.showsDragHandle = showsDragHandle
     }
 
     var body: some View {
@@ -379,6 +392,11 @@ private struct NavigationItemRow: View {
                 Image(systemSymbol: .lockFill)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+            } else if showsDragHandle {
+                Image(systemName: "line.3.horizontal")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
             } else if showsDisclosureIndicator {
                 Image(systemSymbol: .chevronForward)
                     .font(.caption.weight(.semibold))

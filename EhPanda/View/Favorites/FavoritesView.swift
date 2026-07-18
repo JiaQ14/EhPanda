@@ -80,12 +80,22 @@ struct FavoritesView: View {
                     pageNumber: store.pageNumber,
                     loadingState: store.loadingState ?? .idle,
                     footerLoadingState: store.footerLoadingState ?? .idle,
-                    fetchAction: { store.send(.fetchGalleries()) },
+                    fetchAction: { await store.send(.fetchGalleries()).finish() },
                     fetchMoreAction: { store.send(.fetchMoreGalleries) },
                     navigateAction: { store.send(.setNavigation(.detail($0))) },
                     translateAction: {
                         tagTranslator.lookup(word: $0, returnOriginal: !setting.translatesTags)
                     }
+                )
+                .environment(
+                    \.galleryContextMenuConfiguration,
+                    .standard(
+                        user: user,
+                        setting: setting,
+                        blurRadius: blurRadius,
+                        tagTranslator: tagTranslator,
+                        defaultFavoriteState: true
+                    )
                 )
             } else {
                 NotLoginView(action: { store.send(.onNotLoginViewButtonTapped) })

@@ -270,6 +270,7 @@
 "detail_view.toolbar_item.button.torrents" = "種子";
 "detail_view.toolbar_item.button.share" = "分享";
 "detail_view.context_menu.button.detail" = "Detail";
+"detail_view.context_menu.button.unfavorite" = "取消收藏";
 "detail_view.context_menu.button.withdraw_vote" = "收回評分";
 "detail_view.context_menu.button.vote_up" = "Vote up";
 "detail_view.context_menu.button.vote_down" = "Vote down";
