@@ -19,6 +19,11 @@ struct AppReducer {
         var cacheState = CacheReducer.State()
         var searchRootState = SearchRootReducer.State()
         var settingState = SettingReducer.State()
+
+        mutating func prepareLoginNavigation(isLoggedIn: Bool) {
+            settingState.route = .account
+            settingState.accountSettingState.route = isLoggedIn ? nil : .login()
+        }
     }
 
     enum Action: BindableAction {
@@ -155,21 +160,12 @@ struct AppReducer {
                     return .none
 
                 case .home(.watched(.onNotLoginViewButtonTapped)), .favorites(.onNotLoginViewButtonTapped):
-                    var effects: [Effect<Action>] = [
+                    let isLoggedIn = cookieClient.didLogin
+                    state.prepareLoginNavigation(isLoggedIn: isLoggedIn)
+                    return .merge(
                         .run(operation: { _ in hapticsClient.generateFeedback(.soft) }),
                         .send(.tabBar(.setTabBarItemType(.setting)))
-                    ]
-                    effects.append(.send(.setting(.setNavigation(.account))))
-                    if !cookieClient.didLogin {
-                        effects.append(
-                            .run { send in
-                                let delay = UInt64(deviceClient.isPad() ? 1200 : 200)
-                                try await Task.sleep(for: .milliseconds(delay))
-                                await send(.setting(.account(.setNavigation(.login))))
-                            }
-                        )
-                    }
-                    return .merge(effects)
+                    )
 
                 case .home:
                     return .none

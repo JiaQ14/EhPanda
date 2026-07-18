@@ -1048,3 +1048,29 @@ final class AppIconTypeTests: XCTestCase {
         )
     }
 }
+
+final class LoginNavigationTests: XCTestCase {
+    func testLoginNavigationStartsAtWebLoginFromSettingsRoot() {
+        var state = AppReducer.State()
+
+        state.prepareLoginNavigation(isLoggedIn: false)
+
+        XCTAssertEqual(state.settingState.route, .account)
+        guard case .some(.login) = state.settingState.accountSettingState.route else {
+            return XCTFail("Expected the web login destination")
+        }
+    }
+
+    func testLoginNavigationReplacesAnExistingSettingsDestination() {
+        var state = AppReducer.State()
+        state.settingState.route = .appearance
+        state.settingState.accountSettingState.route = .ehSetting()
+
+        state.prepareLoginNavigation(isLoggedIn: false)
+
+        XCTAssertEqual(state.settingState.route, .account)
+        guard case .some(.login) = state.settingState.accountSettingState.route else {
+            return XCTFail("Expected the web login destination")
+        }
+    }
+}

@@ -12,9 +12,9 @@ struct AccountSettingReducer {
     @dynamicMemberLookup @CasePathable
     enum Route: Equatable {
         case hud
-        case login
+        case login(EquatableVoid = .init())
         case logout
-        case ehSetting
+        case ehSetting(EquatableVoid = .init())
         case webView(URL)
     }
 

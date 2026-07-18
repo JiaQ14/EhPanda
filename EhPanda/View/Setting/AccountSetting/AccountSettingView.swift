@@ -39,14 +39,14 @@ struct AccountSettingView: View {
                     route: $store.route,
                     showsNewDawnGreeting: $showsNewDawnGreeting,
                     bypassesSNIFiltering: bypassesSNIFiltering,
-                    loginAction: { store.send(.setNavigation(.login)) },
+                    loginAction: { store.send(.setNavigation(.login())) },
                     logoutAction: {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                             store.send(.onLogoutConfirmButtonTapped)
                         }
                     },
                     logoutDialogAction: { store.send(.setNavigation(.logout)) },
-                    configureAccountAction: { store.send(.setNavigation(.ehSetting)) },
+                    configureAccountAction: { store.send(.setNavigation(.ehSetting())) },
                     manageTagsAction: { store.send(.setNavigation(.webView(Defaults.URL.myTags))) }
                 )
             }
@@ -66,26 +66,19 @@ struct AccountSettingView: View {
                 .ignoresSafeArea(edges: .bottom)
                 .autoBlur(radius: blurRadius)
         }
-        .onAppear { store.send(.loadCookies) }
-        .background(navigationLinks)
-        .navigationTitle(L10n.Localizable.AccountSettingView.Title.account)
-    }
-}
-
-// MARK: NavigationLinks
-private extension AccountSettingView {
-    @ViewBuilder var navigationLinks: some View {
-        NavigationLink(unwrapping: $store.route, case: \.login) { _ in
+        .navigationDestination(item: $store.route.sending(\.setNavigation).login) { _ in
             LoginView(
                 store: store.scope(state: \.loginState, action: \.login)
             )
         }
-        NavigationLink(unwrapping: $store.route, case: \.ehSetting) { _ in
+        .navigationDestination(item: $store.route.sending(\.setNavigation).ehSetting) { _ in
             EhSettingView(
                 store: store.scope(state: \.ehSettingState, action: \.ehSetting),
                 bypassesSNIFiltering: bypassesSNIFiltering, blurRadius: blurRadius
             )
         }
+        .onAppear { store.send(.loadCookies) }
+        .navigationTitle(L10n.Localizable.AccountSettingView.Title.account)
     }
 }
 

@@ -18,7 +18,7 @@ struct SettingView: View {
 
     // MARK: SettingView
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section {
                     ForEach(primaryRoutes) { route in
@@ -33,8 +33,11 @@ struct SettingView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .background(navigationLinks)
             .navigationTitle(L10n.Localizable.SettingView.Title.setting)
+            .navigationDestination(
+                item: $store.route.sending(\.setNavigation),
+                destination: settingDestination
+            )
         }
     }
 
@@ -49,10 +52,12 @@ struct SettingView: View {
     }
 }
 
-// MARK: NavigationLinks
+// MARK: Navigation
 private extension SettingView {
-    @ViewBuilder var navigationLinks: some View {
-        NavigationLink(unwrapping: $store.route, case: \.account) { _ in
+    @ViewBuilder
+    func settingDestination(for route: SettingReducer.Route) -> some View {
+        switch route {
+        case .account:
             AccountSettingView(
                 store: store.scope(state: \.accountSettingState, action: \.account),
                 galleryHost: $store.setting.galleryHost,
@@ -61,8 +66,8 @@ private extension SettingView {
                 blurRadius: blurRadius
             )
             .tint(store.setting.accentColor)
-        }
-        NavigationLink(unwrapping: $store.route, case: \.general) { _ in
+
+        case .general:
             GeneralSettingView(
                 store: store.scope(state: \.generalSettingState, action: \.general),
                 tagTranslatorLoadingState: store.tagTranslatorLoadingState,
@@ -78,8 +83,8 @@ private extension SettingView {
                 autoLockPolicy: $store.setting.autoLockPolicy
             )
             .tint(store.setting.accentColor)
-        }
-        NavigationLink(unwrapping: $store.route, case: \.appearance) { _ in
+
+        case .appearance:
             AppearanceSettingView(
                 store: store.scope(state: \.appearanceSettingState, action: \.appearance),
                 preferredColorScheme: $store.setting.preferredColorScheme,
@@ -91,8 +96,8 @@ private extension SettingView {
                 displaysJapaneseTitle: $store.setting.displaysJapaneseTitle
             )
             .tint(store.setting.accentColor)
-        }
-        NavigationLink(unwrapping: $store.route, case: \.reading) { _ in
+
+        case .reading:
             ReadingSettingView(
                 readingDirection: $store.setting.readingDirection,
                 prefetchLimit: $store.setting.prefetchLimit,
@@ -103,8 +108,8 @@ private extension SettingView {
                 doubleTapScaleFactor: $store.setting.doubleTapScaleFactor
             )
             .tint(store.setting.accentColor)
-        }
-        NavigationLink(unwrapping: $store.route, case: \.cache) { _ in
+
+        case .cache:
             CacheSettingView(
                 imageQuality: $store.setting.cacheImageQuality,
                 concurrentDownloads: $store.setting.cacheConcurrentDownloads,
@@ -116,14 +121,14 @@ private extension SettingView {
                 }
             )
             .tint(store.setting.accentColor)
-        }
-        NavigationLink(unwrapping: $store.route, case: \.laboratory) { _ in
+
+        case .laboratory:
             LaboratorySettingView(
                 bypassesSNIFiltering: $store.setting.bypassesSNIFiltering
             )
             .tint(store.setting.accentColor)
-        }
-        NavigationLink(unwrapping: $store.route, case: \.about) { _ in
+
+        case .about:
             AboutView().tint(store.setting.accentColor)
         }
     }
