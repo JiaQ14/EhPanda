@@ -384,15 +384,14 @@ extension WaterfallCollectionView {
             if needsLayoutUpdate {
                 collectionView.collectionViewLayout.invalidateLayout()
             }
-            if replacesDataset {
+            if replacesDataset,
+               collectionView.refreshControl?.isRefreshing != true
+            {
                 resetScrollPositionAfterLayout(in: collectionView)
             } else if needsLayoutUpdate {
                 restoreAfterLayout(anchor: anchor, in: collectionView)
             }
 
-            if parent.loadingState != .loading {
-                collectionView.refreshControl?.endRefreshing()
-            }
             if replacesDataset || parent.pageNumber?.hasNextPage() != true {
                 lastPaginationTrigger = nil
             }
@@ -590,7 +589,7 @@ private extension WaterfallCollectionView.Coordinator {
             return
         }
         Task { @MainActor [weak self] in
-            await fetchAction()
+            await GalleryListRefresh.perform(fetchAction)
             self?.collectionView?.refreshControl?.endRefreshing()
         }
     }

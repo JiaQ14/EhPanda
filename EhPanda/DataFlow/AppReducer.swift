@@ -37,7 +37,7 @@ struct AppReducer {
 
         case tabBar(TabBarReducer.Action)
         case more(MoreReducer.Action)
-        case moveNavigationItem(AppNavigationItem, NavigationItemGroup, Int)
+        case setNavigationItems([AppNavigationItem], [AppNavigationItem])
 
         case home(HomeReducer.Action)
         case favorites(FavoritesReducer.Action)
@@ -114,17 +114,13 @@ struct AppReducer {
                 case .appLock:
                     return .none
 
-                case .moveNavigationItem(let item, let destination, let index):
-                    let didMove = state.settingState.setting.moveNavigationItem(
-                        item, to: destination, at: index
-                    )
-                    guard didMove else {
-                        return .run { _ in
-                            hapticsClient.generateNotificationFeedback(.warning)
-                        }
-                    }
-                    if destination == .more,
-                       state.tabBarState.tabBarItemType == item {
+                case .setNavigationItems(let tabBarItems, let moreItems):
+                    state.settingState.setting.tabBarItems = tabBarItems
+                    state.settingState.setting.moreItems = moreItems
+                    state.settingState.setting.normalizeNavigationItems()
+                    if !state.settingState.setting.tabBarItems.contains(
+                        state.tabBarState.tabBarItemType
+                    ), ![.home, .more].contains(state.tabBarState.tabBarItemType) {
                         state.tabBarState.tabBarItemType = .more
                     }
                     return .merge(

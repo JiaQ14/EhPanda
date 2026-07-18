@@ -6,6 +6,7 @@
 import SwiftUI
 import SFSafeSymbols
 import ComposableArchitecture
+import UniformTypeIdentifiers
 
 struct TabBarView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -206,6 +207,9 @@ private struct AppNavigationContent: View {
 private struct MoreView: View {
     @Bindable private var store: StoreOf<AppReducer>
     @State private var isEditing = false
+    @State private var draftTabItems = [AppNavigationItem]()
+    @State private var draftMoreItems = [AppNavigationItem]()
+    @State private var draggedItem: AppNavigationItem?
 
     init(store: StoreOf<AppReducer>) {
         self.store = store
@@ -238,6 +242,18 @@ private struct MoreView: View {
             .toolbar {
                 Button {
                     withAnimation {
+                        if isEditing {
+                            store.send(
+                                .setNavigationItems(
+                                    draftTabItems,
+                                    draftMoreItems
+                                )
+                            )
+                            draggedItem = nil
+                        } else {
+                            draftTabItems = tabBarItems
+                            draftMoreItems = moreItems
+                        }
                         isEditing.toggle()
                     }
                 } label: {
@@ -275,11 +291,15 @@ private struct MoreView: View {
     @ViewBuilder private var editorSections: some View {
         Section(L10n.Localizable.MoreView.Section.Title.tabBar) {
             fixedEditorRow(.home)
-                .dropDestination(for: String.self) { values, _ in
-                    return move(values, to: .tabBar, at: 0)
-                }
+                .onDrop(
+                    of: [UTType.plainText],
+                    delegate: dropDelegate(
+                        group: .tabBar,
+                        at: 0
+                    )
+                )
 
-            ForEach(Array(tabBarItems.enumerated()), id: \.element) { index, item in
+            ForEach(Array(draftTabItems.enumerated()), id: \.element) { index, item in
                 draggableEditorRow(
                     item,
                     group: .tabBar,
@@ -288,13 +308,17 @@ private struct MoreView: View {
             }
 
             fixedEditorRow(.more)
-                .dropDestination(for: String.self) { values, _ in
-                    return move(values, to: .tabBar, at: tabBarItems.count)
-                }
+                .onDrop(
+                    of: [UTType.plainText],
+                    delegate: dropDelegate(
+                        group: .tabBar,
+                        at: draftTabItems.count
+                    )
+                )
         }
 
         Section(L10n.Localizable.MoreView.Section.Title.more) {
-            ForEach(Array(moreItems.enumerated()), id: \.element) { index, item in
+            ForEach(Array(draftMoreItems.enumerated()), id: \.element) { index, item in
                 draggableEditorRow(
                     item,
                     group: .more,
@@ -315,7 +339,6 @@ private struct MoreView: View {
 
     private func fixedEditorRow(_ item: AppNavigationItem) -> some View {
         NavigationItemRow(item: item, isFixed: true)
-            .moveDisabled(true)
     }
 
     private func draggableEditorRow(
@@ -324,27 +347,30 @@ private struct MoreView: View {
         index: Int
     ) -> some View {
         NavigationItemRow(item: item, showsDragHandle: true)
-            .draggable(item.rawValue)
-            .dropDestination(for: String.self) { values, location in
-                let insertsAfterRow = location.y > 22
-                return move(
-                    values,
-                    to: group,
-                    at: index + (insertsAfterRow ? 1 : 0)
-                )
+            .onDrag {
+                draggedItem = item
+                return NSItemProvider(object: item.rawValue as NSString)
             }
+            .onDrop(
+                of: [UTType.plainText],
+                delegate: dropDelegate(
+                    group: group,
+                    at: index
+                )
+            )
     }
 
-    private func move(
-        _ values: [String],
-        to group: NavigationItemGroup,
+    private func dropDelegate(
+        group: NavigationItemGroup,
         at index: Int
-    ) -> Bool {
-        guard let rawValue = values.first,
-              let item = AppNavigationItem(rawValue: rawValue)
-        else { return false }
-        store.send(.moveNavigationItem(item, group, index))
-        return true
+    ) -> NavigationItemDropDelegate {
+        .init(
+            destinationGroup: group,
+            destinationIndex: index,
+            draggedItem: $draggedItem,
+            tabBarItems: $draftTabItems,
+            moreItems: $draftMoreItems
+        )
     }
 
     @ViewBuilder
@@ -354,6 +380,40 @@ private struct MoreView: View {
             item: item,
             embedsInNavigationStack: false
         )
+    }
+}
+
+private struct NavigationItemDropDelegate: DropDelegate {
+    let destinationGroup: NavigationItemGroup
+    let destinationIndex: Int
+    @Binding var draggedItem: AppNavigationItem?
+    @Binding var tabBarItems: [AppNavigationItem]
+    @Binding var moreItems: [AppNavigationItem]
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedItem else { return }
+        let insertsAfterRow = info.location.y > 22
+        var draft = Setting()
+        draft.tabBarItems = tabBarItems
+        draft.moreItems = moreItems
+        guard draft.moveNavigationItem(
+            draggedItem,
+            to: destinationGroup,
+            at: destinationIndex + (insertsAfterRow ? 1 : 0)
+        ) else { return }
+        withAnimation(.snappy(duration: 0.2)) {
+            tabBarItems = draft.tabBarItems
+            moreItems = draft.moreItems
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        .init(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedItem = nil
+        return true
     }
 }
 

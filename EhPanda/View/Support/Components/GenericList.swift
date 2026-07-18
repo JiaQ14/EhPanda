@@ -6,6 +6,18 @@
 import SwiftUI
 import ComposableArchitecture
 
+enum GalleryListRefresh {
+    static func perform(_ action: @escaping () async -> Void) async {
+        async let refresh: Void = action()
+        async let minimumDuration: Void = waitForMinimumDuration()
+        _ = await (refresh, minimumDuration)
+    }
+
+    private static func waitForMinimumDuration() async {
+        try? await Task.sleep(for: .milliseconds(600))
+    }
+}
+
 struct GenericList: View {
     private let galleries: [Gallery]
     private let setting: Setting
@@ -60,7 +72,11 @@ struct GenericList: View {
                     footerLoadingState: footerLoadingState, fetchMoreAction: fetchMoreAction,
                     navigateAction: navigateAction, translateAction: translateAction
                 )
-                .refreshable { await fetchAction?() }
+                .refreshable {
+                    if let fetchAction {
+                        await GalleryListRefresh.perform(fetchAction)
+                    }
+                }
             case .waterfall:
                 WaterfallList(
                     galleries: galleries, setting: setting,
@@ -88,7 +104,10 @@ struct GenericList: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: loadingState)
+        .animation(
+            .easeInOut(duration: 0.2),
+            value: galleries.isEmpty && loadingState != .idle
+        )
     }
 }
 

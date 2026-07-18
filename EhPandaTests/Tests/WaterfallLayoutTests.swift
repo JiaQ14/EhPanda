@@ -1208,7 +1208,7 @@ final class NavigationLayoutSettingTests: XCTestCase {
         )
     }
 
-    func testRejectsFixedItemsAndAFullTabBar() {
+    func testRejectsFixedItemsAndReplacesTheLastItemInAFullTabBar() {
         var setting = Setting()
         setting.tabBarItems = [.search, .popular, .history]
         setting.moreItems = [.watched, .favorites, .cache]
@@ -1216,9 +1216,9 @@ final class NavigationLayoutSettingTests: XCTestCase {
         XCTAssertFalse(setting.moveNavigationItem(.home, to: .more, at: 0))
         XCTAssertFalse(setting.moveNavigationItem(.more, to: .tabBar, at: 0))
         XCTAssertFalse(setting.moveNavigationItem(.setting, to: .tabBar, at: 0))
-        XCTAssertFalse(setting.moveNavigationItem(.watched, to: .tabBar, at: 0))
-        XCTAssertEqual(setting.tabBarItems, [.search, .popular, .history])
-        XCTAssertEqual(setting.moreItems, [.watched, .favorites, .cache])
+        XCTAssertTrue(setting.moveNavigationItem(.watched, to: .tabBar, at: 0))
+        XCTAssertEqual(setting.tabBarItems, [.watched, .search, .popular])
+        XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache])
     }
 
     func testNormalizationRepairsDuplicatesInvalidItemsAndOverflow() {

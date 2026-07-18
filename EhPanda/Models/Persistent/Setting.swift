@@ -251,17 +251,25 @@ extension Setting {
         guard AppNavigationItem.configurableItems.contains(item) else { return false }
 
         let source: NavigationItemGroup = tabBarItems.contains(item) ? .tabBar : .more
-        if destination == .tabBar,
-           source != .tabBar,
-           tabBarItems.count >= Self.maximumConfigurableTabCount {
-            return false
-        }
-
         let sourceIndex = source == .tabBar
             ? tabBarItems.firstIndex(of: item)
             : moreItems.firstIndex(of: item)
+        let displacedItem =
+            destination == .tabBar
+            && source != .tabBar
+            && tabBarItems.count >= Self.maximumConfigurableTabCount
+            ? tabBarItems.last
+            : nil
         tabBarItems.removeAll { $0 == item }
         moreItems.removeAll { $0 == item }
+        if let displacedItem {
+            tabBarItems.removeAll { $0 == displacedItem }
+            let replacementIndex = min(
+                max(sourceIndex ?? 0, 0),
+                moreItems.count
+            )
+            moreItems.insert(displacedItem, at: replacementIndex)
+        }
 
         var destinationIndex = rawDestinationIndex
         if source == destination,
