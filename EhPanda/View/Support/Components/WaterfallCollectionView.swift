@@ -249,6 +249,9 @@ extension WaterfallCollectionView {
             )
             let isAppendOnlyChange = datasetUpdate == .append
             let replacesDataset = datasetUpdate == .replace
+            let refreshContentOffset = collectionView.refreshControl?.isRefreshing == true
+                ? collectionView.contentOffset
+                : nil
 
             let shouldPreserveAnchor =
                 !replacesDataset
@@ -384,9 +387,13 @@ extension WaterfallCollectionView {
             if needsLayoutUpdate {
                 collectionView.collectionViewLayout.invalidateLayout()
             }
-            if replacesDataset,
-               collectionView.refreshControl?.isRefreshing != true
-            {
+            if let refreshContentOffset {
+                collectionView.layoutIfNeeded()
+                collectionView.setContentOffset(
+                    refreshContentOffset,
+                    animated: false
+                )
+            } else if replacesDataset {
                 resetScrollPositionAfterLayout(in: collectionView)
             } else if needsLayoutUpdate {
                 restoreAfterLayout(anchor: anchor, in: collectionView)
@@ -590,7 +597,28 @@ private extension WaterfallCollectionView.Coordinator {
         }
         Task { @MainActor [weak self] in
             await GalleryListRefresh.perform(fetchAction)
-            self?.collectionView?.refreshControl?.endRefreshing()
+            await self?.finishRefreshingWhenScrollingStops()
+        }
+    }
+
+    @MainActor
+    func finishRefreshingWhenScrollingStops() async {
+        guard let collectionView else { return }
+        while isActivelyScrolling(collectionView) {
+            try? await Task.sleep(for: .milliseconds(50))
+            guard self.collectionView === collectionView else { return }
+        }
+        guard let refreshControl = collectionView.refreshControl,
+              refreshControl.isRefreshing
+        else { return }
+
+        UIView.animate(
+            withDuration: 0.3,
+            delay: 0,
+            options: [.beginFromCurrentState, .allowUserInteraction]
+        ) {
+            refreshControl.endRefreshing()
+            collectionView.layoutIfNeeded()
         }
     }
 
@@ -620,8 +648,7 @@ private extension WaterfallCollectionView.Coordinator {
     }
 
     func captureAnchor(in collectionView: UICollectionView) -> WaterfallScrollAnchor? {
-        guard collectionView.refreshControl?.isRefreshing != true,
-              !isActivelyScrolling(collectionView),
+        guard !isActivelyScrolling(collectionView),
               let layout
         else { return nil }
 

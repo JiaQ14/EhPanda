@@ -6,7 +6,6 @@
 import SwiftUI
 import SFSafeSymbols
 import ComposableArchitecture
-import UniformTypeIdentifiers
 
 struct TabBarView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -209,7 +208,6 @@ private struct MoreView: View {
     @State private var isEditing = false
     @State private var draftTabItems = [AppNavigationItem]()
     @State private var draftMoreItems = [AppNavigationItem]()
-    @State private var draggedItem: AppNavigationItem?
 
     init(store: StoreOf<AppReducer>) {
         self.store = store
@@ -249,7 +247,6 @@ private struct MoreView: View {
                                     draftMoreItems
                                 )
                             )
-                            draggedItem = nil
                         } else {
                             draftTabItems = tabBarItems
                             draftMoreItems = moreItems
@@ -265,6 +262,10 @@ private struct MoreView: View {
                 }
             }
         }
+        .environment(
+            \.editMode,
+            .constant(isEditing ? .active : .inactive)
+        )
     }
 
     private var moreRoute: Binding<AppNavigationItem?> {
@@ -289,42 +290,21 @@ private struct MoreView: View {
     }
 
     @ViewBuilder private var editorSections: some View {
-        Section(L10n.Localizable.MoreView.Section.Title.tabBar) {
-            fixedEditorRow(.home)
-                .onDrop(
-                    of: [UTType.plainText],
-                    delegate: dropDelegate(
-                        group: .tabBar,
-                        at: 0
-                    )
-                )
-
-            ForEach(Array(draftTabItems.enumerated()), id: \.element) { index, item in
-                draggableEditorRow(
-                    item,
-                    group: .tabBar,
-                    index: index
-                )
+        Section {
+            ForEach(editorEntries) { entry in
+                switch entry {
+                case .header(let group):
+                    editorHeader(group)
+                        .moveDisabled(true)
+                case .fixed(let item):
+                    fixedEditorRow(item)
+                        .moveDisabled(true)
+                case .item(let item):
+                    NavigationItemRow(item: item)
+                        .moveDisabled(false)
+                }
             }
-
-            fixedEditorRow(.more)
-                .onDrop(
-                    of: [UTType.plainText],
-                    delegate: dropDelegate(
-                        group: .tabBar,
-                        at: draftTabItems.count
-                    )
-                )
-        }
-
-        Section(L10n.Localizable.MoreView.Section.Title.more) {
-            ForEach(Array(draftMoreItems.enumerated()), id: \.element) { index, item in
-                draggableEditorRow(
-                    item,
-                    group: .more,
-                    index: index
-                )
-            }
+            .onMove(perform: moveEditorRows)
         }
     }
 
@@ -341,36 +321,77 @@ private struct MoreView: View {
         NavigationItemRow(item: item, isFixed: true)
     }
 
-    private func draggableEditorRow(
-        _ item: AppNavigationItem,
-        group: NavigationItemGroup,
-        index: Int
-    ) -> some View {
-        NavigationItemRow(item: item, showsDragHandle: true)
-            .onDrag {
-                draggedItem = item
-                return NSItemProvider(object: item.rawValue as NSString)
-            }
-            .onDrop(
-                of: [UTType.plainText],
-                delegate: dropDelegate(
-                    group: group,
-                    at: index
-                )
-            )
+    private func editorHeader(_ group: NavigationItemGroup) -> some View {
+        Text(
+            group == .tabBar
+                ? L10n.Localizable.MoreView.Section.Title.tabBar
+                : L10n.Localizable.MoreView.Section.Title.more
+        )
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .textCase(.uppercase)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
-    private func dropDelegate(
-        group: NavigationItemGroup,
-        at index: Int
-    ) -> NavigationItemDropDelegate {
-        .init(
-            destinationGroup: group,
-            destinationIndex: index,
-            draggedItem: $draggedItem,
-            tabBarItems: $draftTabItems,
-            moreItems: $draftMoreItems
-        )
+    private var editorEntries: [NavigationEditorEntry] {
+        [.header(.tabBar), .fixed(.home)]
+            + draftTabItems.map(NavigationEditorEntry.item)
+            + [.fixed(.more), .header(.more)]
+            + draftMoreItems.map(NavigationEditorEntry.item)
+    }
+
+    private func moveEditorRows(
+        from source: IndexSet,
+        to destination: Int
+    ) {
+        guard source.count == 1,
+              let sourceIndex = source.first,
+              editorEntries.indices.contains(sourceIndex),
+              case .item(let item) = editorEntries[sourceIndex]
+        else { return }
+
+        var reorderedEntries = editorEntries
+        reorderedEntries.move(fromOffsets: source, toOffset: destination)
+        guard let itemIndex = reorderedEntries.firstIndex(of: .item(item)),
+              let boundaryIndex = reorderedEntries.firstIndex(of: .fixed(.more))
+        else { return }
+
+        let destinationGroup: NavigationItemGroup =
+            itemIndex < boundaryIndex ? .tabBar : .more
+        let destinationRange =
+            destinationGroup == .tabBar
+            ? reorderedEntries[..<itemIndex]
+            : reorderedEntries[(boundaryIndex + 1)..<itemIndex]
+        let finalDestinationIndex = destinationRange.reduce(into: 0) { count, entry in
+            if case .item = entry {
+                count += 1
+            }
+        }
+
+        var draft = Setting()
+        draft.tabBarItems = draftTabItems
+        draft.moreItems = draftMoreItems
+        let sourceGroup: NavigationItemGroup =
+            draftTabItems.contains(item) ? .tabBar : .more
+        let sourceItems =
+            sourceGroup == .tabBar ? draftTabItems : draftMoreItems
+        let sourceIndexInGroup = sourceItems.firstIndex(of: item)
+        let rawDestinationIndex =
+            sourceGroup == destinationGroup
+            && (sourceIndexInGroup ?? .max) < finalDestinationIndex
+            ? finalDestinationIndex + 1
+            : finalDestinationIndex
+        guard draft.moveNavigationItem(
+            item,
+            to: destinationGroup,
+            at: rawDestinationIndex
+        ) else { return }
+
+        withAnimation(.snappy(duration: 0.2)) {
+            draftTabItems = draft.tabBarItems
+            draftMoreItems = draft.moreItems
+        }
     }
 
     @ViewBuilder
@@ -383,37 +404,20 @@ private struct MoreView: View {
     }
 }
 
-private struct NavigationItemDropDelegate: DropDelegate {
-    let destinationGroup: NavigationItemGroup
-    let destinationIndex: Int
-    @Binding var draggedItem: AppNavigationItem?
-    @Binding var tabBarItems: [AppNavigationItem]
-    @Binding var moreItems: [AppNavigationItem]
+private enum NavigationEditorEntry: Hashable, Identifiable {
+    case header(NavigationItemGroup)
+    case fixed(AppNavigationItem)
+    case item(AppNavigationItem)
 
-    func dropEntered(info: DropInfo) {
-        guard let draggedItem else { return }
-        let insertsAfterRow = info.location.y > 22
-        var draft = Setting()
-        draft.tabBarItems = tabBarItems
-        draft.moreItems = moreItems
-        guard draft.moveNavigationItem(
-            draggedItem,
-            to: destinationGroup,
-            at: destinationIndex + (insertsAfterRow ? 1 : 0)
-        ) else { return }
-        withAnimation(.snappy(duration: 0.2)) {
-            tabBarItems = draft.tabBarItems
-            moreItems = draft.moreItems
+    var id: String {
+        switch self {
+        case .header(let group):
+            return "header-\(group)"
+        case .fixed(let item):
+            return "fixed-\(item.rawValue)"
+        case .item(let item):
+            return "item-\(item.rawValue)"
         }
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        .init(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggedItem = nil
-        return true
     }
 }
 
@@ -421,18 +425,15 @@ private struct NavigationItemRow: View {
     private let item: AppNavigationItem
     private let isFixed: Bool
     private let showsDisclosureIndicator: Bool
-    private let showsDragHandle: Bool
 
     init(
         item: AppNavigationItem,
         isFixed: Bool = false,
-        showsDisclosureIndicator: Bool = false,
-        showsDragHandle: Bool = false
+        showsDisclosureIndicator: Bool = false
     ) {
         self.item = item
         self.isFixed = isFixed
         self.showsDisclosureIndicator = showsDisclosureIndicator
-        self.showsDragHandle = showsDragHandle
     }
 
     var body: some View {
@@ -452,11 +453,6 @@ private struct NavigationItemRow: View {
                 Image(systemSymbol: .lockFill)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-            } else if showsDragHandle {
-                Image(systemName: "line.3.horizontal")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
             } else if showsDisclosureIndicator {
                 Image(systemSymbol: .chevronForward)
                     .font(.caption.weight(.semibold))
