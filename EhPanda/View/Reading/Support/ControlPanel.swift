@@ -135,14 +135,14 @@ private struct UpperPanel: View {
 
             Spacer()
 
-            HStack(spacing: 4) {
+            HStack(spacing: 0) {
                 Button {
                     enablesLiveText.toggle()
                 } label: {
                     Image(systemSymbol: .viewfinderCircle)
                         .symbolVariant(enablesLiveText ? .fill : .none)
                         .font(.title2)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 40, height: 44)
                         .contentShape(Rectangle())
                 }
 
@@ -169,7 +169,7 @@ private struct UpperPanel: View {
                         Image(systemSymbol: .rectangleSplit2x1)
                             .symbolVariant(setting.enablesDualPageMode ? .fill : .none)
                             .font(.title2)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 40, height: 44)
                             .contentShape(Rectangle())
                     }
                 }
@@ -189,7 +189,7 @@ private struct UpperPanel: View {
                 } label: {
                     Image(systemSymbol: .timer)
                         .font(.title2)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 40, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
@@ -210,10 +210,10 @@ private struct UpperPanel: View {
                 }
                 .buttonStyle(.borderless)
                 .font(.title2)
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 44)
                 .contentShape(Rectangle())
             }
-            .padding(8)
+            .padding(.horizontal, 4)
             .glassEffect(.regular.interactive())
         }
         .foregroundStyle(.primary)
