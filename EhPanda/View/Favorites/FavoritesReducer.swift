@@ -77,6 +77,12 @@ struct FavoritesReducer {
             .onChange(of: \.route) { _, newValue in
                 Reduce({ _, _ in newValue == nil ? .send(.clearSubStates) : .none })
             }
+            .onChange(of: \.keyword) { oldValue, newValue in
+                Reduce { _, _ in
+                    guard !oldValue.isEmpty, newValue.isEmpty else { return .none }
+                    return .send(.fetchGalleries())
+                }
+            }
 
         Reduce { state, action in
             switch action {

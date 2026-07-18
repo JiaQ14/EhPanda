@@ -1080,7 +1080,7 @@ private struct CommentCell: View {
         .frame(width: 300, alignment: .topLeading)
         .frame(minHeight: 120, alignment: .topLeading)
         .background(
-            Color(.secondarySystemGroupedBackground),
+            Color(.secondarySystemFill),
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
         )
     }

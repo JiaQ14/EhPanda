@@ -16,6 +16,27 @@ class EhSettingParserTests: XCTestCase, TestHelper {
         testRemainingStuff(ehSetting: ehSetting)
     }
 
+    func testSettingsFormWithID() throws {
+        guard let url = Bundle(for: Self.self).url(
+            forResource: HTMLFilename.ehSetting.rawValue,
+            withExtension: "html"
+        ) else {
+            throw TestError.htmlDocumentNotFound(.ehSetting)
+        }
+        let html = try String(contentsOf: url, encoding: .utf8)
+        let updatedHTML = html.replacingOccurrences(
+            of: "<form action=\"\" method=\"post\">",
+            with: "<form id=\"settings_form\" action=\"\" method=\"post\">"
+        )
+        XCTAssertNotEqual(updatedHTML, html)
+
+        let document = try Kanna.HTML(html: updatedHTML, encoding: .utf8)
+        let ehSetting = try Parser.parseEhSetting(doc: document)
+        testEhProfiles(ehSetting.ehProfiles)
+        testCapability(ehSetting: ehSetting)
+        testRemainingStuff(ehSetting: ehSetting)
+    }
+
     func testEhProfiles(_ profiles: [EhProfile]) {
         XCTAssertEqual(profiles.count, 3)
         

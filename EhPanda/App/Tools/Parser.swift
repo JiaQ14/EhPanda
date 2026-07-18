@@ -1115,13 +1115,12 @@ extension Parser {
             return selections
         }
 
-        var tmpForm: XMLElement?
-        for link in doc.xpath("//form [@method='post']")
-            where link["id"] == nil {
-            tmpForm = link
-        }
-        guard let profileOuter = doc.at_xpath("//div [@id='profile_outer']"),
-              let form = tmpForm else { throw AppError.parseFailed }
+        let profileOuter =
+            doc.at_xpath("//div [@id='profile_outer']")
+            ?? doc.at_xpath("//form [@id='profile_form']")
+        let optionGroups = doc.xpath("//div [@class='optouter']")
+        guard let profileOuter, optionGroups.count > 0
+        else { throw AppError.parseFailed }
 
         // swiftlint:disable line_length
         var ehProfiles = [EhProfile](); var isCapableOfCreatingNewProfile: Bool?; var capableLoadThroughHathSetting: EhSetting.LoadThroughHathSetting?; var capableImageResolution: EhSetting.ImageResolution?; var capableSearchResultCount: EhSetting.SearchResultCount?; var capableThumbnailConfigSizes = [EhSetting.ThumbnailSize](); var capableThumbnailConfigRowCount: EhSetting.ThumbnailRowCount?; var loadThroughHathSetting: EhSetting.LoadThroughHathSetting?; var browsingCountry: EhSetting.BrowsingCountry?; var imageResolution: EhSetting.ImageResolution?; var imageSizeWidth: Float?; var imageSizeHeight: Float?; var galleryName: EhSetting.GalleryName?; var literalBrowsingCountry: String?; var archiverBehavior: EhSetting.ArchiverBehavior?; var displayMode: EhSetting.DisplayMode?; var showSearchRangeIndicator: Bool?; var enableGalleryThumbnailSelector: Bool?; var disabledCategories = [Bool](); var favoriteCategories = [String](); var favoritesSortOrder: EhSetting.FavoritesSortOrder?; var ratingsColor: String?; var tagFilteringThreshold: Float?; var tagWatchingThreshold: Float?; var showFilteredRemovalCount: Bool?; var excludedLanguages = [Bool](); var excludedUploaders: String?; var searchResultCount: EhSetting.SearchResultCount?; var thumbnailLoadTiming: EhSetting.ThumbnailLoadTiming?; var thumbnailConfigSize: EhSetting.ThumbnailSize?; var thumbnailConfigRows: EhSetting.ThumbnailRowCount?; var coverScaleFactor: Float?; var viewportVirtualWidth: Float?; var commentsSortOrder: EhSetting.CommentsSortOrder?; var commentVotesShowTiming: EhSetting.CommentVotesShowTiming?; var tagsSortOrder: EhSetting.TagsSortOrder?; var galleryPageNumbers: EhSetting.GalleryPageNumbering?; var useOriginalImages: Bool?; var useMultiplePageViewer: Bool?; var multiplePageViewerStyle: EhSetting.MultiplePageViewerStyle?; var multiplePageViewerShowThumbnailPane: Bool?
@@ -1142,7 +1141,7 @@ extension Parser {
             }
         }
 
-        for optouter in form.xpath("//div [@class='optouter']") {
+        for optouter in optionGroups {
             if optouter.at_xpath("//input [@name='uh']") != nil {
                 loadThroughHathSetting = parseEnum(node: optouter, name: "uh")
                 capableLoadThroughHathSetting = parseCapability(node: optouter, name: "uh")
