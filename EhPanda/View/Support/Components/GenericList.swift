@@ -187,6 +187,7 @@ private struct DetailList: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemGroupedBackground))
+        .ignoresSafeArea(.container, edges: .bottom)
     }
 
     @ViewBuilder
@@ -261,7 +262,7 @@ private struct WaterfallList: View {
             navigateAction: navigateAction,
             translateAction: translateAction
         )
-        .ignoresSafeArea(.container, edges: .top)
+        .ignoresSafeArea(.container, edges: [.top, .bottom])
         .background(Color(uiColor: .systemGroupedBackground))
     }
 }
