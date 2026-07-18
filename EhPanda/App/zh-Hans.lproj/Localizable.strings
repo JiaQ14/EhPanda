@@ -954,3 +954,7 @@
 "detail_view.cache.status.cached" = "已缓存";
 "detail_view.cache.confirmation.delete.title" = "删除这本漫画的缓存？";
 "detail_view.cache.confirmation.delete.message" = "“文件”App 中对应的图片文件也会一并删除。";
+
+"tab_item.title.more" = "更多";
+"more_view.section.title.tab_bar" = "标签栏";
+"more_view.section.title.more" = "更多";

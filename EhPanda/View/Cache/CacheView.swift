@@ -13,6 +13,7 @@ struct CacheView: View {
     @Binding private var setting: Setting
     private let blurRadius: Double
     private let tagTranslator: TagTranslator
+    private let embedsInNavigationStack: Bool
     @State private var showsDeleteAllConfirmation = false
 
     init(
@@ -20,13 +21,15 @@ struct CacheView: View {
         user: User,
         setting: Binding<Setting>,
         blurRadius: Double,
-        tagTranslator: TagTranslator
+        tagTranslator: TagTranslator,
+        embedsInNavigationStack: Bool = true
     ) {
         self.store = store
         self.user = user
         _setting = setting
         self.blurRadius = blurRadius
         self.tagTranslator = tagTranslator
+        self.embedsInNavigationStack = embedsInNavigationStack
     }
 
     private var options: CacheDownloadOptions {
@@ -76,62 +79,70 @@ struct CacheView: View {
         })
     }
 
-    var body: some View {
-        NavigationStack {
-            Group {
-                if store.items.isEmpty {
-                    ContentUnavailableView(
-                        L10n.Localizable.CacheView.Empty.Title.cache,
-                        systemImage: "square.and.arrow.down",
-                        description: Text(L10n.Localizable.CacheView.Empty.Description.cache)
-                    )
-                } else if filteredItems.isEmpty {
-                    ContentUnavailableView.search(text: store.searchText)
-                } else {
-                    cacheList
-                }
+    @ViewBuilder var body: some View {
+        if embedsInNavigationStack {
+            NavigationStack {
+                navigationContent
             }
-            .navigationTitle(L10n.Localizable.CacheView.Title.cache)
-            .navigationDestination(item: $store.route.sending(\.setNavigation).detail) { gid in
-                DetailView(
-                    store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                    gid: gid,
-                    user: user,
-                    setting: $setting,
-                    blurRadius: blurRadius,
-                    tagTranslator: tagTranslator
+        } else {
+            navigationContent
+        }
+    }
+
+    private var navigationContent: some View {
+        Group {
+            if store.items.isEmpty {
+                ContentUnavailableView(
+                    L10n.Localizable.CacheView.Empty.Title.cache,
+                    systemImage: "square.and.arrow.down",
+                    description: Text(L10n.Localizable.CacheView.Empty.Description.cache)
                 )
+            } else if filteredItems.isEmpty {
+                ContentUnavailableView.search(text: store.searchText)
+            } else {
+                cacheList
             }
-            .searchable(
-                text: $store.searchText,
-                prompt: L10n.Localizable.CacheView.Search.Prompt.cache
+        }
+        .navigationTitle(L10n.Localizable.CacheView.Title.cache)
+        .navigationDestination(item: $store.route.sending(\.setNavigation).detail) { gid in
+            DetailView(
+                store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
+                gid: gid,
+                user: user,
+                setting: $setting,
+                blurRadius: blurRadius,
+                tagTranslator: tagTranslator
             )
-            .searchFocused($isSearchFocused)
-            .overlay {
-                TagSuggestionOverlay(
-                    keyword: $store.searchText,
-                    translations: tagTranslator.translations,
-                    showsImages: setting.showsImagesInTags,
-                    isEnabled: setting.showsTagsSearchSuggestion,
-                    isPresented: isSearchFocused,
-                    maximumCount: 5
-                )
-            }
-            .toolbar { toolbarContent }
-            .confirmationDialog(
-                L10n.Localizable.CacheView.Confirmation.DeleteAll.title,
-                isPresented: $showsDeleteAllConfirmation,
-                titleVisibility: .visible
+        }
+        .searchable(
+            text: $store.searchText,
+            prompt: L10n.Localizable.CacheView.Search.Prompt.cache
+        )
+        .searchFocused($isSearchFocused)
+        .overlay {
+            TagSuggestionOverlay(
+                keyword: $store.searchText,
+                translations: tagTranslator.translations,
+                showsImages: setting.showsImagesInTags,
+                isEnabled: setting.showsTagsSearchSuggestion,
+                isPresented: isSearchFocused,
+                maximumCount: 5
+            )
+        }
+        .toolbar { toolbarContent }
+        .confirmationDialog(
+            L10n.Localizable.CacheView.Confirmation.DeleteAll.title,
+            isPresented: $showsDeleteAllConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(
+                L10n.Localizable.CacheView.Button.deleteAll,
+                role: .destructive
             ) {
-                Button(
-                    L10n.Localizable.CacheView.Button.deleteAll,
-                    role: .destructive
-                ) {
-                    store.send(.deleteAll)
-                }
-            } message: {
-                Text(L10n.Localizable.CacheView.Confirmation.DeleteAll.message)
+                store.send(.deleteAll)
             }
+        } message: {
+            Text(L10n.Localizable.CacheView.Confirmation.DeleteAll.message)
         }
         .onAppear {
             store.send(.onAppear(

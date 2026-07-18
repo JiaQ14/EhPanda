@@ -954,3 +954,7 @@
 "detail_view.cache.status.cached" = "キャッシュ済み";
 "detail_view.cache.confirmation.delete.title" = "このギャラリーのキャッシュを削除しますか？";
 "detail_view.cache.confirmation.delete.message" = "ダウンロードした画像ファイルも「ファイル」から削除されます。";
+
+"tab_item.title.more" = "その他";
+"more_view.section.title.tab_bar" = "タブバー";
+"more_view.section.title.more" = "その他";

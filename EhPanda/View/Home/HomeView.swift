@@ -76,7 +76,6 @@ struct HomeView: View {
                         reloadAction: { store.send(.fetchAllToplistsGalleries) }
                     )
                     .equatable()
-                    MiscGridSection(navigateAction: navigateTo(type:))
                 }
                 .padding(.vertical, 12)
             }
@@ -143,24 +142,6 @@ private extension HomeView {
                 gid: gid, user: user, setting: $setting,
                 blurRadius: blurRadius, tagTranslator: tagTranslator
             )
-        case .misc(let type):
-            switch type {
-            case .popular:
-                PopularView(
-                    store: store.scope(state: \.popularState, action: \.popular),
-                    user: user, setting: $setting, blurRadius: blurRadius, tagTranslator: tagTranslator
-                )
-            case .watched:
-                WatchedView(
-                    store: store.scope(state: \.watchedState, action: \.watched),
-                    user: user, setting: $setting, blurRadius: blurRadius, tagTranslator: tagTranslator
-                )
-            case .history:
-                HistoryView(
-                    store: store.scope(state: \.historyState, action: \.history),
-                    user: user, setting: $setting, blurRadius: blurRadius, tagTranslator: tagTranslator
-                )
-            }
         case .section(let section):
             switch section {
             case .frontpage:
@@ -179,9 +160,6 @@ private extension HomeView {
 
     func navigateTo(gid: String) {
         store.send(.setNavigation(.detail(gid)))
-    }
-    func navigateTo(type: HomeMiscGridType) {
-        store.send(.setNavigation(.misc(type)))
     }
 }
 
@@ -486,114 +464,6 @@ private struct VerticalToplistsStack: View {
             }
         }
         .frame(width: Defaults.FrameSize.rankingCellWidth)
-    }
-}
-
-// MARK: MiscGridSection
-private struct MiscGridSection: View {
-    private let navigateAction: (HomeMiscGridType) -> Void
-
-    init(navigateAction: @escaping (HomeMiscGridType) -> Void) {
-        self.navigateAction = navigateAction
-    }
-
-    var body: some View {
-        SubSection(title: L10n.Localizable.HomeView.Section.Title.other, showAll: false) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    ForEach(HomeMiscGridType.allCases) { type in
-                        Button {
-                            navigateAction(type)
-                        } label: {
-                            MiscGridItem(title: type.title, symbol: type.symbol)
-                                .tint(.primary)
-                        }
-                        .buttonStyle(HomePressableButtonStyle())
-                    }
-                }
-            }
-            .contentMargins(.horizontal, 16, for: .scrollContent)
-        }
-    }
-}
-
-private struct MiscGridItem: View {
-    private let title: String
-    private let subTitle: String?
-    private let symbol: SFSymbol
-
-    init(title: String, subTitle: String? = nil, symbol: SFSymbol) {
-        self.title = title
-        self.subTitle = subTitle
-        self.symbol = symbol
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemSymbol: symbol)
-                .font(.title2)
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.secondary)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(2)
-                if let subTitle = subTitle {
-                    Text(subTitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            Image(systemSymbol: .chevronRight)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 16)
-        .frame(width: DeviceUtil.isPad ? 240 : 210, alignment: .leading)
-        .frame(minHeight: 72, alignment: .leading)
-        .background(.thinMaterial, in: .rect(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5)
-        }
-    }
-}
-
-// MARK: Definition
-enum HomeMiscGridType: CaseIterable, Identifiable {
-    var id: String { title }
-
-    case popular
-    case watched
-    case history
-}
-
-extension HomeMiscGridType {
-    var title: String {
-        switch self {
-        case .popular:
-            return L10n.Localizable.Enum.HomeMiscGridType.Title.popular
-        case .watched:
-            return L10n.Localizable.Enum.HomeMiscGridType.Title.watched
-        case .history:
-            return L10n.Localizable.Enum.HomeMiscGridType.Title.history
-        }
-    }
-    var symbol: SFSymbol {
-        switch self {
-        case .popular:
-            return .flame
-        case .watched:
-            return .tagCircle
-        case .history:
-            return .clockArrowCirclepath
-        }
     }
 }
 

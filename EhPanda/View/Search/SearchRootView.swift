@@ -13,22 +13,34 @@ struct SearchRootView: View {
     @Binding private var setting: Setting
     private let blurRadius: Double
     private let tagTranslator: TagTranslator
+    private let embedsInNavigationStack: Bool
 
     init(
         store: StoreOf<SearchRootReducer>,
-        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator
+        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator,
+        embedsInNavigationStack: Bool = true
     ) {
         self.store = store
         self.user = user
         _setting = setting
         self.blurRadius = blurRadius
         self.tagTranslator = tagTranslator
+        self.embedsInNavigationStack = embedsInNavigationStack
     }
 
-    var body: some View {
-        NavigationView {
-            let content =
-            ScrollView(showsIndicators: false) {
+    @ViewBuilder var body: some View {
+        if embedsInNavigationStack {
+            NavigationStack {
+                navigationContent
+            }
+        } else {
+            navigationContent
+        }
+    }
+
+    @ViewBuilder private var navigationContent: some View {
+        let content =
+        ScrollView(showsIndicators: false) {
                 SuggestionsPanel(
                     historyKeywords: store.historyKeywords.reversed(),
                     historyGalleries: store.historyGalleries,
@@ -86,29 +98,28 @@ struct SearchRootView: View {
             .toolbar(content: toolbar)
             .navigationTitle(L10n.Localizable.SearchView.Title.search)
 
-            if DeviceUtil.isPad {
-                content
-                    .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { gid in
-                        NavigationView {
-                            DetailView(
-                                store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                                gid: gid,
-                                user: user,
-                                setting: $setting,
-                                blurRadius: blurRadius,
-                                tagTranslator: tagTranslator
-                            )
-                        }
-                        .autoBlur(radius: blurRadius).environment(\.inSheet, true).navigationViewStyle(.stack)
+        if DeviceUtil.isPad {
+            content
+                .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { gid in
+                    NavigationStack {
+                        DetailView(
+                            store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
+                            gid: gid,
+                            user: user,
+                            setting: $setting,
+                            blurRadius: blurRadius,
+                            tagTranslator: tagTranslator
+                        )
                     }
-            } else {
-                // Workaround: Prevent the title disappearing issue.
-                if store.historyKeywords.isEmpty && store.historyGalleries.isEmpty {
-                    content
-                        .navigationSubtitle(Text(" "))
-                } else {
-                    content
+                    .autoBlur(radius: blurRadius).environment(\.inSheet, true)
                 }
+        } else {
+            // Workaround: Prevent the title disappearing issue.
+            if store.historyKeywords.isEmpty && store.historyGalleries.isEmpty {
+                content
+                    .navigationSubtitle(Text(" "))
+            } else {
+                content
             }
         }
     }

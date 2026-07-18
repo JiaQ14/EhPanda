@@ -1144,3 +1144,55 @@ final class GalleryLocalSearchMatcherTests: XCTestCase {
         )
     }
 }
+
+final class NavigationLayoutSettingTests: XCTestCase {
+    func testDefaultLayoutKeepsHomeAndMoreAroundSearch() {
+        let setting = Setting()
+
+        XCTAssertEqual(setting.tabBarItems, [.search])
+        XCTAssertEqual(
+            setting.moreItems,
+            [.popular, .watched, .history, .favorites, .cache, .setting]
+        )
+    }
+
+    func testMovesItemsBetweenTabBarAndMoreInRequestedOrder() {
+        var setting = Setting()
+
+        XCTAssertTrue(setting.moveNavigationItem(.favorites, to: .tabBar, at: 0))
+        XCTAssertEqual(setting.tabBarItems, [.favorites, .search])
+        XCTAssertFalse(setting.moreItems.contains(.favorites))
+
+        XCTAssertTrue(setting.moveNavigationItem(.favorites, to: .more, at: 1))
+        XCTAssertEqual(setting.tabBarItems, [.search])
+        XCTAssertEqual(
+            setting.moreItems,
+            [.popular, .favorites, .watched, .history, .cache, .setting]
+        )
+    }
+
+    func testRejectsFixedItemsAndAFullTabBar() {
+        var setting = Setting()
+        setting.tabBarItems = [.search, .popular, .history]
+        setting.moreItems = [.watched, .favorites, .cache, .setting]
+
+        XCTAssertFalse(setting.moveNavigationItem(.home, to: .more, at: 0))
+        XCTAssertFalse(setting.moveNavigationItem(.more, to: .tabBar, at: 0))
+        XCTAssertFalse(setting.moveNavigationItem(.watched, to: .tabBar, at: 0))
+        XCTAssertEqual(setting.tabBarItems, [.search, .popular, .history])
+        XCTAssertEqual(setting.moreItems, [.watched, .favorites, .cache, .setting])
+    }
+
+    func testNormalizationRepairsDuplicatesInvalidItemsAndOverflow() {
+        var setting = Setting()
+        setting.tabBarItems = [
+            .home, .search, .search, .popular, .watched, .history, .more
+        ]
+        setting.moreItems = [.favorites, .favorites, .home]
+
+        setting.normalizeNavigationItems()
+
+        XCTAssertEqual(setting.tabBarItems, [.search, .popular, .watched])
+        XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache, .setting])
+    }
+}

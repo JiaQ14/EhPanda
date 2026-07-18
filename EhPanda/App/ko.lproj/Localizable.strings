@@ -954,3 +954,7 @@
 "detail_view.cache.status.cached" = "캐시됨";
 "detail_view.cache.confirmation.delete.title" = "이 갤러리의 캐시를 삭제할까요?";
 "detail_view.cache.confirmation.delete.message" = "다운로드한 이미지 파일도 파일 앱에서 삭제됩니다.";
+
+"tab_item.title.more" = "더보기";
+"more_view.section.title.tab_bar" = "탭 막대";
+"more_view.section.title.more" = "더보기";

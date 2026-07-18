@@ -10,35 +10,49 @@ import ComposableArchitecture
 struct SettingView: View {
     @Bindable private var store: StoreOf<SettingReducer>
     private let blurRadius: Double
+    private let embedsInNavigationStack: Bool
 
-    init(store: StoreOf<SettingReducer>, blurRadius: Double) {
+    init(
+        store: StoreOf<SettingReducer>,
+        blurRadius: Double,
+        embedsInNavigationStack: Bool = true
+    ) {
         self.store = store
         self.blurRadius = blurRadius
+        self.embedsInNavigationStack = embedsInNavigationStack
     }
 
     // MARK: SettingView
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(primaryRoutes) { route in
-                        settingRow(for: route)
-                    }
-                }
-                Section {
-                    settingRow(for: .laboratory)
-                }
-                Section {
-                    settingRow(for: .about)
+    @ViewBuilder var body: some View {
+        if embedsInNavigationStack {
+            NavigationStack {
+                navigationContent
+            }
+        } else {
+            navigationContent
+        }
+    }
+
+    private var navigationContent: some View {
+        List {
+            Section {
+                ForEach(primaryRoutes) { route in
+                    settingRow(for: route)
                 }
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle(L10n.Localizable.SettingView.Title.setting)
-            .navigationDestination(
-                item: $store.route.sending(\.setNavigation),
-                destination: settingDestination
-            )
+            Section {
+                settingRow(for: .laboratory)
+            }
+            Section {
+                settingRow(for: .about)
+            }
         }
+        .listStyle(.insetGrouped)
+        .navigationTitle(L10n.Localizable.SettingView.Title.setting)
+        .navigationDestination(
+            item: $store.route.sending(\.setNavigation),
+            destination: settingDestination
+        )
     }
 
     private var primaryRoutes: [SettingReducer.Route] {

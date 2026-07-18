@@ -10,7 +10,6 @@ struct HomeReducer {
     @CasePathable
     enum Route: Equatable, Hashable {
         case detail(String)
-        case misc(HomeMiscGridType)
         case section(HomeSectionType)
     }
 

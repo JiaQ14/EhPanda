@@ -7,6 +7,29 @@ import SwiftUI
 import Foundation
 import ComposableArchitecture
 
+enum AppNavigationItem: String, Codable, CaseIterable, Hashable, Identifiable {
+    var id: String { rawValue }
+
+    case home
+    case search
+    case popular
+    case watched
+    case history
+    case favorites
+    case cache
+    case setting
+    case more
+
+    static let configurableItems: [Self] = [
+        .search, .popular, .watched, .history, .favorites, .cache, .setting
+    ]
+}
+
+enum NavigationItemGroup: Equatable {
+    case tabBar
+    case more
+}
+
 struct Setting: Codable, Equatable {
     // Account
     var galleryHost: GalleryHost = .ehentai
@@ -38,6 +61,12 @@ struct Setting: Codable, Equatable {
     var showsTagsInList = false
     var listTagsNumberMaximum = 0
     var displaysJapaneseTitle = true
+
+    // Navigation
+    var tabBarItems: [AppNavigationItem] = [.search]
+    var moreItems: [AppNavigationItem] = [
+        .popular, .watched, .history, .favorites, .cache, .setting
+    ]
 
     // Cache
     var cacheImageQuality: CacheImageQuality = .standard
@@ -188,6 +217,86 @@ extension ListDisplayMode {
     }
 }
 
+extension Setting {
+    static let maximumConfigurableTabCount = 3
+
+    mutating func normalizeNavigationItems() {
+        let configurableItems = Set(AppNavigationItem.configurableItems)
+        var seen = Set<AppNavigationItem>()
+
+        let normalizedTabItems = tabBarItems.filter {
+            configurableItems.contains($0)
+                && seen.insert($0).inserted
+        }
+        let overflow = normalizedTabItems.dropFirst(Self.maximumConfigurableTabCount)
+        tabBarItems = Array(normalizedTabItems.prefix(Self.maximumConfigurableTabCount))
+        seen = Set(tabBarItems)
+
+        moreItems = (Array(overflow) + moreItems).filter {
+            configurableItems.contains($0)
+                && !tabBarItems.contains($0)
+                && seen.insert($0).inserted
+        }
+        moreItems.append(contentsOf: AppNavigationItem.configurableItems.filter {
+            !seen.contains($0)
+        })
+    }
+
+    @discardableResult
+    mutating func moveNavigationItem(
+        _ item: AppNavigationItem,
+        to destination: NavigationItemGroup,
+        at rawDestinationIndex: Int
+    ) -> Bool {
+        guard AppNavigationItem.configurableItems.contains(item) else { return false }
+
+        let source: NavigationItemGroup = tabBarItems.contains(item) ? .tabBar : .more
+        if destination == .tabBar,
+           source != .tabBar,
+           tabBarItems.count >= Self.maximumConfigurableTabCount {
+            return false
+        }
+
+        let sourceIndex = source == .tabBar
+            ? tabBarItems.firstIndex(of: item)
+            : moreItems.firstIndex(of: item)
+        tabBarItems.removeAll { $0 == item }
+        moreItems.removeAll { $0 == item }
+
+        var destinationIndex = rawDestinationIndex
+        if source == destination,
+           let sourceIndex,
+           sourceIndex < destinationIndex {
+            destinationIndex -= 1
+        }
+
+        switch destination {
+        case .tabBar:
+            destinationIndex = min(max(destinationIndex, 0), tabBarItems.count)
+            tabBarItems.insert(item, at: destinationIndex)
+        case .more:
+            destinationIndex = min(max(destinationIndex, 0), moreItems.count)
+            moreItems.insert(item, at: destinationIndex)
+        }
+        normalizeNavigationItems()
+        return true
+    }
+
+    mutating func moveNavigationItems(
+        in group: NavigationItemGroup,
+        from source: IndexSet,
+        to destination: Int
+    ) {
+        switch group {
+        case .tabBar:
+            tabBarItems.move(fromOffsets: source, toOffset: destination)
+        case .more:
+            moreItems.move(fromOffsets: source, toOffset: destination)
+        }
+        normalizeNavigationItems()
+    }
+}
+
 // swiftlint:disable line_length
 // MARK: Manually decode
 extension Setting {
@@ -213,6 +322,11 @@ extension Setting {
         showsTagsInList = (try? container?.decodeIfPresent(Bool.self, forKey: .showsTagsInList)) ?? false
         listTagsNumberMaximum = (try? container?.decodeIfPresent(Int.self, forKey: .listTagsNumberMaximum)) ?? 0
         displaysJapaneseTitle = (try? container?.decodeIfPresent(Bool.self, forKey: .displaysJapaneseTitle)) ?? true
+        // Navigation
+        tabBarItems = (try? container?.decodeIfPresent([AppNavigationItem].self, forKey: .tabBarItems)) ?? [.search]
+        moreItems = (try? container?.decodeIfPresent([AppNavigationItem].self, forKey: .moreItems))
+            ?? [.popular, .watched, .history, .favorites, .cache, .setting]
+        normalizeNavigationItems()
         // Cache
         cacheImageQuality = (try? container?.decodeIfPresent(CacheImageQuality.self, forKey: .cacheImageQuality)) ?? .standard
         cacheConcurrentDownloads = (try? container?.decodeIfPresent(Int.self, forKey: .cacheConcurrentDownloads)) ?? 3

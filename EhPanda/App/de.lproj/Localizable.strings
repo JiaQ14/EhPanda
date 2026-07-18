@@ -954,3 +954,7 @@
 "detail_view.cache.status.cached" = "Im Cache";
 "detail_view.cache.confirmation.delete.title" = "Diese Galerie aus dem Cache löschen?";
 "detail_view.cache.confirmation.delete.message" = "Die heruntergeladenen Bilddateien werden auch aus Dateien entfernt.";
+
+"tab_item.title.more" = "Mehr";
+"more_view.section.title.tab_bar" = "Tableiste";
+"more_view.section.title.more" = "Mehr";

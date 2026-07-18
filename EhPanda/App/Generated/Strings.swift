@@ -241,6 +241,16 @@ internal enum L10n {
         internal static let showsNewDawnGreeting = L10n.tr("Localizable", "account_setting_view.title.shows_new_dawn_greeting", fallback: "Shows new dawn greeting")
       }
     }
+    internal enum MoreView {
+      internal enum Section {
+        internal enum Title {
+          /// More
+          internal static let more = L10n.tr("Localizable", "more_view.section.title.more", fallback: "More")
+          /// Tab Bar
+          internal static let tabBar = L10n.tr("Localizable", "more_view.section.title.tab_bar", fallback: "Tab Bar")
+        }
+      }
+    }
     internal enum AppIconView {
       internal enum Title {
         /// App icon
@@ -2276,6 +2286,8 @@ internal enum L10n {
         internal static let favorites = L10n.tr("Localizable", "tab_item.title.favorites", fallback: "Favorites")
         /// Home
         internal static let home = L10n.tr("Localizable", "tab_item.title.home", fallback: "Home")
+        /// More
+        internal static let more = L10n.tr("Localizable", "tab_item.title.more", fallback: "More")
         /// Search
         internal static let search = L10n.tr("Localizable", "tab_item.title.search", fallback: "Search")
         /// Setting

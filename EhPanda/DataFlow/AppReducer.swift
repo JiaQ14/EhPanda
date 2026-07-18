@@ -14,6 +14,7 @@ struct AppReducer {
         var appRouteState = AppRouteReducer.State()
         var appLockState = AppLockReducer.State()
         var tabBarState = TabBarReducer.State()
+        var moreState = MoreReducer.State()
         var homeState = HomeReducer.State()
         var favoritesState = FavoritesReducer.State()
         var cacheState = CacheReducer.State()
@@ -35,6 +36,9 @@ struct AppReducer {
         case appLock(AppLockReducer.Action)
 
         case tabBar(TabBarReducer.Action)
+        case more(MoreReducer.Action)
+        case moveNavigationItem(AppNavigationItem, NavigationItemGroup, Int)
+        case moveNavigationItems(NavigationItemGroup, IndexSet, Int)
 
         case home(HomeReducer.Action)
         case favorites(FavoritesReducer.Action)
@@ -111,6 +115,30 @@ struct AppReducer {
                 case .appLock:
                     return .none
 
+                case .moveNavigationItem(let item, let destination, let index):
+                    let didMove = state.settingState.setting.moveNavigationItem(
+                        item, to: destination, at: index
+                    )
+                    guard didMove else {
+                        return .run { _ in
+                            hapticsClient.generateNotificationFeedback(.warning)
+                        }
+                    }
+                    if destination == .more,
+                       state.tabBarState.tabBarItemType == item {
+                        state.tabBarState.tabBarItemType = .more
+                    }
+                    return .merge(
+                        .send(.setting(.syncSetting)),
+                        .run { _ in hapticsClient.generateFeedback(.soft) }
+                    )
+
+                case .moveNavigationItems(let group, let source, let destination):
+                    state.settingState.setting.moveNavigationItems(
+                        in: group, from: source, to: destination
+                    )
+                    return .send(.setting(.syncSetting))
+
                 case .tabBar(.setTabBarItemType(let type)):
                     var effects = [Effect<Action>]()
                     let hapticEffect: Effect<Action> = .run(operation: { _ in hapticsClient.generateFeedback(.soft) })
@@ -122,19 +150,34 @@ struct AppReducer {
                             } else {
                                 effects.append(.send(.home(.fetchAllGalleries)))
                             }
+                        case .popular:
+                            if state.homeState.popularState.route != nil {
+                                effects.append(.send(.home(.popular(.setNavigation(nil)))))
+                            } else {
+                                effects.append(.send(.home(.popular(.fetchGalleries))))
+                            }
+                        case .watched:
+                            if state.homeState.watchedState.route != nil {
+                                effects.append(.send(.home(.watched(.setNavigation(nil)))))
+                            } else if cookieClient.didLogin {
+                                effects.append(.send(.home(.watched(.fetchGalleries()))))
+                            }
+                        case .history:
+                            if state.homeState.historyState.route != nil {
+                                effects.append(.send(.home(.history(.setNavigation(nil)))))
+                            } else {
+                                effects.append(.send(.home(.history(.fetchGalleries))))
+                            }
                         case .favorites:
                             if state.favoritesState.route != nil {
                                 effects.append(.send(.favorites(.setNavigation(nil))))
-                                effects.append(hapticEffect)
                             } else if cookieClient.didLogin {
                                 effects.append(.send(.favorites(.fetchGalleries())))
-                                effects.append(hapticEffect)
                             }
                         case .cache:
                             if state.cacheState.route != nil {
                                 effects.append(.send(.cache(.setNavigation(nil))))
                             }
-                            effects.append(hapticEffect)
                         case .search:
                             if state.searchRootState.route != nil {
                                 effects.append(.send(.searchRoot(.setNavigation(nil))))
@@ -144,28 +187,32 @@ struct AppReducer {
                         case .setting:
                             if state.settingState.route != nil {
                                 effects.append(.send(.setting(.setNavigation(nil))))
-                                effects.append(hapticEffect)
+                            }
+                        case .more:
+                            if state.moreState.route != nil {
+                                effects.append(.send(.more(.setNavigation(nil))))
                             }
                         }
-                        if [.home, .search].contains(type) {
-                            effects.append(hapticEffect)
-                        }
-                    }
-                    if type == .setting && deviceClient.isPad() {
-                        effects.append(.send(.appRoute(.setNavigation(.setting()))))
+                        effects.append(hapticEffect)
                     }
                     return effects.isEmpty ? .none : .merge(effects)
 
                 case .tabBar:
                     return .none
 
+                case .more:
+                    return .none
+
                 case .home(.watched(.onNotLoginViewButtonTapped)), .favorites(.onNotLoginViewButtonTapped):
                     let isLoggedIn = cookieClient.didLogin
                     state.prepareLoginNavigation(isLoggedIn: isLoggedIn)
-                    return .merge(
-                        .run(operation: { _ in hapticsClient.generateFeedback(.soft) }),
-                        .send(.tabBar(.setTabBarItemType(.setting)))
-                    )
+                    if state.settingState.setting.tabBarItems.contains(.setting) {
+                        state.tabBarState.tabBarItemType = .setting
+                    } else {
+                        state.moreState.route = .setting
+                        state.tabBarState.tabBarItemType = .more
+                    }
+                    return .run(operation: { _ in hapticsClient.generateFeedback(.soft) })
 
                 case .home:
                     return .none
@@ -208,6 +255,7 @@ struct AppReducer {
             Scope(state: \.appLockState, action: \.appLock, child: AppLockReducer.init)
             Scope(state: \.appDelegateState, action: \.appDelegate, child: AppDelegateReducer.init)
             Scope(state: \.tabBarState, action: \.tabBar, child: TabBarReducer.init)
+            Scope(state: \.moreState, action: \.more, child: MoreReducer.init)
             Scope(state: \.homeState, action: \.home, child: HomeReducer.init)
             Scope(state: \.favoritesState, action: \.favorites, child: FavoritesReducer.init)
             Scope(state: \.cacheState, action: \.cache, child: CacheReducer.init)

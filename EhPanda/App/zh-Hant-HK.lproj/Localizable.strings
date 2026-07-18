@@ -953,3 +953,7 @@
 "detail_view.cache.status.cached" = "已快取";
 "detail_view.cache.confirmation.delete.title" = "刪除這本漫畫的快取？";
 "detail_view.cache.confirmation.delete.message" = "「檔案」App 中對應的圖片檔案亦會一併刪除。";
+
+"tab_item.title.more" = "更多";
+"more_view.section.title.tab_bar" = "標籤列";
+"more_view.section.title.more" = "更多";

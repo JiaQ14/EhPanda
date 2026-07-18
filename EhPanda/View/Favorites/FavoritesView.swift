@@ -14,16 +14,19 @@ struct FavoritesView: View {
     @Binding private var setting: Setting
     private let blurRadius: Double
     private let tagTranslator: TagTranslator
+    private let embedsInNavigationStack: Bool
 
     init(
         store: StoreOf<FavoritesReducer>,
-        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator
+        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator,
+        embedsInNavigationStack: Bool = true
     ) {
         self.store = store
         self.user = user
         _setting = setting
         self.blurRadius = blurRadius
         self.tagTranslator = tagTranslator
+        self.embedsInNavigationStack = embedsInNavigationStack
     }
 
     private var navigationTitle: String {
@@ -31,30 +34,38 @@ struct FavoritesView: View {
         return (store.index == -1 ? L10n.Localizable.FavoritesView.Title.favorites : favoriteCategory)
     }
 
-    var body: some View {
-        NavigationStack {
-            if DeviceUtil.isPad {
-                content
-                    .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { route in
-                        NavigationStack {
-                            DetailView(
-                                store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                                gid: route.wrappedValue, user: user, setting: $setting,
-                                blurRadius: blurRadius, tagTranslator: tagTranslator
-                            )
-                        }
-                        .autoBlur(radius: blurRadius).environment(\.inSheet, true)
-                    }
-            } else {
-                content
-                    .navigationDestination(item: $store.route.sending(\.setNavigation).detail) { gid in
+    @ViewBuilder var body: some View {
+        if embedsInNavigationStack {
+            NavigationStack {
+                navigationContent
+            }
+        } else {
+            navigationContent
+        }
+    }
+
+    @ViewBuilder private var navigationContent: some View {
+        if DeviceUtil.isPad {
+            content
+                .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { route in
+                    NavigationStack {
                         DetailView(
                             store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                            gid: gid, user: user, setting: $setting,
+                            gid: route.wrappedValue, user: user, setting: $setting,
                             blurRadius: blurRadius, tagTranslator: tagTranslator
                         )
                     }
-            }
+                    .autoBlur(radius: blurRadius).environment(\.inSheet, true)
+                }
+        } else {
+            content
+                .navigationDestination(item: $store.route.sending(\.setNavigation).detail) { gid in
+                    DetailView(
+                        store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
+                        gid: gid, user: user, setting: $setting,
+                        blurRadius: blurRadius, tagTranslator: tagTranslator
+                    )
+                }
         }
     }
 

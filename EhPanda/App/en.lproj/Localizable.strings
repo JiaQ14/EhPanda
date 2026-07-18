@@ -954,3 +954,7 @@
 "detail_view.cache.status.cached" = "Cached";
 "detail_view.cache.confirmation.delete.title" = "Remove this cached gallery?";
 "detail_view.cache.confirmation.delete.message" = "The downloaded image files will also be removed from Files.";
+
+"tab_item.title.more" = "More";
+"more_view.section.title.tab_bar" = "Tab Bar";
+"more_view.section.title.more" = "More";
