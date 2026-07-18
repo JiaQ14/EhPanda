@@ -34,6 +34,7 @@ struct SearchRootView: View {
                     historyGalleries: store.historyGalleries,
                     quickSearchWords: store.quickSearchWords,
                     navigateGalleryAction: { store.send(.setNavigation(.detail($0))) },
+                    navigateHistoryAction: { store.send(.setNavigation(.history)) },
                     navigateQuickSearchAction: { store.send(.setNavigation(.quickSearch())) },
                     searchKeywordAction: { keyword in
                         store.send(.setKeyword(keyword))
@@ -132,6 +133,7 @@ private extension SearchRootView {
             detailViewLink
         }
         searchViewLink
+        historyViewLink
     }
     var detailViewLink: some View {
         NavigationLink(unwrapping: $store.route, case: \.detail) { route in
@@ -151,6 +153,15 @@ private extension SearchRootView {
             )
         }
     }
+    var historyViewLink: some View {
+        NavigationLink(unwrapping: $store.route, case: \.history) { _ in
+            HistoryView(
+                store: store.scope(state: \.historyState, action: \.history),
+                user: user, setting: $setting,
+                blurRadius: blurRadius, tagTranslator: tagTranslator
+            )
+        }
+    }
 }
 
 // MARK: SuggestionsPanel
@@ -159,6 +170,7 @@ private struct SuggestionsPanel: View {
     private let historyGalleries: [Gallery]
     private let quickSearchWords: [QuickSearchWord]
     private let navigateGalleryAction: (String) -> Void
+    private let navigateHistoryAction: () -> Void
     private let navigateQuickSearchAction: () -> Void
     private let searchKeywordAction: (String) -> Void
     private let removeKeywordAction: (String) -> Void
@@ -167,6 +179,7 @@ private struct SuggestionsPanel: View {
         historyKeywords: [String], historyGalleries: [Gallery],
         quickSearchWords: [QuickSearchWord],
         navigateGalleryAction: @escaping (String) -> Void,
+        navigateHistoryAction: @escaping () -> Void,
         navigateQuickSearchAction: @escaping () -> Void,
         searchKeywordAction: @escaping (String) -> Void,
         removeKeywordAction: @escaping (String) -> Void
@@ -175,6 +188,7 @@ private struct SuggestionsPanel: View {
         self.historyGalleries = historyGalleries
         self.quickSearchWords = quickSearchWords
         self.navigateGalleryAction = navigateGalleryAction
+        self.navigateHistoryAction = navigateHistoryAction
         self.navigateQuickSearchAction = navigateQuickSearchAction
         self.searchKeywordAction = searchKeywordAction
         self.removeKeywordAction = removeKeywordAction
@@ -200,6 +214,7 @@ private struct SuggestionsPanel: View {
                 if !historyGalleries.isEmpty {
                     HistoryGalleriesSection(
                         galleries: historyGalleries,
+                        showAllAction: navigateHistoryAction,
                         navigationAction: navigateGalleryAction
                     )
                 }
@@ -392,15 +407,26 @@ private struct KeywordCell: View {
 // MARK: HistoryGalleriesSection
 private struct HistoryGalleriesSection: View {
     private let galleries: [Gallery]
+    private let showAllAction: () -> Void
     private let navigationAction: (String) -> Void
 
-    init(galleries: [Gallery], navigationAction: @escaping (String) -> Void) {
+    init(
+        galleries: [Gallery],
+        showAllAction: @escaping () -> Void,
+        navigationAction: @escaping (String) -> Void
+    ) {
         self.galleries = galleries
+        self.showAllAction = showAllAction
         self.navigationAction = navigationAction
     }
 
     var body: some View {
-        SubSection(title: L10n.Localizable.SearchView.Section.Title.recentlySeen, showAll: false) {
+        SubSection(
+            title: L10n.Localizable.SearchView.Section.Title.recentlySeen,
+            showAll: true,
+            tint: .primary,
+            showAllAction: showAllAction
+        ) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
                     ForEach(galleries) { gallery in

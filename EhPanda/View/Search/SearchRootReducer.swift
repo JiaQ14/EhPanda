@@ -10,6 +10,7 @@ struct SearchRootReducer {
     @CasePathable
     enum Route: Equatable {
         case search
+        case history
         case filters(EquatableVoid = .init())
         case quickSearch(EquatableVoid = .init())
         case detail(String)
@@ -25,6 +26,7 @@ struct SearchRootReducer {
         var quickSearchWords = [QuickSearchWord]()
 
         var searchState = SearchReducer.State()
+        var historyState = HistoryReducer.State()
         var filtersState = FiltersReducer.State()
         var quickSearchState = QuickSearchReducer.State()
         var detailState: Heap<DetailReducer.State?>
@@ -79,6 +81,7 @@ struct SearchRootReducer {
         case fetchHistoryGalleriesDone([Gallery])
 
         case search(SearchReducer.Action)
+        case history(HistoryReducer.Action)
         case filters(FiltersReducer.Action)
         case quickSearch(QuickSearchReducer.Action)
         case detail(DetailReducer.Action)
@@ -94,7 +97,8 @@ struct SearchRootReducer {
                     newValue == nil
                     ? .merge(
                         .send(.clearSubStates),
-                        .send(.fetchDatabaseInfos)
+                        .send(.fetchDatabaseInfos),
+                        .send(.fetchHistoryGalleries)
                     )
                     : .none
                 }
@@ -110,7 +114,8 @@ struct SearchRootReducer {
                 return route == nil
                 ? .merge(
                     .send(.clearSubStates),
-                    .send(.fetchDatabaseInfos)
+                    .send(.fetchDatabaseInfos),
+                    .send(.fetchHistoryGalleries)
                 )
                 : .none
 
@@ -120,6 +125,7 @@ struct SearchRootReducer {
 
             case .clearSubStates:
                 state.searchState = .init()
+                state.historyState = .init()
                 state.detailState.wrappedValue = .init()
                 state.filtersState = .init()
                 state.quickSearchState = .init()
@@ -174,6 +180,9 @@ struct SearchRootReducer {
             case .search:
                 return .none
 
+            case .history:
+                return .none
+
             case .filters:
                 return .none
 
@@ -196,6 +205,7 @@ struct SearchRootReducer {
         )
 
         Scope(state: \.searchState, action: \.search, child: SearchReducer.init)
+        Scope(state: \.historyState, action: \.history, child: HistoryReducer.init)
         Scope(state: \.filtersState, action: \.filters, child: FiltersReducer.init)
         Scope(state: \.quickSearchState, action: \.quickSearch, child: QuickSearchReducer.init)
         Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)

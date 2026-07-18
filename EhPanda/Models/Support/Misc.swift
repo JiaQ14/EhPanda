@@ -15,12 +15,15 @@ protocol DateFormattable {
 }
 extension DateFormattable {
     var formattedDateString: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        formatter.locale = Locale.current
-        formatter.calendar = Calendar.current
-        return formatter.string(from: originalDate)
+        originalDate.formatted(
+            Date.FormatStyle(
+                date: .numeric,
+                time: .shortened,
+                locale: .autoupdatingCurrent,
+                calendar: .autoupdatingCurrent,
+                timeZone: .autoupdatingCurrent
+            )
+        )
     }
 }
 
