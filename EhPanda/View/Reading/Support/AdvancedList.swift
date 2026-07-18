@@ -5,6 +5,7 @@
 
 import SwiftUI
 import Kingfisher
+import VisionKit
 
 enum ReadingScrollAxis: Equatable {
     case vertical
@@ -582,7 +583,9 @@ extension ReadingCollectionView.Coordinator:
         else { return nil }
 
         let pointInCell = collectionView.convert(point, to: cell)
-        guard let model = cell.imageModel(at: pointInCell) else { return nil }
+        guard let model = cell.imageModel(at: pointInCell),
+              !model.enablesLiveText
+        else { return nil }
 
         return UIContextMenuConfiguration(
             identifier: nil,
@@ -801,7 +804,10 @@ private final class ReadingImageSlotView: UIView {
     private let activityIndicator = UIActivityIndicatorView(style: .large)
     private let retryButton = UIButton(type: .system)
 
-    private var liveTextController: UIHostingController<AnyView>?
+    private let imageAnalyzer = ImageAnalyzer()
+    private let imageAnalysisInteraction = ImageAnalysisInteraction()
+    private var imageAnalysisTask: Task<Void, Never>?
+    private var analyzedURL: URL?
     private var representedURL: URL?
     private var model: ReadingImageModel?
     private var targetPixelSize = CGSize.zero
@@ -816,6 +822,8 @@ private final class ReadingImageSlotView: UIView {
         clipsToBounds = true
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
+        imageAnalysisInteraction.preferredInteractionTypes = .automaticTextOnly
+        imageView.addInteraction(imageAnalysisInteraction)
 
         pageLabel.textAlignment = .center
         pageLabel.textColor = .gray
@@ -873,10 +881,6 @@ private final class ReadingImageSlotView: UIView {
             width: 48,
             height: 48
         )
-
-        if let liveTextView = liveTextController?.view {
-            liveTextView.frame = imageContentFrame()
-        }
     }
 
     func configure(
@@ -893,8 +897,7 @@ private final class ReadingImageSlotView: UIView {
         let backgroundChanged = self.backgroundColor != backgroundColor
         let liveTextChanged =
             previousModel?.enablesLiveText != model.enablesLiveText
-            || previousModel?.liveTextGroups != model.liveTextGroups
-            || previousModel?.focusedLiveTextGroup != model.focusedLiveTextGroup
+            || previousModel?.imageURL != model.imageURL
 
         self.model = model
         self.targetPixelSize = targetPixelSize
@@ -909,7 +912,7 @@ private final class ReadingImageSlotView: UIView {
         }
 
         if liveTextChanged {
-            updateLiveText(using: model)
+            updateLiveTextAnalysis()
         }
 
         guard previousModel != model || sizeChanged || backgroundChanged else {
@@ -948,6 +951,7 @@ private final class ReadingImageSlotView: UIView {
 
     func resetImage() {
         cancelImageLoading()
+        clearLiveTextAnalysis()
         representedURL = nil
         imageView.image = nil
     }
@@ -959,8 +963,7 @@ private final class ReadingImageSlotView: UIView {
         loadSucceededHandler = nil
         loadFailedHandler = nil
         imageAspectChangedHandler = nil
-        liveTextController?.view.removeFromSuperview()
-        liveTextController = nil
+        clearLiveTextAnalysis()
         placeholderView.isHidden = true
         imageView.isHidden = true
         progressView.isHidden = true
@@ -1007,6 +1010,7 @@ private final class ReadingImageSlotView: UIView {
                 switch result {
                 case .success(let value):
                     showImage()
+                    updateLiveTextAnalysis(force: true)
                     let size = value.image.size
                     if size.width > 0, size.height > 0 {
                         imageAspectChangedHandler?(size.width / size.height)
@@ -1051,55 +1055,59 @@ private final class ReadingImageSlotView: UIView {
         retryButton.isHidden = false
     }
 
-    private func updateLiveText(using model: ReadingImageModel) {
-        guard model.enablesLiveText, !model.liveTextGroups.isEmpty else {
-            liveTextController?.view.removeFromSuperview()
-            liveTextController = nil
+    private func updateLiveTextAnalysis(force: Bool = false) {
+        guard let model,
+              model.enablesLiveText,
+              ImageAnalyzer.isSupported,
+              let image = imageView.image,
+              let imageURL = model.imageURL,
+              representedURL == imageURL
+        else {
+            clearLiveTextAnalysis()
             return
         }
 
-        let view = AnyView(
-            LiveTextView(
-                liveTextGroups: model.liveTextGroups,
-                focusedLiveTextGroup: model.focusedLiveTextGroup,
-                tapAction: model.liveTextTapAction
-            )
-        )
-        if let liveTextController {
-            liveTextController.rootView = view
-        } else {
-            let controller = UIHostingController(rootView: view)
-            controller.view.backgroundColor = .clear
-            addSubview(controller.view)
-            liveTextController = controller
+        guard force || analyzedURL != imageURL else { return }
+
+        imageAnalysisTask?.cancel()
+        imageAnalysisInteraction.analysis = nil
+        imageAnalysisInteraction.selectableItemsHighlighted = false
+        analyzedURL = imageURL
+
+        imageAnalysisTask = Task { [weak self] in
+            do {
+                let configuration = ImageAnalyzer.Configuration([.text])
+                let analysis = try await self?.imageAnalyzer.analyze(
+                    image,
+                    configuration: configuration
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      self.model?.enablesLiveText == true,
+                      self.model?.imageURL == imageURL
+                else { return }
+                imageAnalysisInteraction.analysis = analysis
+                imageAnalysisInteraction.selectableItemsHighlighted =
+                    analysis?.hasResults(for: .text) == true
+                imageAnalysisTask = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                Logger.info(
+                    "Live Text analysis failed",
+                    context: ["index": model.index, "error": error]
+                )
+            }
         }
-        if let liveTextView = liveTextController?.view {
-            bringSubviewToFront(liveTextView)
-        }
-        setNeedsLayout()
     }
 
-    private func imageContentFrame() -> CGRect {
-        guard let imageSize = imageView.image?.size,
-              imageSize.width > 0,
-              imageSize.height > 0,
-              bounds.width > 0,
-              bounds.height > 0
-        else { return bounds }
-
-        let scale = min(
-            bounds.width / imageSize.width,
-            bounds.height / imageSize.height
-        )
-        let size = CGSize(
-            width: imageSize.width * scale,
-            height: imageSize.height * scale
-        )
-        return CGRect(
-            x: (bounds.width - size.width) / 2,
-            y: (bounds.height - size.height) / 2,
-            width: size.width,
-            height: size.height
-        )
+    private func clearLiveTextAnalysis() {
+        imageAnalysisTask?.cancel()
+        imageAnalysisTask = nil
+        analyzedURL = nil
+        imageAnalysisInteraction.resetTextSelection()
+        imageAnalysisInteraction.selectableItemsHighlighted = false
+        imageAnalysisInteraction.analysis = nil
     }
 }

@@ -4,22 +4,19 @@
 //
 
 import SwiftUI
-import Kingfisher
 import ComposableArchitecture
 
 struct ReadingView: View {
-    @Environment(\.displayScale) private var displayScale
-
     @Bindable var store: StoreOf<ReadingReducer>
     private let gid: String
     @Binding private var setting: Setting
     private let blurRadius: Double
 
-    @StateObject private var liveTextHandler = LiveTextHandler()
     @StateObject private var autoPlayHandler = AutoPlayHandler()
     @StateObject private var gestureHandler = GestureHandler()
     @StateObject private var pageHandler = PageHandler()
     @State private var pageIndex = 0
+    @State private var enablesLiveText = false
 
     init(
         store: StoreOf<ReadingReducer>,
@@ -75,12 +72,10 @@ struct ReadingView: View {
                 case: \.hud
             )
 
-            .animation(.default, value: liveTextHandler.enablesLiveText)
-            .animation(.default, value: liveTextHandler.liveTextGroups)
+            .animation(.default, value: enablesLiveText)
             .animation(.default, value: store.showsPanel)
             .statusBar(hidden: !store.showsPanel)
             .onDisappear {
-                liveTextHandler.cancelRequests()
                 setAutoPlayPolocy(.off)
             }
             .onAppear { store.send(.onAppear(gid, setting.enablesLandscape)) }
@@ -154,7 +149,7 @@ struct ReadingView: View {
                 showsPanel: $store.showsPanel,
                 showsSliderPreview: $store.showsSliderPreview,
                 sliderValue: $pageHandler.sliderValue, setting: $setting,
-                enablesLiveText: $liveTextHandler.enablesLiveText,
+                enablesLiveText: $enablesLiveText,
                 autoPlayPolicy: .init(get: { autoPlayHandler.policy }, set: { setAutoPlayPolocy($0) }),
                 range: 1...Float(store.gallery.pageCount),
                 previewURLs: store.previewURLs,
@@ -215,20 +210,6 @@ struct ReadingView: View {
                 }
             }
 
-            // LiveText
-            .onChange(of: liveTextHandler.enablesLiveText) { _, newValue in
-                Logger.info("liveTextHandler.enablesLiveText changed", context: ["isEnabled": newValue])
-                if newValue { store.webImageLoadSuccessIndices.forEach(analyzeImageForLiveText) }
-            }
-            .onChange(of: store.webImageLoadSuccessIndices) { _, newValue in
-                Logger.info("store.webImageLoadSuccessIndices changed", context: [
-                    "count": store.webImageLoadSuccessIndices.count
-                ])
-                if liveTextHandler.enablesLiveText {
-                    newValue.forEach(analyzeImageForLiveText)
-                }
-            }
-
             // Orientation
             .onChange(of: setting.enablesLandscape) { _, newValue in
                 Logger.info("setting.enablesLandscape changed", context: ["newValue": newValue])
@@ -254,10 +235,7 @@ struct ReadingView: View {
             imageURL: store.imageURLs[index],
             originalImageURL: store.originalImageURLs[index],
             loadingState: store.imageURLLoadingStates[index] ?? .idle,
-            enablesLiveText: liveTextHandler.enablesLiveText,
-            liveTextGroups: liveTextHandler.liveTextGroups[index] ?? [],
-            focusedLiveTextGroup: liveTextHandler.focusedLiveTextGroup,
-            liveTextTapAction: liveTextHandler.setFocusedLiveTextGroup
+            enablesLiveText: enablesLiveText
         )
     }
 }
@@ -286,50 +264,6 @@ extension ReadingView {
             return
         }
         pageIndex = min(max(newValue, 0), pageCount - 1)
-    }
-    func analyzeImageForLiveText(index: Int) {
-        Logger.info("analyzeImageForLiveText", context: ["index": index])
-        guard liveTextHandler.liveTextGroups[index] == nil else {
-            Logger.info("analyzeImageForLiveText duplicated", context: ["index": index])
-            return
-        }
-        guard let url = store.imageURLs[index] else {
-            Logger.info("analyzeImageForLiveText URL not found", context: ["index": index])
-            return
-        }
-        let key = url.cacheKey
-        let isDualPage =
-            setting.enablesDualPageMode
-            && setting.readingDirection != .vertical
-            && DeviceUtil.isLandscape
-        let options: KingfisherOptionsInfo = url.isGIF
-            ? []
-            : [.processor(ReadingImageSizing.processor(
-                isDualPage: isDualPage,
-                displayScale: displayScale
-            ))]
-        KingfisherManager.shared.cache.retrieveImage(forKey: key, options: options) { result in
-            switch result {
-            case .success(let result):
-                if let image = result.image, let cgImage = image.cgImage {
-                    liveTextHandler.analyzeImage(
-                        cgImage, size: image.size, index: index, recognitionLanguages:
-                            store.galleryDetail?.language.codes
-                    )
-                } else {
-                    Logger.info("analyzeImageForLiveText image not found", context: ["index": index])
-                }
-            case .failure(let error):
-                Logger.info(
-                    "analyzeImageForLiveText failed",
-                    context: [
-                        "index": index,
-                        "error": error
-                    ]
-                    as [String: Any]
-                )
-            }
-        }
     }
 }
 
@@ -411,9 +345,6 @@ struct ReadingImageModel: Equatable {
     let originalImageURL: URL?
     let loadingState: LoadingState
     let enablesLiveText: Bool
-    let liveTextGroups: [LiveTextGroup]
-    let focusedLiveTextGroup: LiveTextGroup?
-    let liveTextTapAction: (LiveTextGroup) -> Void
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.index == rhs.index
@@ -421,32 +352,6 @@ struct ReadingImageModel: Equatable {
             && lhs.originalImageURL == rhs.originalImageURL
             && lhs.loadingState == rhs.loadingState
             && lhs.enablesLiveText == rhs.enablesLiveText
-            && lhs.liveTextGroups == rhs.liveTextGroups
-            && lhs.focusedLiveTextGroup == rhs.focusedLiveTextGroup
-    }
-}
-
-private enum ReadingImageSizing {
-    static func targetPixelSize(
-        isDualPage: Bool,
-        displayScale: CGFloat
-    ) -> CGSize {
-        let pointWidth = DeviceUtil.windowW / (isDualPage ? 2 : 1)
-        let pixelWidth = max(pointWidth * displayScale, 1)
-        return .init(
-            width: pixelWidth,
-            height: pixelWidth / Defaults.ImageSize.contentAspect
-        )
-    }
-
-    static func processor(
-        isDualPage: Bool,
-        displayScale: CGFloat
-    ) -> DownsamplingImageProcessor {
-        .init(size: targetPixelSize(
-            isDualPage: isDualPage,
-            displayScale: displayScale
-        ))
     }
 }
 
