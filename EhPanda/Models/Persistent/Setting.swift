@@ -290,6 +290,27 @@ extension Setting {
         return true
     }
 
+    @discardableResult
+    mutating func moveNavigationItem(
+        from source: NavigationItemGroup,
+        at sourceIndex: Int,
+        to destination: NavigationItemGroup,
+        at destinationIndex: Int
+    ) -> Bool {
+        let sourceItems = source == .tabBar ? tabBarItems : moreItems
+        guard sourceItems.indices.contains(sourceIndex) else { return false }
+
+        let rawDestinationIndex =
+            source == destination && sourceIndex < destinationIndex
+            ? destinationIndex + 1
+            : destinationIndex
+        return moveNavigationItem(
+            sourceItems[sourceIndex],
+            to: destination,
+            at: rawDestinationIndex
+        )
+    }
+
 }
 
 // swiftlint:disable line_length

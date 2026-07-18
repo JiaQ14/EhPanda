@@ -69,13 +69,12 @@ struct HistoryReducer {
                 return .send(.detail(.teardown))
 
             case .clearHistoryGalleries:
-                return .merge(
-                    .run(operation: { _ in await databaseClient.clearHistoryGalleries() }),
-                    .run { send in
-                        try await Task.sleep(for: .milliseconds(200))
-                        await send(.fetchGalleries)
-                    }
-                )
+                state.loadingState = .loading
+                return .run { send in
+                    await databaseClient.clearHistoryGalleries()
+                    let historyGalleries = await databaseClient.fetchHistoryGalleries()
+                    await send(.fetchGalleriesDone(historyGalleries))
+                }
 
             case .fetchGalleries:
                 guard state.loadingState != .loading else { return .none }
@@ -86,11 +85,11 @@ struct HistoryReducer {
                 }
 
             case .fetchGalleriesDone(let galleries):
-                state.loadingState = .idle
+                state.galleries = galleries
                 if galleries.isEmpty {
                     state.loadingState = .failed(.notFound)
                 } else {
-                    state.galleries = galleries
+                    state.loadingState = .idle
                 }
                 return .none
 

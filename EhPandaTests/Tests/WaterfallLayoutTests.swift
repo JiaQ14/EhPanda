@@ -1221,6 +1221,65 @@ final class NavigationLayoutSettingTests: XCTestCase {
         XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache])
     }
 
+    func testEditorMovesAnItemFromMoreIntoAnEmptyTabBar() {
+        var setting = Setting()
+        setting.tabBarItems = []
+        setting.moreItems = [.popular, .search, .history]
+
+        XCTAssertTrue(
+            setting.moveNavigationItem(
+                from: .more,
+                at: 1,
+                to: .tabBar,
+                at: 0
+            )
+        )
+        XCTAssertEqual(setting.tabBarItems, [.search])
+        XCTAssertEqual(
+            setting.moreItems,
+            [.popular, .history, .watched, .favorites, .cache]
+        )
+    }
+
+    func testEditorMovesAnItemFromTabBarBackToMore() {
+        var setting = Setting()
+        setting.tabBarItems = [.search, .popular]
+        setting.moreItems = [.history, .watched, .favorites, .cache]
+
+        XCTAssertTrue(
+            setting.moveNavigationItem(
+                from: .tabBar,
+                at: 0,
+                to: .more,
+                at: 2
+            )
+        )
+        XCTAssertEqual(setting.tabBarItems, [.popular])
+        XCTAssertEqual(
+            setting.moreItems,
+            [.history, .watched, .search, .favorites, .cache]
+        )
+    }
+
+    func testEditorMovesAnItemDownWithinTheSameGroup() {
+        var setting = Setting()
+        setting.tabBarItems = [.search]
+        setting.moreItems = [.popular, .watched, .history, .favorites, .cache]
+
+        XCTAssertTrue(
+            setting.moveNavigationItem(
+                from: .more,
+                at: 0,
+                to: .more,
+                at: 2
+            )
+        )
+        XCTAssertEqual(
+            setting.moreItems,
+            [.watched, .history, .popular, .favorites, .cache]
+        )
+    }
+
     func testNormalizationRepairsDuplicatesInvalidItemsAndOverflow() {
         var setting = Setting()
         setting.tabBarItems = [
