@@ -226,7 +226,17 @@ private struct MoreView: View {
                 destination: destination
             )
             .toolbar {
-                EditButton()
+                Button {
+                    withAnimation {
+                        editMode = editMode.isEditing ? .inactive : .active
+                    }
+                } label: {
+                    Label(
+                        editMode.isEditing ? "Done" : "Edit",
+                        systemSymbol: editMode.isEditing ? .checkmark : .pencil
+                    )
+                    .labelStyle(.iconOnly)
+                }
             }
         }
         .environment(\.editMode, $editMode)
@@ -239,15 +249,11 @@ private struct MoreView: View {
         )
     }
 
-    private var destinationRows: some View {
+    @ViewBuilder private var destinationRows: some View {
         ForEach(moreItems) { item in
-            Button {
-                store.send(.more(.setNavigation(item)))
-            } label: {
-                NavigationItemRow(item: item, showsDisclosureIndicator: true)
-            }
-            .buttonStyle(.plain)
+            destinationRow(item)
         }
+        destinationRow(.setting)
     }
 
     @ViewBuilder private var editorSections: some View {
@@ -286,6 +292,15 @@ private struct MoreView: View {
                 store.send(.moveNavigationItems(.more, $0, $1))
             }
         }
+    }
+
+    private func destinationRow(_ item: AppNavigationItem) -> some View {
+        Button {
+            store.send(.more(.setNavigation(item)))
+        } label: {
+            NavigationItemRow(item: item, showsDisclosureIndicator: true)
+        }
+        .buttonStyle(.plain)
     }
 
     private func fixedEditorRow(_ item: AppNavigationItem) -> some View {

@@ -21,7 +21,7 @@ enum AppNavigationItem: String, Codable, CaseIterable, Hashable, Identifiable {
     case more
 
     static let configurableItems: [Self] = [
-        .search, .popular, .watched, .history, .favorites, .cache, .setting
+        .search, .popular, .watched, .history, .favorites, .cache
     ]
 }
 
@@ -65,7 +65,7 @@ struct Setting: Codable, Equatable {
     // Navigation
     var tabBarItems: [AppNavigationItem] = [.search]
     var moreItems: [AppNavigationItem] = [
-        .popular, .watched, .history, .favorites, .cache, .setting
+        .popular, .watched, .history, .favorites, .cache
     ]
 
     // Cache
@@ -325,7 +325,7 @@ extension Setting {
         // Navigation
         tabBarItems = (try? container?.decodeIfPresent([AppNavigationItem].self, forKey: .tabBarItems)) ?? [.search]
         moreItems = (try? container?.decodeIfPresent([AppNavigationItem].self, forKey: .moreItems))
-            ?? [.popular, .watched, .history, .favorites, .cache, .setting]
+            ?? [.popular, .watched, .history, .favorites, .cache]
         normalizeNavigationItems()
         // Cache
         cacheImageQuality = (try? container?.decodeIfPresent(CacheImageQuality.self, forKey: .cacheImageQuality)) ?? .standard

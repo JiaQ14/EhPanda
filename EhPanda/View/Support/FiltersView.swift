@@ -4,12 +4,15 @@
 //
 
 import SwiftUI
+import SFSafeSymbols
 import ComposableArchitecture
 
 struct FiltersView: View {
+    @Environment(\.dismiss) private var dismiss
     @Bindable private var store: StoreOf<FiltersReducer>
 
     @FocusState private var focusedBound: FiltersReducer.FocusedBound?
+    @State private var selectedDetent: PresentationDetent = .medium
 
     init(store: StoreOf<FiltersReducer>) {
         self.store = store
@@ -28,7 +31,7 @@ struct FiltersView: View {
 
     // MARK: FilterView
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 BasicSection(
                     route: $store.route,
@@ -41,10 +44,28 @@ struct FiltersView: View {
                     submitAction: { store.send(.onTextFieldSubmitted) }
                 )
             }
+            .scrollContentBackground(.hidden)
+            .background(.clear)
             .synchronize($store.focusedBound, $focusedBound)
             .navigationTitle(L10n.Localizable.FiltersView.Title.filters)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Close", systemSymbol: .xmark)
+                            .labelStyle(.iconOnly)
+                    }
+                }
+            }
             .onAppear { store.send(.fetchFilters) }
         }
+        .presentationDetents([.medium, .large], selection: $selectedDetent)
+        .presentationDragIndicator(.visible)
+        .presentationContentInteraction(.scrolls)
+        .presentationCornerRadius(32)
+        .presentationBackground(.regularMaterial)
     }
 }
 

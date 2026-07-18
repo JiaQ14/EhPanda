@@ -206,12 +206,8 @@ struct AppReducer {
                 case .home(.watched(.onNotLoginViewButtonTapped)), .favorites(.onNotLoginViewButtonTapped):
                     let isLoggedIn = cookieClient.didLogin
                     state.prepareLoginNavigation(isLoggedIn: isLoggedIn)
-                    if state.settingState.setting.tabBarItems.contains(.setting) {
-                        state.tabBarState.tabBarItemType = .setting
-                    } else {
-                        state.moreState.route = .setting
-                        state.tabBarState.tabBarItemType = .more
-                    }
+                    state.moreState.route = .setting
+                    state.tabBarState.tabBarItemType = .more
                     return .run(operation: { _ in hapticsClient.generateFeedback(.soft) })
 
                 case .home:

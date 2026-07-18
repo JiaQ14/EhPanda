@@ -1152,7 +1152,7 @@ final class NavigationLayoutSettingTests: XCTestCase {
         XCTAssertEqual(setting.tabBarItems, [.search])
         XCTAssertEqual(
             setting.moreItems,
-            [.popular, .watched, .history, .favorites, .cache, .setting]
+            [.popular, .watched, .history, .favorites, .cache]
         )
     }
 
@@ -1167,32 +1167,33 @@ final class NavigationLayoutSettingTests: XCTestCase {
         XCTAssertEqual(setting.tabBarItems, [.search])
         XCTAssertEqual(
             setting.moreItems,
-            [.popular, .favorites, .watched, .history, .cache, .setting]
+            [.popular, .favorites, .watched, .history, .cache]
         )
     }
 
     func testRejectsFixedItemsAndAFullTabBar() {
         var setting = Setting()
         setting.tabBarItems = [.search, .popular, .history]
-        setting.moreItems = [.watched, .favorites, .cache, .setting]
+        setting.moreItems = [.watched, .favorites, .cache]
 
         XCTAssertFalse(setting.moveNavigationItem(.home, to: .more, at: 0))
         XCTAssertFalse(setting.moveNavigationItem(.more, to: .tabBar, at: 0))
+        XCTAssertFalse(setting.moveNavigationItem(.setting, to: .tabBar, at: 0))
         XCTAssertFalse(setting.moveNavigationItem(.watched, to: .tabBar, at: 0))
         XCTAssertEqual(setting.tabBarItems, [.search, .popular, .history])
-        XCTAssertEqual(setting.moreItems, [.watched, .favorites, .cache, .setting])
+        XCTAssertEqual(setting.moreItems, [.watched, .favorites, .cache])
     }
 
     func testNormalizationRepairsDuplicatesInvalidItemsAndOverflow() {
         var setting = Setting()
         setting.tabBarItems = [
-            .home, .search, .search, .popular, .watched, .history, .more
+            .home, .setting, .search, .search, .popular, .watched, .history, .more
         ]
-        setting.moreItems = [.favorites, .favorites, .home]
+        setting.moreItems = [.favorites, .setting, .favorites, .home]
 
         setting.normalizeNavigationItems()
 
         XCTAssertEqual(setting.tabBarItems, [.search, .popular, .watched])
-        XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache, .setting])
+        XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache])
     }
 }

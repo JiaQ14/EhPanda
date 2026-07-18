@@ -262,7 +262,7 @@ private struct WaterfallList: View {
             navigateAction: navigateAction,
             translateAction: translateAction
         )
-        .ignoresSafeArea(.container, edges: [.top, .bottom])
+        .ignoresSafeArea(.container, edges: .bottom)
         .background(Color(uiColor: .systemGroupedBackground))
     }
 }
