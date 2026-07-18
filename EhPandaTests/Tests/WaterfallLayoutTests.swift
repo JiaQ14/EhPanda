@@ -1074,3 +1074,73 @@ final class LoginNavigationTests: XCTestCase {
         }
     }
 }
+
+final class GalleryLocalSearchMatcherTests: XCTestCase {
+    func testMatchesCompletedTagSuggestionsAgainstCachedGalleryTags() {
+        var gallery = Gallery.preview
+        gallery.tags = [
+            GalleryTag(
+                rawNamespace: TagNamespace.language.rawValue,
+                contents: [
+                    .init(
+                        rawNamespace: TagNamespace.language.rawValue,
+                        text: "chinese",
+                        isVotedUp: false,
+                        isVotedDown: false,
+                        textColor: nil,
+                        backgroundColor: nil
+                    )
+                ]
+            )
+        ]
+
+        XCTAssertTrue(
+            GalleryLocalSearchMatcher.matches(
+                gallery: gallery,
+                query: "l:chinese$",
+                additionalText: []
+            )
+        )
+        XCTAssertFalse(
+            GalleryLocalSearchMatcher.matches(
+                gallery: gallery,
+                query: "l:english$",
+                additionalText: []
+            )
+        )
+    }
+
+    func testCombinesTagAndMetadataTokens() {
+        var gallery = Gallery.preview
+        gallery.tags = [
+            GalleryTag(
+                rawNamespace: TagNamespace.language.rawValue,
+                contents: [
+                    .init(
+                        rawNamespace: TagNamespace.language.rawValue,
+                        text: "chinese",
+                        isVotedUp: false,
+                        isVotedDown: false,
+                        textColor: nil,
+                        backgroundColor: nil
+                    )
+                ]
+            )
+        ]
+
+        XCTAssertTrue(
+            GalleryLocalSearchMatcher.matches(
+                gallery: gallery,
+                query: "l:chinese$ panda",
+                additionalText: ["Panda collection"]
+            )
+        )
+        XCTAssertFalse(
+            GalleryLocalSearchMatcher.matches(
+                gallery: gallery,
+                query: "l:chinese$ missing",
+                additionalText: ["Panda collection"]
+            )
+        )
+    }
+}

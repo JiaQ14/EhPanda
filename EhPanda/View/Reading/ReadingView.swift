@@ -8,7 +8,6 @@ import Kingfisher
 import ComposableArchitecture
 
 struct ReadingView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
 
     @Bindable var store: StoreOf<ReadingReducer>
@@ -32,12 +31,8 @@ struct ReadingView: View {
         self.blurRadius = blurRadius
     }
 
-    private var backgroundColor: Color {
-        colorScheme == .light ? Color(.systemGray4) : Color(.systemGray6)
-    }
-    private var backgroundUIColor: UIColor {
-        colorScheme == .light ? .systemGray4 : .systemGray6
-    }
+    private let backgroundColor = Color.black
+    private let backgroundUIColor = UIColor.black
 
     var body: some View {
         changeTriggers(content: { content })

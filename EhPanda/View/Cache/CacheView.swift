@@ -8,6 +8,7 @@ import ComposableArchitecture
 
 struct CacheView: View {
     @Bindable private var store: StoreOf<CacheReducer>
+    @FocusState private var isSearchFocused: Bool
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -35,11 +36,15 @@ struct CacheView: View {
     private var filteredItems: [GalleryCacheItem] {
         guard !store.searchText.isEmpty else { return store.items }
         return store.items.filter {
-            $0.detail.title.localizedCaseInsensitiveContains(store.searchText)
-                || $0.detail.jpnTitle?.localizedCaseInsensitiveContains(store.searchText) == true
-                || $0.gallery.title.localizedCaseInsensitiveContains(store.searchText)
-                || $0.gallery.uploader?.localizedCaseInsensitiveContains(store.searchText) == true
-                || $0.id.localizedCaseInsensitiveContains(store.searchText)
+            GalleryLocalSearchMatcher.matches(
+                gallery: $0.gallery,
+                query: store.searchText,
+                additionalText: [
+                    $0.detail.title,
+                    $0.detail.jpnTitle,
+                    $0.id
+                ].compactMap { $0 }
+            )
         }
     }
 
@@ -101,6 +106,17 @@ struct CacheView: View {
                 text: $store.searchText,
                 prompt: L10n.Localizable.CacheView.Search.Prompt.cache
             )
+            .searchFocused($isSearchFocused)
+            .overlay {
+                TagSuggestionOverlay(
+                    keyword: $store.searchText,
+                    translations: tagTranslator.translations,
+                    showsImages: setting.showsImagesInTags,
+                    isEnabled: setting.showsTagsSearchSuggestion,
+                    isPresented: isSearchFocused,
+                    maximumCount: 5
+                )
+            }
             .toolbar { toolbarContent }
             .confirmationDialog(
                 L10n.Localizable.CacheView.Confirmation.DeleteAll.title,
@@ -300,6 +316,65 @@ struct CacheView: View {
             }
             .accessibilityLabel(L10n.Localizable.CacheView.Button.more)
         }
+    }
+}
+
+enum GalleryLocalSearchMatcher {
+    static func matches(
+        gallery: Gallery,
+        query: String,
+        additionalText: [String]
+    ) -> Bool {
+        let normalizedQuery = TagSuggestionEngine.normalizedText(query)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty else { return true }
+
+        let textValues = additionalText
+            + [gallery.title, gallery.uploader].compactMap { $0 }
+        let tagKeywords = tagSearchKeywords(for: gallery)
+        return tokens(in: normalizedQuery).allSatisfy { token in
+            if isCompletedTag(token) {
+                return tagKeywords.contains(token.lowercased())
+            }
+
+            let text = token.trimmingCharacters(
+                in: CharacterSet(charactersIn: "\"")
+            )
+            return textValues.contains {
+                $0.localizedCaseInsensitiveContains(text)
+            }
+        }
+    }
+
+    static func tokens(in query: String) -> [String] {
+        guard let regex = Defaults.Regex.tagSuggestion else { return [] }
+        let range = NSRange(query.startIndex..<query.endIndex, in: query)
+        return regex.matches(in: query, range: range).compactMap {
+            Range($0.range, in: query).map { String(query[$0]) }
+        }
+    }
+
+    private static func isCompletedTag(_ token: String) -> Bool {
+        token.hasSuffix("$") || token.hasSuffix("$\"")
+    }
+
+    private static func tagSearchKeywords(for gallery: Gallery) -> Set<String> {
+        Set(gallery.tags.flatMap { tag in
+            tag.contents.flatMap { content -> [String] in
+                let value = content.text.contains(" ")
+                    ? "\"\(content.text)$\""
+                    : "\(content.text)$"
+                var namespaces = [tag.rawNamespace]
+                if let abbreviation = tag.namespace?.abbreviation {
+                    namespaces.append(abbreviation)
+                }
+                var keywords = namespaces.map { "\($0):\(value)" }
+                if tag.namespace == .temp {
+                    keywords.append(value)
+                }
+                return keywords.map { $0.lowercased() }
+            }
+        })
     }
 }
 

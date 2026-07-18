@@ -9,6 +9,7 @@ import ComposableArchitecture
 
 struct FavoritesView: View {
     @Bindable private var store: StoreOf<FavoritesReducer>
+    @FocusState private var isSearchFocused: Bool
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -90,10 +91,14 @@ struct FavoritesView: View {
             .autoBlur(radius: blurRadius)
         }
         .searchable(text: $store.keyword)
-        .searchSuggestions {
-            TagSuggestionView(
+        .searchFocused($isSearchFocused)
+        .overlay {
+            TagSuggestionOverlay(
                 keyword: $store.keyword, translations: tagTranslator.translations,
-                showsImages: setting.showsImagesInTags, isEnabled: setting.showsTagsSearchSuggestion
+                showsImages: setting.showsImagesInTags,
+                isEnabled: setting.showsTagsSearchSuggestion,
+                isPresented: isSearchFocused,
+                maximumCount: 5
             )
         }
         .onSubmit(of: .search) {
