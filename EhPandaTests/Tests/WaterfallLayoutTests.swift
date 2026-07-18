@@ -851,16 +851,24 @@ final class TagSuggestionEngineTests: XCTestCase {
             "languagetranslated": translation(
                 key: "translated",
                 value: "中文翻译"
+            ),
+            "languagetranslated rewrite": translation(
+                key: "translated rewrite",
+                value: "中文改写"
+            ),
+            "languagechinese text": translation(
+                key: "chinese text",
+                value: "中文文本"
             )
         ]
 
         let suggestions = TagSuggestionEngine.suggestions(
             for: "中文",
             translations: translations,
-            maximumCount: 3
+            maximumCount: 5
         )
 
-        XCTAssertEqual(suggestions.count, 3)
+        XCTAssertEqual(suggestions.count, 5)
         XCTAssertEqual(suggestions.first?.tag.searchKeyword, "l:chinese$")
     }
 
@@ -909,6 +917,56 @@ final class TagSuggestionEngineTests: XCTestCase {
             value: value,
             description: nil,
             linksString: nil
+        )
+    }
+}
+
+final class ReadingImageRetryRouteTests: XCTestCase {
+    func testFetchesImageURLWhenThePageHasNoURL() {
+        XCTAssertEqual(ReadingImageRetryRoute(imageURL: nil), .fetch)
+    }
+
+    func testRefreshesImageURLWhenThePageHasAnExistingURL() {
+        XCTAssertEqual(
+            ReadingImageRetryRoute(
+                imageURL: URL(string: "https://example.com/image.jpg")
+            ),
+            .refetch
+        )
+    }
+}
+
+final class ListDisplayModeTests: XCTestCase {
+    func testPersistedThumbnailModeDecodesAsWaterfall() throws {
+        let mode = try JSONDecoder().decode(
+            ListDisplayMode.self,
+            from: Data("1".utf8)
+        )
+
+        XCTAssertEqual(mode, .waterfall)
+    }
+}
+
+final class AppIconTypeTests: XCTestCase {
+    func testExistingPersistedRawValuesRemainStable() {
+        XCTAssertEqual(AppIconType.default.rawValue, 0)
+        XCTAssertEqual(AppIconType.ukiyoe.rawValue, 1)
+        XCTAssertEqual(AppIconType.developer.rawValue, 2)
+        XCTAssertEqual(AppIconType.standWithUkraine2022.rawValue, 3)
+        XCTAssertEqual(AppIconType.notMyPresident.rawValue, 4)
+        XCTAssertEqual(AppIconType.classic.rawValue, 5)
+    }
+
+    func testPrimaryAndClassicIconMappings() {
+        XCTAssertNil(AppIconType.default.alternateIconName)
+        XCTAssertEqual(
+            AppIconType.classic.alternateIconName,
+            "AppIcon_Default"
+        )
+        XCTAssertEqual(AppIconType(alternateIconName: nil), .default)
+        XCTAssertEqual(
+            AppIconType(alternateIconName: "AppIcon_Default"),
+            .classic
         )
     }
 }

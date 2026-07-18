@@ -221,6 +221,7 @@
 "enum.preferred_color_scheme.value.light" = "Hell";
 "enum.preferred_color_scheme.value.dark" = "Dunkel";
 // AppIconType
+"enum.app_icon_type.value.classic" = "Klassischer Panda";
 "enum.app_icon_type.value.default" = "Standard";
 "enum.app_icon_type.value.ukiyoe" = "Ukiyo-e";
 "enum.app_icon_type.value.developer" = "Developer";
@@ -228,7 +229,7 @@
 "enum.app_icon_type.value.not_my_president" = "NOT MY PRESIDENT";
 // ListDisplayMode
 "enum.list_display_mode.value.detail" = "Detail";
-"enum.list_display_mode.value.thumbnail" = "Thumbnail";
+"enum.list_display_mode.value.waterfall" = "Wasserfall";
 
 // MARK: AppIconView
 "app_icon_view.title.app_icon" = "App icon";

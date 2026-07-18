@@ -221,6 +221,7 @@
 "enum.preferred_color_scheme.value.light" = "ライト";
 "enum.preferred_color_scheme.value.dark" = "ダーク";
 // AppIconType
+"enum.app_icon_type.value.classic" = "クラシックパンダ";
 "enum.app_icon_type.value.default" = "デフォルト";
 "enum.app_icon_type.value.ukiyoe" = "浮世絵";
 "enum.app_icon_type.value.developer" = "デベロッパー";
@@ -228,7 +229,7 @@
 "enum.app_icon_type.value.not_my_president" = "私の大統領ではない";
 // ListDisplayMode
 "enum.list_display_mode.value.detail" = "詳細";
-"enum.list_display_mode.value.thumbnail" = "サムネイル";
+"enum.list_display_mode.value.waterfall" = "ウォーターフォール";
 
 // MARK: AppIconView
 "app_icon_view.title.app_icon" = "アプリアイコン";

@@ -75,6 +75,7 @@ struct HomeView: View {
                         showAllAction: { store.send(.setNavigation(.section(.toplists))) },
                         reloadAction: { store.send(.fetchAllToplistsGalleries) }
                     )
+                    .equatable()
                     MiscGridSection(navigateAction: navigateTo(type:))
                 }
                 .padding(.vertical, 12)
@@ -349,12 +350,24 @@ private struct VerticalCoverStack: View {
 }
 
 // MARK: ToplistsSection
-private struct ToplistsSection: View {
+private struct ToplistsSection: View, Equatable {
     private let galleries: [Int: [Gallery]]
     private let isLoading: Bool
     private let navigateAction: (String) -> Void
     private let showAllAction: () -> Void
     private let reloadAction: () -> Void
+
+    private static let placeholderDataSource: [Int: [Gallery]] = {
+        var gallery: Gallery = .empty
+        gallery.title = "......"
+        gallery.uploader = "......"
+        let galleries = Array(repeating: gallery, count: 6)
+        return Dictionary(
+            uniqueKeysWithValues: ToplistsType.allCases.map {
+                ($0.categoryIndex, galleries)
+            }
+        )
+    }()
 
     init(
         galleries: [Int: [Gallery]], isLoading: Bool,
@@ -369,20 +382,35 @@ private struct ToplistsSection: View {
         self.reloadAction = reloadAction
     }
 
-    private var dataSource: [Int: [Gallery]] {
-        guard !galleries.isEmpty else {
-            var dictionary = [Int: [Gallery]]()
-            var gallery: Gallery = .empty
-            gallery.title = "......"
-            gallery.uploader = "......"
-            let galleries = Array(repeating: gallery, count: 6)
-
-            ToplistsType.allCases.forEach { type in
-                dictionary[type.categoryIndex] = galleries
-            }
-            return dictionary
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        guard lhs.isLoading == rhs.isLoading else { return false }
+        let visibleCount = DeviceUtil.isPad ? 6 : 3
+        return ToplistsType.allCases.allSatisfy { type in
+            visibleGalleriesEqual(
+                lhs.galleries[type.categoryIndex],
+                rhs.galleries[type.categoryIndex],
+                maximumCount: visibleCount
+            )
         }
-        return galleries
+    }
+
+    private static func visibleGalleriesEqual(
+        _ lhs: [Gallery]?,
+        _ rhs: [Gallery]?,
+        maximumCount: Int
+    ) -> Bool {
+        let lhs = (lhs ?? []).prefix(maximumCount)
+        let rhs = (rhs ?? []).prefix(maximumCount)
+        return lhs.elementsEqual(rhs) { lhs, rhs in
+            lhs.id == rhs.id
+                && lhs.title == rhs.title
+                && lhs.uploader == rhs.uploader
+                && lhs.coverURL == rhs.coverURL
+        }
+    }
+
+    private var dataSource: [Int: [Gallery]] {
+        galleries.isEmpty ? Self.placeholderDataSource : galleries
     }
     private func galleries(type: ToplistsType, range: ClosedRange<Int>) -> [Gallery] {
         let galleries = dataSource[type.categoryIndex] ?? []
@@ -398,7 +426,7 @@ private struct ToplistsSection: View {
             showAllAction: showAllAction
         ) {
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 24) {
+                HStack(spacing: 24) {
                     ForEach(ToplistsType.allCases, content: verticalStacks)
                 }
             }
@@ -445,10 +473,15 @@ private struct VerticalToplistsStack: View {
                         navigateAction(galleries[index].id)
                     } label: {
                         GalleryRankingCell(gallery: galleries[index], ranking: startRanking + index)
-                            .tint(.primary).multilineTextAlignment(.leading)
+                            .equatable()
+                            .tint(.primary)
+                            .multilineTextAlignment(.leading)
                     }
-                    .buttonStyle(HomePressableButtonStyle())
-                    Divider().opacity(index == galleries.count - 1 ? 0 : 1)
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    if index != galleries.count - 1 {
+                        Divider()
+                    }
                 }
             }
         }

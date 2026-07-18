@@ -791,6 +791,8 @@ internal enum L10n {
     internal enum Enum {
       internal enum AppIconType {
         internal enum Value {
+          /// Classic Panda
+          internal static let classic = L10n.tr("Localizable", "enum.app_icon_type.value.classic", fallback: "Classic Panda")
           /// Default
           internal static let `default` = L10n.tr("Localizable", "enum.app_icon_type.value.default", fallback: "Default")
           /// Developer
@@ -1698,8 +1700,8 @@ internal enum L10n {
         internal enum Value {
           /// Detail
           internal static let detail = L10n.tr("Localizable", "enum.list_display_mode.value.detail", fallback: "Detail")
-          /// Thumbnail
-          internal static let thumbnail = L10n.tr("Localizable", "enum.list_display_mode.value.thumbnail", fallback: "Thumbnail")
+          /// Waterfall
+          internal static let waterfall = L10n.tr("Localizable", "enum.list_display_mode.value.waterfall", fallback: "Waterfall")
         }
       }
       internal enum PreferredColorScheme {

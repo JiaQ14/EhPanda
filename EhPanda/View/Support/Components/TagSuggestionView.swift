@@ -8,7 +8,7 @@ import Kingfisher
 
 enum TagSuggestionStyle {
     case list
-    case bubbles
+    case plain
 }
 
 struct TagSuggestionView: View {
@@ -43,8 +43,8 @@ struct TagSuggestionView: View {
                 switch style {
                 case .list:
                     listSuggestions
-                case .bubbles:
-                    bubbleSuggestions
+                case .plain:
+                    plainSuggestions
                 }
             }
             .onAppear(perform: analyze)
@@ -66,29 +66,21 @@ struct TagSuggestionView: View {
             SuggestionCell(
                 suggestion: suggestion,
                 showsImages: showsImages,
-                action: { translationHandler.autoComplete(suggestion: suggestion, keyword: &keyword) }
+                action: { complete(suggestion) }
             )
         }
     }
 
-    private var bubbleSuggestions: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(translationHandler.suggestions) { suggestion in
-                BubbleSuggestionCell(
-                    suggestion: suggestion,
-                    showsImages: showsImages,
-                    action: {
-                        translationHandler.autoComplete(
-                            suggestion: suggestion,
-                            keyword: &keyword
-                        )
-                    }
-                )
-            }
+    @ViewBuilder private var plainSuggestions: some View {
+        ForEach(translationHandler.suggestions) { suggestion in
+            PlainSuggestionCell(
+                suggestion: suggestion,
+                showsImages: showsImages,
+                action: { complete(suggestion) }
+            )
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
     private func analyze() {
@@ -96,6 +88,13 @@ struct TagSuggestionView: View {
             text: &keyword,
             translations: translations,
             maximumCount: maximumCount
+        )
+    }
+
+    private func complete(_ suggestion: TagSuggestion) {
+        translationHandler.autoComplete(
+            suggestion: suggestion,
+            keyword: &keyword
         )
     }
 }
@@ -160,8 +159,8 @@ private struct SuggestionCell: View {
     }
 }
 
-// MARK: BubbleSuggestionCell
-private struct BubbleSuggestionCell: View {
+// MARK: PlainSuggestionCell
+private struct PlainSuggestionCell: View {
     private let suggestion: TagSuggestion
     private let showsImages: Bool
     private let action: () -> Void
@@ -217,13 +216,11 @@ private struct BubbleSuggestionCell: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .frame(maxWidth: 420, alignment: .leading)
-            .contentShape(.capsule)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .capsule)
         .accessibilityLabel(
             Text(verbatim: suggestion.tag.searchKeyword + ", " + displayValue)
         )

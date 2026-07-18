@@ -7,6 +7,15 @@ import SwiftUI
 import TTProgressHUD
 import ComposableArchitecture
 
+enum ReadingImageRetryRoute: Equatable {
+    case fetch
+    case refetch
+
+    init(imageURL: URL?) {
+        self = imageURL == nil ? .fetch : .refetch
+    }
+}
+
 @Reducer
 struct ReadingReducer {
     @CasePathable
@@ -153,7 +162,7 @@ struct ReadingReducer {
         case onPerformDismiss
         case onAppear(String, Bool)
 
-        case onWebImageRetry(Int)
+        case retryImage(Int)
         case onWebImageSucceeded(Int)
         case onWebImageFailed(Int, URL?, UUID?, UUID?)
         case reloadAllWebImages
@@ -250,9 +259,14 @@ struct ReadingReducer {
                 }
                 return .merge(effects)
 
-            case .onWebImageRetry(let index):
-                state.imageURLLoadingStates[index] = .idle
-                return .none
+            case .retryImage(let index):
+                state.webImageLoadSuccessIndices.remove(index)
+                switch ReadingImageRetryRoute(imageURL: state.imageURLs[index]) {
+                case .fetch:
+                    return .send(.fetchImageURLs(index))
+                case .refetch:
+                    return .send(.refetchImageURLs(index))
+                }
 
             case .onWebImageSucceeded(let index):
                 state.imageURLLoadingStates[index] = .idle
@@ -303,17 +317,17 @@ struct ReadingReducer {
                 }
 
             case .retryAllFailedWebImages:
-                state.imageURLLoadingStates.forEach { (index, loadingState) in
-                    if case .failed = loadingState {
-                        state.imageURLLoadingStates[index] = .idle
-                    }
+                let effects: [Effect<Action>] = state.imageURLLoadingStates.compactMap {
+                    index, loadingState in
+                    guard case .failed = loadingState else { return nil }
+                    return .send(.retryImage(index))
                 }
                 state.previewLoadingStates.forEach { (index, loadingState) in
                     if case .failed = loadingState {
                         state.previewLoadingStates[index] = .idle
                     }
                 }
-                return .none
+                return .merge(effects)
 
             case .copyImage(let imageURL):
                 return .send(.fetchImage(.copy(imageURL.isGIF), imageURL))

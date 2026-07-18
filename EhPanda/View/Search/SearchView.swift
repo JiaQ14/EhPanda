@@ -62,8 +62,8 @@ struct SearchView: View {
                 keyword: $store.keyword, translations: tagTranslator.translations,
                 showsImages: setting.showsImagesInTags,
                 isEnabled: setting.showsTagsSearchSuggestion,
-                style: .bubbles,
-                maximumCount: 3
+                style: .plain,
+                maximumCount: 5
             )
         }
         .searchSuggestions(.visible, for: .content)

@@ -221,6 +221,7 @@
 "enum.preferred_color_scheme.value.light" = "浅色";
 "enum.preferred_color_scheme.value.dark" = "深色";
 // AppIconType
+"enum.app_icon_type.value.classic" = "经典熊猫";
 "enum.app_icon_type.value.default" = "默认";
 "enum.app_icon_type.value.ukiyoe" = "浮世绘";
 "enum.app_icon_type.value.developer" = "开发者";
@@ -228,7 +229,7 @@
 "enum.app_icon_type.value.not_my_president" = "他不是我的主席";
 // ListDisplayMode
 "enum.list_display_mode.value.detail" = "详情";
-"enum.list_display_mode.value.thumbnail" = "缩略图";
+"enum.list_display_mode.value.waterfall" = "瀑布流";
 
 // MARK: AppIconView
 "app_icon_view.title.app_icon" = "应用图标";

@@ -233,7 +233,7 @@ struct ReadingView: View {
             fetchAction: { store.send(.fetchImageURLs($0)) },
             refetchAction: { store.send(.refetchImageURLs($0)) },
             prefetchAction: { store.send(.prefetchImages($0, setting.prefetchLimit)) },
-            loadRetryAction: { store.send(.onWebImageRetry($0)) },
+            retryAction: { store.send(.retryImage($0)) },
             loadSucceededAction: { store.send(.onWebImageSucceeded($0)) },
             loadFailedAction: {
                 store.send(
@@ -394,7 +394,7 @@ private struct HorizontalImageStack: View, Equatable {
     private let fetchAction: (Int) -> Void
     private let refetchAction: (Int) -> Void
     private let prefetchAction: (Int) -> Void
-    private let loadRetryAction: (Int) -> Void
+    private let retryAction: (Int) -> Void
     private let loadSucceededAction: (Int) -> Void
     private let loadFailedAction: (Int, URL?) -> Void
     private let copyImageAction: (URL) -> Void
@@ -408,7 +408,7 @@ private struct HorizontalImageStack: View, Equatable {
         liveTextTapAction: @escaping (LiveTextGroup) -> Void,
         fetchAction: @escaping (Int) -> Void,
         refetchAction: @escaping (Int) -> Void, prefetchAction: @escaping (Int) -> Void,
-        loadRetryAction: @escaping (Int) -> Void, loadSucceededAction: @escaping (Int) -> Void,
+        retryAction: @escaping (Int) -> Void, loadSucceededAction: @escaping (Int) -> Void,
         loadFailedAction: @escaping (Int, URL?) -> Void, copyImageAction: @escaping (URL) -> Void,
         saveImageAction: @escaping (URL) -> Void, shareImageAction: @escaping (URL) -> Void
     ) {
@@ -423,7 +423,7 @@ private struct HorizontalImageStack: View, Equatable {
         self.fetchAction = fetchAction
         self.refetchAction = refetchAction
         self.prefetchAction = prefetchAction
-        self.loadRetryAction = loadRetryAction
+        self.retryAction = retryAction
         self.loadSucceededAction = loadSucceededAction
         self.loadFailedAction = loadFailedAction
         self.copyImageAction = copyImageAction
@@ -469,8 +469,7 @@ private struct HorizontalImageStack: View, Equatable {
             liveTextGroups: model.liveTextGroups,
             focusedLiveTextGroup: focusedLiveTextGroup,
             liveTextTapAction: liveTextTapAction,
-            refetchAction: refetchAction,
-            loadRetryAction: loadRetryAction,
+            retryAction: retryAction,
             loadSucceededAction: loadSucceededAction,
             loadFailedAction: loadFailedAction
         )
@@ -552,8 +551,7 @@ private struct ImageContainer: View {
     private let liveTextGroups: [LiveTextGroup]
     private let focusedLiveTextGroup: LiveTextGroup?
     private let liveTextTapAction: (LiveTextGroup) -> Void
-    private let refetchAction: (Int) -> Void
-    private let loadRetryAction: (Int) -> Void
+    private let retryAction: (Int) -> Void
     private let loadSucceededAction: (Int) -> Void
     private let loadFailedAction: (Int, URL?) -> Void
 
@@ -566,8 +564,7 @@ private struct ImageContainer: View {
         liveTextGroups: [LiveTextGroup],
         focusedLiveTextGroup: LiveTextGroup?,
         liveTextTapAction: @escaping (LiveTextGroup) -> Void,
-        refetchAction: @escaping (Int) -> Void,
-        loadRetryAction: @escaping (Int) -> Void,
+        retryAction: @escaping (Int) -> Void,
         loadSucceededAction: @escaping (Int) -> Void,
         loadFailedAction: @escaping (Int, URL?) -> Void
     ) {
@@ -580,8 +577,7 @@ private struct ImageContainer: View {
         self.liveTextGroups = liveTextGroups
         self.focusedLiveTextGroup = focusedLiveTextGroup
         self.liveTextTapAction = liveTextTapAction
-        self.refetchAction = refetchAction
-        self.loadRetryAction = loadRetryAction
+        self.retryAction = retryAction
         self.loadSucceededAction = loadSucceededAction
         self.loadFailedAction = loadFailedAction
     }
@@ -649,12 +645,8 @@ private struct ImageContainer: View {
         }
     }
     private func reloadImage() {
-        if let error = loadingState.failed {
-            if case .webImageFailed = error {
-                loadRetryAction(index)
-            } else {
-                refetchAction(index)
-            }
+        if loadingState.failed != nil {
+            retryAction(index)
         }
     }
     private func onSuccess(_: RetrieveImageResult) {

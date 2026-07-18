@@ -152,7 +152,9 @@ struct SettingReducer {
                     .merge(
                         .send(.syncSetting),
                         .run { send in
-                            _ = await uiApplicationClient.setAlternateIconName(newValue.filename)
+                            _ = await uiApplicationClient.setAlternateIconName(
+                                newValue.alternateIconName
+                            )
                             await send(.syncAppIconType)
                         }
                     )
@@ -231,11 +233,9 @@ struct SettingReducer {
                 return .none
 
             case .syncAppIconType:
-                if let iconName = uiApplicationClient.alternateIconName() {
-                    state.setting.appIconType = AppIconType.allCases.filter({
-                        iconName.contains($0.filename)
-                    }).first ?? .default
-                }
+                state.setting.appIconType = AppIconType(
+                    alternateIconName: uiApplicationClient.alternateIconName()
+                )
                 return .none
 
             case .syncUserInterfaceStyle:

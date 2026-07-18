@@ -221,6 +221,7 @@
 "enum.preferred_color_scheme.value.light" = "라이트";
 "enum.preferred_color_scheme.value.dark" = "다크";
 // AppIconType
+"enum.app_icon_type.value.classic" = "클래식 판다";
 "enum.app_icon_type.value.default" = "기본";
 "enum.app_icon_type.value.ukiyoe" = "Ukiyo-e";
 "enum.app_icon_type.value.developer" = "Developer";
@@ -228,7 +229,7 @@
 "enum.app_icon_type.value.not_my_president" = "NOT MY PRESIDENT";
 // ListDisplayMode
 "enum.list_display_mode.value.detail" = "자세히";
-"enum.list_display_mode.value.thumbnail" = "썸네일";
+"enum.list_display_mode.value.waterfall" = "워터폴";
 
 // MARK: AppIconView
 "app_icon_view.title.app_icon" = "앱 아이콘";

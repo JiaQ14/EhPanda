@@ -123,7 +123,7 @@ private struct AppIconView: View {
                 ForEach(AppIconType.allCases) { icon in
                     AppIconRow(
                         iconName: icon.name,
-                        filename: icon.filename,
+                        filename: icon.previewFilename,
                         isSelected: icon == appIconType
                     )
                     .contentShape(Rectangle())
@@ -173,11 +173,21 @@ private struct AppIconRow: View {
 enum AppIconType: Int, Codable, Identifiable, CaseIterable {
     var id: Int { rawValue }
 
-    case `default`
-    case ukiyoe
-    case developer
-    case standWithUkraine2022
-    case notMyPresidnet
+    case `default` = 0
+    case ukiyoe = 1
+    case developer = 2
+    case standWithUkraine2022 = 3
+    case notMyPresident = 4
+    case classic = 5
+
+    static let allCases: [Self] = [
+        .default,
+        .classic,
+        .ukiyoe,
+        .developer,
+        .standWithUkraine2022,
+        .notMyPresident
+    ]
 }
 
 extension AppIconType {
@@ -185,6 +195,9 @@ extension AppIconType {
         switch self {
         case .default:
             return L10n.Localizable.Enum.AppIconType.Value.default
+
+        case .classic:
+            return L10n.Localizable.Enum.AppIconType.Value.classic
 
         case .ukiyoe:
             return L10n.Localizable.Enum.AppIconType.Value.ukiyoe
@@ -195,14 +208,17 @@ extension AppIconType {
         case .standWithUkraine2022:
             return L10n.Localizable.Enum.AppIconType.Value.standWithUkraine2022
 
-        case .notMyPresidnet:
+        case .notMyPresident:
             return L10n.Localizable.Enum.AppIconType.Value.notMyPresident
         }
     }
 
-    var filename: String {
+    var previewFilename: String {
         switch self {
         case .default:
+            return "AppIconPrimaryPreview"
+
+        case .classic:
             return "AppIcon_Default"
 
         case .ukiyoe:
@@ -214,9 +230,28 @@ extension AppIconType {
         case .standWithUkraine2022:
             return "AppIcon_StandWithUkraine2022"
 
-        case .notMyPresidnet:
+        case .notMyPresident:
             return "AppIcon_NotMyPresident"
         }
+    }
+
+    var alternateIconName: String? {
+        switch self {
+        case .default:
+            return nil
+        default:
+            return previewFilename
+        }
+    }
+
+    init(alternateIconName: String?) {
+        guard let alternateIconName else {
+            self = .default
+            return
+        }
+        self = Self.allCases.first {
+            $0.alternateIconName == alternateIconName
+        } ?? .default
     }
 }
 

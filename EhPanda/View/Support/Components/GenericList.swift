@@ -53,7 +53,7 @@ struct GenericList: View {
                     navigateAction: navigateAction, translateAction: translateAction
                 )
                 .refreshable { fetchAction?() }
-            case .thumbnail:
+            case .waterfall:
                 WaterfallList(
                     galleries: galleries, setting: setting,
                     translationRevision: translationRevision,

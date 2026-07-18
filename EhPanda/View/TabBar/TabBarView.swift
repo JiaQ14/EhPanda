@@ -23,20 +23,14 @@ struct TabBarView: View {
                     set: { store.send(.tabBar(.setTabBarItemType($0))) }
                 )
             ) {
-                ForEach(TabBarItemType.allCases.filter { $0 != .search }) { type in
+                ForEach(TabBarItemType.allCases) { type in
                     Tab(value: type) {
                         tabContent(for: type)
                     } label: {
                         type.label()
                     }
                 }
-                Tab(value: .search, role: .search) {
-                    tabContent(for: .search)
-                } label: {
-                    TabBarItemType.search.label()
-                }
             }
-            .tabViewSearchActivation(.automatic)
             .accentColor(store.settingState.setting.accentColor)
             .autoBlur(radius: store.appLockState.blurRadius)
             Button {
