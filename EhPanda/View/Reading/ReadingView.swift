@@ -138,9 +138,16 @@ struct ReadingView: View {
                 .offset(gestureHandler.offset)
                 .highPriorityGesture(
                     dragGesture.simultaneously(with: tapGesture),
-                    isEnabled: gestureHandler.scale > 1
+                    isEnabled: gestureHandler.scale > 1 && !enablesLiveText
                 )
-                .simultaneousGesture(tapGesture, isEnabled: gestureHandler.scale == 1)
+                .highPriorityGesture(
+                    dragGesture,
+                    isEnabled: gestureHandler.scale > 1 && enablesLiveText
+                )
+                .simultaneousGesture(
+                    tapGesture,
+                    isEnabled: gestureHandler.scale == 1 && !enablesLiveText
+                )
                 .simultaneousGesture(magnificationGesture)
                 .ignoresSafeArea()
             }
