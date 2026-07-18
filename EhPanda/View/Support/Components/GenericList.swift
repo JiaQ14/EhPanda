@@ -140,7 +140,9 @@ private struct DetailList: View {
                     actions: actions,
                     translateAction: translateAction
                 )
-                .contentShape(.rect(cornerRadius: 8))
+                .contentShape(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
                 .onTapGesture {
                     navigateAction?(gallery.id)
                 }

@@ -45,6 +45,8 @@ struct GalleryCardCell: View {
         usesAccessibilityLayout ? 16 : 20
     }
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+
         ZStack {
             HStack(spacing: usesAccessibilityLayout ? 12 : 15) {
                 KFImage(gallery.coverURL)
@@ -57,7 +59,9 @@ struct GalleryCardCell: View {
                     .resizable()
                     .scaledToFill()
                     .frame(width: coverWidth, height: coverHeight)
-                    .clipShape(.rect(cornerRadius: 6))
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
                 VStack(alignment: .leading, spacing: 8) {
                     Text(title)
                         .font(.title3.bold())
@@ -70,10 +74,10 @@ struct GalleryCardCell: View {
             .padding(.vertical, usesAccessibilityLayout ? 16 : 20)
         }
         .frame(width: width, height: height)
-        .contentShape(.rect(cornerRadius: 8))
+        .contentShape(shape)
         .glassEffect(
             .regular.interactive(),
-            in: .rect(cornerRadius: 8)
+            in: shape
         )
     }
 }

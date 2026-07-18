@@ -61,16 +61,15 @@ struct SearchRootView: View {
             }
             .searchable(text: $store.keyword)
             .searchFocused($isSearchFocused)
-            .searchSuggestions {
-                TagSuggestionView(
+            .overlay {
+                TagSuggestionOverlay(
                     keyword: $store.keyword, translations: tagTranslator.translations,
                     showsImages: setting.showsImagesInTags,
                     isEnabled: setting.showsTagsSearchSuggestion,
-                    style: .plain,
+                    isPresented: isSearchFocused,
                     maximumCount: 5
                 )
             }
-            .searchSuggestions(.visible, for: .content)
             .onSubmit(of: .search) {
                 store.send(.setNavigation(.search))
             }

@@ -99,6 +99,90 @@ struct TagSuggestionView: View {
     }
 }
 
+// MARK: TagSuggestionOverlay
+struct TagSuggestionOverlay: View {
+    @Binding private var keyword: String
+    private let translations: [String: TagTranslation]
+    private let showsImages: Bool
+    private let isEnabled: Bool
+    private let isPresented: Bool
+    private let maximumCount: Int?
+
+    @StateObject private var translationHandler = TagTranslationHandler()
+
+    init(
+        keyword: Binding<String>,
+        translations: [String: TagTranslation],
+        showsImages: Bool,
+        isEnabled: Bool,
+        isPresented: Bool,
+        maximumCount: Int? = nil
+    ) {
+        _keyword = keyword
+        self.translations = translations
+        self.showsImages = showsImages
+        self.isEnabled = isEnabled
+        self.isPresented = isPresented
+        self.maximumCount = maximumCount
+    }
+
+    private var showsSuggestions: Bool {
+        isEnabled && isPresented && !translationHandler.suggestions.isEmpty
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            if showsSuggestions {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(translationHandler.suggestions) { suggestion in
+                            PlainSuggestionCell(
+                                suggestion: suggestion,
+                                showsImages: showsImages,
+                                action: { complete(suggestion) }
+                            )
+                            .padding(.horizontal, 16)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                .background(Color(.systemBackground))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .allowsHitTesting(showsSuggestions)
+        .onAppear(perform: analyze)
+        .onChange(of: keyword) {
+            analyze()
+        }
+        .onChange(of: translations.count) {
+            analyze()
+        }
+        .onChange(of: isEnabled) {
+            analyze()
+        }
+    }
+
+    private func analyze() {
+        guard isEnabled else {
+            translationHandler.suggestions = []
+            return
+        }
+        translationHandler.analyze(
+            text: &keyword,
+            translations: translations,
+            maximumCount: maximumCount
+        )
+    }
+
+    private func complete(_ suggestion: TagSuggestion) {
+        translationHandler.autoComplete(
+            suggestion: suggestion,
+            keyword: &keyword
+        )
+    }
+}
+
 // MARK: SuggestionCell
 private struct SuggestionCell: View {
     private let suggestion: TagSuggestion

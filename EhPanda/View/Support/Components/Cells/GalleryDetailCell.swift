@@ -198,7 +198,7 @@ struct GalleryDetailCell: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
 
         HStack(alignment: .top, spacing: 12) {
             KFImage(coverURL)
@@ -215,7 +215,9 @@ struct GalleryDetailCell: View {
                     width: Defaults.ImageSize.rowW,
                     height: Defaults.ImageSize.rowH
                 )
-                .clipShape(.rect(cornerRadius: 6))
+                .clipShape(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(gallery.title)
