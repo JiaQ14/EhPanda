@@ -8,6 +8,7 @@ import ComposableArchitecture
 
 struct SearchRootView: View {
     @Bindable private var store: StoreOf<SearchRootReducer>
+    @FocusState private var isSearchFocused: Bool
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -59,18 +60,27 @@ struct SearchRootView: View {
                 .autoBlur(radius: blurRadius)
             }
             .searchable(text: $store.keyword)
+            .searchFocused($isSearchFocused)
             .searchSuggestions {
                 TagSuggestionView(
                     keyword: $store.keyword, translations: tagTranslator.translations,
-                    showsImages: setting.showsImagesInTags, isEnabled: setting.showsTagsSearchSuggestion
+                    showsImages: setting.showsImagesInTags,
+                    isEnabled: setting.showsTagsSearchSuggestion,
+                    style: .bubbles,
+                    maximumCount: 3
                 )
             }
+            .searchSuggestions(.visible, for: .content)
             .onSubmit(of: .search) {
                 store.send(.setNavigation(.search))
             }
             .onAppear {
                 store.send(.fetchHistoryGalleries)
                 store.send(.fetchDatabaseInfos)
+            }
+            .task {
+                await Task.yield()
+                isSearchFocused = false
             }
             .background(navigationLinks)
             .toolbar(content: toolbar)

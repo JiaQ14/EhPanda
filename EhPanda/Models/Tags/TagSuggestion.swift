@@ -6,13 +6,16 @@
 import SwiftUI
 
 struct TagSuggestion: Equatable, Hashable, Identifiable {
-    let id: UUID = .init()
     let tag: TagTranslation
     let weight: Float
     let keyRange: Range<String.Index>?
     let valueRange: Range<String.Index>?
     let originalKeyword: String
     let matchesNamespace: Bool
+
+    var id: String {
+        tag.namespace.rawValue + ":" + tag.key
+    }
 
     var displayKey: String {
         var namespace = tag.namespace.rawValue

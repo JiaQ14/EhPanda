@@ -835,3 +835,80 @@ final class WebLoginCompletionPolicyTests: XCTestCase {
         )
     }
 }
+
+final class TagSuggestionEngineTests: XCTestCase {
+    func testMatchesTranslatedValueAndLimitsSuggestions() {
+        let translations = [
+            "languagechinese": translation(key: "chinese", value: "中文"),
+            "languagechinese simplified": translation(
+                key: "chinese simplified",
+                value: "中文简体"
+            ),
+            "languagechinese traditional": translation(
+                key: "chinese traditional",
+                value: "中文繁体"
+            ),
+            "languagetranslated": translation(
+                key: "translated",
+                value: "中文翻译"
+            )
+        ]
+
+        let suggestions = TagSuggestionEngine.suggestions(
+            for: "中文",
+            translations: translations,
+            maximumCount: 3
+        )
+
+        XCTAssertEqual(suggestions.count, 3)
+        XCTAssertEqual(suggestions.first?.tag.searchKeyword, "l:chinese$")
+    }
+
+    func testCompletesOnlyTheUnfinishedSuffix() throws {
+        let suggestion = try XCTUnwrap(
+            TagSuggestionEngine.suggestions(
+                for: "中文",
+                translations: [
+                    "languagechinese": translation(
+                        key: "chinese",
+                        value: "中文"
+                    )
+                ],
+                maximumCount: 3
+            ).first
+        )
+
+        XCTAssertEqual(
+            TagSuggestionEngine.completing(
+                "a:example$ 中文",
+                with: suggestion
+            ),
+            "a:example$ l:chinese$ "
+        )
+    }
+
+    func testDoesNotSuggestAfterAnExactTagIsComplete() {
+        let suggestions = TagSuggestionEngine.suggestions(
+            for: "l:chinese$",
+            translations: [
+                "languagechinese": translation(
+                    key: "chinese",
+                    value: "中文"
+                )
+            ],
+            maximumCount: 3
+        )
+
+        XCTAssertTrue(suggestions.isEmpty)
+    }
+
+    private func translation(key: String, value: String) -> TagTranslation {
+        .init(
+            namespace: .language,
+            key: key,
+            value: value,
+            description: nil,
+            linksString: nil
+        )
+    }
+}

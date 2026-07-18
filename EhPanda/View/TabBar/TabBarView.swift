@@ -36,7 +36,7 @@ struct TabBarView: View {
                     TabBarItemType.search.label()
                 }
             }
-            .tabViewSearchActivation(.searchTabSelection)
+            .tabViewSearchActivation(.automatic)
             .accentColor(store.settingState.setting.accentColor)
             .autoBlur(radius: store.appLockState.blurRadius)
             Button {

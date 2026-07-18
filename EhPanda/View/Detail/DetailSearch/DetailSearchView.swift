@@ -60,9 +60,13 @@ struct DetailSearchView: View {
         .searchSuggestions {
             TagSuggestionView(
                 keyword: $store.keyword, translations: tagTranslator.translations,
-                showsImages: setting.showsImagesInTags, isEnabled: setting.showsTagsSearchSuggestion
+                showsImages: setting.showsImagesInTags,
+                isEnabled: setting.showsTagsSearchSuggestion,
+                style: .bubbles,
+                maximumCount: 3
             )
         }
+        .searchSuggestions(.visible, for: .content)
         .onSubmit(of: .search) {
             store.send(.fetchGalleries())
         }
