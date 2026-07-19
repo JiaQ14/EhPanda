@@ -25,6 +25,7 @@ struct WaterfallCollectionView: UIViewRepresentable {
     let pageNumber: PageNumber?
     let loadingState: LoadingState
     let footerLoadingState: LoadingState
+    let refreshRevision: Int
     let fetchAction: (() async -> Void)?
     let fetchMoreAction: (() -> Void)?
     let navigateAction: ((String) -> Void)?
@@ -95,6 +96,7 @@ extension WaterfallCollectionView {
         private var datasetIdentity: AnyHashable
         private var loadingState: LoadingState
         private var footerLoadingState: LoadingState
+        private var refreshRevision: Int
 
         private var pendingMeasuredHeights =
             [WaterfallItemID: WaterfallPendingMeasurement]()
@@ -106,6 +108,14 @@ extension WaterfallCollectionView {
         private var scrollOperationGeneration = 0
         private var pendingResetGeneration: Int?
         private var awaitsFullReloadCompletion: Bool
+        private var refreshStateMachine = GalleryRefreshStateMachine()
+        private var refreshTask: Task<Void, Never>?
+        private var deferredContentParent: WaterfallCollectionView?
+        private var deferredContentUpdateIsScheduled = false
+        private var lifecycleGeneration = 0
+        private var refreshHasPendingTerminalContent = false
+        private var contentCommitGeneration = 0
+        private var pendingContentCommitGeneration: Int?
 
         init(parent: WaterfallCollectionView) {
             self.parent = parent
@@ -115,6 +125,7 @@ extension WaterfallCollectionView {
             datasetIdentity = parent.datasetIdentity
             loadingState = parent.loadingState
             footerLoadingState = parent.footerLoadingState
+            refreshRevision = parent.refreshRevision
             awaitsFullReloadCompletion =
                 parent.loadingState == .loading
                 && parent.galleries.isEmpty
@@ -168,12 +179,22 @@ extension WaterfallCollectionView {
         }
 
         func update(parent: WaterfallCollectionView, collectionView: UICollectionView) {
+            if shouldDeferContentUpdate(
+                for: parent,
+                in: collectionView
+            ) {
+                deferredContentParent = parent
+                return
+            }
+            deferredContentParent = nil
+
             let oldSettingSignature = settingSignature
             let oldEnvironment = environment
             let oldTranslationRevision = translationRevision
             let oldDatasetIdentity = datasetIdentity
             let oldLoadingState = loadingState
             let oldFooterLoadingState = footerLoadingState
+            let oldRefreshRevision = refreshRevision
             let oldItemIdentifiers = itemIdentifiers
             let oldPresentationsByID = presentationsByID
             let existingSnapshot = dataSource.snapshot()
@@ -185,6 +206,7 @@ extension WaterfallCollectionView {
             datasetIdentity = parent.datasetIdentity
             loadingState = parent.loadingState
             footerLoadingState = parent.footerLoadingState
+            refreshRevision = parent.refreshRevision
 
             let datasetIdentityChanged = oldDatasetIdentity != datasetIdentity
             let beganFullReload =
@@ -239,6 +261,7 @@ extension WaterfallCollectionView {
                     != (newPresentationsByID[$0]?.status != nil)
             }
             let footerChanged = oldFooterLoadingState != footerLoadingState
+            let refreshRevisionChanged = oldRefreshRevision != refreshRevision
             let structureChanged = itemIdentifiers != newItemIdentifiers
             let hasExistingSnapshot = !existingSnapshot.sectionIdentifiers.isEmpty
             let datasetUpdate = WaterfallDatasetUpdateKind.classify(
@@ -249,9 +272,6 @@ extension WaterfallCollectionView {
             )
             let isAppendOnlyChange = datasetUpdate == .append
             let replacesDataset = datasetUpdate == .replace
-            let refreshContentOffset = collectionView.refreshControl?.isRefreshing == true
-                ? collectionView.contentOffset
-                : nil
 
             let shouldPreserveAnchor =
                 !replacesDataset
@@ -368,48 +388,98 @@ extension WaterfallCollectionView {
                 layout?.removeMeasuredHeights(for: [.footer])
             }
 
-            if structureChanged || !identifiersToReconfigure.isEmpty {
-                var snapshot = NSDiffableDataSourceSnapshot<WaterfallSection, WaterfallItemID>()
-                snapshot.appendSections([.main])
-                snapshot.appendItems(newItemIdentifiers)
-                if isAppendOnlyChange {
-                    snapshot.reconfigureItems(Array(identifiersToReconfigure))
-                    dataSource.apply(snapshot, animatingDifferences: false)
-                } else if structureChanged {
-                    dataSource.applySnapshotUsingReloadData(snapshot)
-                } else {
-                    snapshot.reconfigureItems(Array(identifiersToReconfigure))
-                    dataSource.apply(snapshot, animatingDifferences: false)
-                }
-            }
-
             let needsLayoutUpdate = layout?.needsLayoutUpdate == true
-            if needsLayoutUpdate {
-                collectionView.collectionViewLayout.invalidateLayout()
-            }
-            if let refreshContentOffset {
-                collectionView.layoutIfNeeded()
-                collectionView.setContentOffset(
-                    refreshContentOffset,
-                    animated: false
-                )
-            } else if replacesDataset {
-                resetScrollPositionAfterLayout(in: collectionView)
-            } else if needsLayoutUpdate {
-                restoreAfterLayout(anchor: anchor, in: collectionView)
+            let requiresSnapshotCommit =
+                replacesDataset
+                || structureChanged
+                || !identifiersToReconfigure.isEmpty
+            let requiresContentCommit = requiresSnapshotCommit || needsLayoutUpdate
+            if refreshStateMachine.phase != .idle {
+                if oldLoadingState != .loading, loadingState == .loading {
+                    refreshHasPendingTerminalContent = false
+                    refreshContentDidCommit(loadingState: loadingState)
+                }
+                if refreshRevisionChanged {
+                    refreshHasPendingTerminalContent = true
+                }
             }
 
             if replacesDataset || parent.pageNumber?.hasNextPage() != true {
                 lastPaginationTrigger = nil
             }
+            guard requiresContentCommit else {
+                reconcileRefreshAfterWorkDrained()
+                flushMeasuredHeightsIfPossible()
+                fetchMoreIfNeeded(in: collectionView)
+                return
+            }
 
-            DispatchQueue.main.async { [weak self, weak collectionView] in
-                guard let self, let collectionView else { return }
+            contentCommitGeneration &+= 1
+            let commitGeneration = contentCommitGeneration
+            pendingContentCommitGeneration = commitGeneration
+            let finishContentCommit = { [weak self, weak collectionView] in
+                guard let self,
+                      let collectionView,
+                      self.contentCommitGeneration == commitGeneration
+                else { return }
+
+                if self.layout?.needsLayoutUpdate == true {
+                    UIView.performWithoutAnimation {
+                        collectionView.collectionViewLayout.invalidateLayout()
+                        collectionView.layoutIfNeeded()
+                    }
+                }
+
+                let isRefreshing =
+                    collectionView.refreshControl?.isRefreshing == true
+                let isScrolling = self.isActivelyScrolling(collectionView)
+                if !isRefreshing, !isScrolling {
+                    if replacesDataset {
+                        self.resetScrollPositionAfterLayout(in: collectionView)
+                    } else if needsLayoutUpdate {
+                        self.restoreAfterLayout(anchor: anchor, in: collectionView)
+                    }
+                }
+
+                self.pendingContentCommitGeneration = nil
+                self.scheduleDeferredContentUpdateIfPossible()
+                self.reconcileRefreshAfterWorkDrained()
+                self.flushMeasuredHeightsIfPossible()
                 self.fetchMoreIfNeeded(in: collectionView)
+            }
+
+            if requiresSnapshotCommit {
+                var snapshot = NSDiffableDataSourceSnapshot<WaterfallSection, WaterfallItemID>()
+                snapshot.appendSections([.main])
+                snapshot.appendItems(newItemIdentifiers)
+                if replacesDataset || structureChanged {
+                    dataSource.applySnapshotUsingReloadData(
+                        snapshot,
+                        completion: finishContentCommit
+                    )
+                } else {
+                    snapshot.reconfigureItems(Array(identifiersToReconfigure))
+                    dataSource.apply(
+                        snapshot,
+                        animatingDifferences: false,
+                        completion: finishContentCommit
+                    )
+                }
+            } else {
+                finishContentCommit()
             }
         }
 
         func tearDown() {
+            refreshTask?.cancel()
+            refreshTask = nil
+            refreshStateMachine.cancel()
+            refreshHasPendingTerminalContent = false
+            deferredContentParent = nil
+            deferredContentUpdateIsScheduled = false
+            lifecycleGeneration &+= 1
+            contentCommitGeneration &+= 1
+            pendingContentCommitGeneration = nil
             scrollOperationGeneration &+= 1
             pendingResetGeneration = nil
             prefetchers.values.forEach { $0.prefetcher.stop() }
@@ -565,7 +635,10 @@ private extension WaterfallCollectionView.Coordinator {
             pendingMeasuredHeights.removeAll()
             return
         }
-        guard !isActivelyScrolling(collectionView) else { return }
+        guard !isActivelyScrolling(collectionView),
+              pendingContentCommitGeneration == nil,
+              deferredContentParent == nil
+        else { return }
 
         var measurements = [WaterfallItemID: CGFloat]()
         for (identifier, measurement) in pendingMeasuredHeights
@@ -590,40 +663,168 @@ private extension WaterfallCollectionView.Coordinator {
         }
     }
 
+    func shouldDeferContentUpdate(
+        for parent: WaterfallCollectionView,
+        in collectionView: UICollectionView
+    ) -> Bool {
+        let isScrolling = isActivelyScrolling(collectionView)
+        let hasPendingCommit = pendingContentCommitGeneration != nil
+        guard isScrolling || hasPendingCommit
+        else { return false }
+
+        let loadingStateChanged = loadingState != parent.loadingState
+        let contentChanged: Bool
+        if settingSignature != .init(setting: parent.setting)
+            || environment != parent.hostEnvironment
+            || translationRevision != parent.translationRevision
+            || datasetIdentity != parent.datasetIdentity
+            || footerLoadingState != parent.footerLoadingState
+            || refreshRevision != parent.refreshRevision
+        {
+            contentChanged = true
+        } else {
+            var identifiers = [WaterfallItemID]()
+            var signatures = [String: GalleryRenderSignature]()
+            var presentations = [String: GalleryListPresentation]()
+            var seenIDs = Set<String>()
+            for gallery in parent.galleries where seenIDs.insert(gallery.id).inserted {
+                identifiers.append(.gallery(gallery.id))
+                signatures[gallery.id] = .init(gallery: gallery)
+                presentations[gallery.id] = parent.presentations[gallery.id]
+            }
+            if parent.pageNumber?.hasNextPage() == true {
+                identifiers.append(.footer)
+            }
+
+            contentChanged =
+                identifiers != itemIdentifiers
+                || signatures != gallerySignatures
+                || presentations != presentationsByID
+        }
+
+        return WaterfallContentCommitGate.shouldDefer(
+            contentChanged: contentChanged,
+            loadingStateChanged: loadingStateChanged,
+            isActivelyScrolling: isScrolling,
+            hasPendingCommit: hasPendingCommit
+        )
+    }
+
     @objc func refresh() {
         guard let fetchAction = parent.fetchAction else {
             collectionView?.refreshControl?.endRefreshing()
             return
         }
-        Task { @MainActor [weak self] in
-            await GalleryListRefresh.perform(fetchAction)
-            await self?.finishRefreshingWhenScrollingStops()
+        guard parent.loadingState != .loading else {
+            collectionView?.refreshControl?.endRefreshing()
+            return
+        }
+        guard refreshStateMachine.begin() else { return }
+
+        refreshHasPendingTerminalContent = false
+        cancelScheduledScrollRestore()
+        refreshTask?.cancel()
+        refreshTask = Task { @MainActor [weak self] in
+            await fetchAction()
+            guard !Task.isCancelled, let self else { return }
+            self.refreshTask = nil
+            self.refreshOperationDidComplete()
         }
     }
 
-    @MainActor
-    func finishRefreshingWhenScrollingStops() async {
+    func refreshOperationDidComplete() {
         guard let collectionView else { return }
-        while isActivelyScrolling(collectionView) {
-            try? await Task.sleep(for: .milliseconds(50))
-            guard self.collectionView === collectionView else { return }
+        let isScrolling = isActivelyScrolling(collectionView)
+        if !isScrolling {
+            scheduleDeferredContentUpdateIfPossible()
         }
-        guard let refreshControl = collectionView.refreshControl,
-              refreshControl.isRefreshing
+        if refreshStateMachine.operationCompleted(isScrolling: isScrolling) {
+            endRefreshing()
+        }
+    }
+
+    func refreshContentDidCommit(loadingState: LoadingState) {
+        guard let collectionView else { return }
+        if refreshStateMachine.contentDidCommit(
+            isLoading: loadingState == .loading,
+            isScrolling: isActivelyScrolling(collectionView)
+        ) {
+            endRefreshing()
+        }
+    }
+
+    func scrollingDidEnd() {
+        scheduleDeferredContentUpdateIfPossible()
+        reconcileRefreshAfterWorkDrained()
+    }
+
+    func endRefreshing() {
+        refreshHasPendingTerminalContent = false
+        collectionView?.refreshControl?.endRefreshing()
+    }
+
+    func completeRefreshTerminalContentIfPossible() {
+        guard refreshHasPendingTerminalContent,
+              pendingContentCommitGeneration == nil,
+              deferredContentParent == nil,
+              loadingState != .loading
         else { return }
 
-        UIView.animate(
-            withDuration: 0.3,
-            delay: 0,
-            options: [.beginFromCurrentState, .allowUserInteraction]
-        ) {
-            refreshControl.endRefreshing()
-            collectionView.layoutIfNeeded()
+        refreshHasPendingTerminalContent = false
+        refreshContentDidCommit(loadingState: loadingState)
+    }
+
+    func scheduleDeferredContentUpdateIfPossible() {
+        guard !deferredContentUpdateIsScheduled,
+              deferredContentParent != nil,
+              pendingContentCommitGeneration == nil,
+              let collectionView,
+              !isActivelyScrolling(collectionView)
+        else { return }
+
+        deferredContentUpdateIsScheduled = true
+        let generation = lifecycleGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.lifecycleGeneration == generation else { return }
+            self.deferredContentUpdateIsScheduled = false
+            self.applyDeferredContentUpdateIfPossible()
+        }
+    }
+
+    func applyDeferredContentUpdateIfPossible() {
+        guard let collectionView,
+              pendingContentCommitGeneration == nil,
+              !isActivelyScrolling(collectionView),
+              let deferredContentParent
+        else { return }
+
+        self.deferredContentParent = nil
+        update(parent: deferredContentParent, collectionView: collectionView)
+        flushMeasuredHeightsIfPossible()
+
+        guard pendingContentCommitGeneration == nil,
+              self.deferredContentParent == nil
+        else { return }
+        reconcileRefreshAfterWorkDrained()
+    }
+
+    func reconcileRefreshAfterWorkDrained() {
+        guard let collectionView,
+              pendingContentCommitGeneration == nil,
+              deferredContentParent == nil,
+              !isActivelyScrolling(collectionView)
+        else { return }
+
+        completeRefreshTerminalContentIfPossible()
+        if refreshStateMachine.scrollingDidEnd() {
+            endRefreshing()
         }
     }
 
     func fetchMoreIfNeeded(in collectionView: UICollectionView) {
-        guard parent.loadingState == .idle,
+        guard deferredContentParent == nil,
+              pendingContentCommitGeneration == nil,
+              parent.loadingState == .idle,
               parent.pageNumber?.hasNextPage() == true,
               parent.footerLoadingState == .idle,
               parent.fetchMoreAction != nil
@@ -648,7 +849,8 @@ private extension WaterfallCollectionView.Coordinator {
     }
 
     func captureAnchor(in collectionView: UICollectionView) -> WaterfallScrollAnchor? {
-        guard !isActivelyScrolling(collectionView),
+        guard collectionView.refreshControl?.isRefreshing != true,
+              !isActivelyScrolling(collectionView),
               let layout
         else { return nil }
 
@@ -679,7 +881,8 @@ private extension WaterfallCollectionView.Coordinator {
 
         return .init(
             itemIdentifier: identifier,
-            offsetFromVisibleTop: visibleTop - anchorAttributes.frame.minY
+            offsetFromVisibleTop: visibleTop - anchorAttributes.frame.minY,
+            adjustedContentInsetTop: collectionView.adjustedContentInset.top
         )
     }
 
@@ -687,15 +890,25 @@ private extension WaterfallCollectionView.Coordinator {
         anchor: WaterfallScrollAnchor?,
         in collectionView: UICollectionView
     ) {
-        guard pendingResetGeneration == nil else { return }
+        guard pendingResetGeneration == nil,
+              let anchor,
+              abs(
+                anchor.adjustedContentInsetTop
+                    - collectionView.adjustedContentInset.top
+              ) <= 0.5
+        else { return }
+
         scrollOperationGeneration &+= 1
         let generation = scrollOperationGeneration
-        guard anchor != nil else { return }
         DispatchQueue.main.async { [weak self, weak collectionView] in
             guard let self,
                   let collectionView,
                   self.scrollOperationGeneration == generation,
-                  !self.isActivelyScrolling(collectionView)
+                  !self.isActivelyScrolling(collectionView),
+                  abs(
+                    anchor.adjustedContentInsetTop
+                        - collectionView.adjustedContentInset.top
+                  ) <= 0.5
             else { return }
 
             collectionView.layoutIfNeeded()
@@ -704,19 +917,14 @@ private extension WaterfallCollectionView.Coordinator {
     }
 
     func cancelScheduledScrollRestore() {
-        guard pendingResetGeneration == nil else { return }
         scrollOperationGeneration &+= 1
+        pendingResetGeneration = nil
     }
 
     func resetScrollPositionAfterLayout(in collectionView: UICollectionView) {
         scrollOperationGeneration &+= 1
         let generation = scrollOperationGeneration
         pendingResetGeneration = generation
-        let targetOffset = CGPoint(
-            x: collectionView.contentOffset.x,
-            y: -collectionView.adjustedContentInset.top
-        )
-        collectionView.setContentOffset(targetOffset, animated: false)
 
         DispatchQueue.main.async { [weak self, weak collectionView] in
             guard let self,
@@ -724,14 +932,33 @@ private extension WaterfallCollectionView.Coordinator {
                   self.scrollOperationGeneration == generation,
                   self.pendingResetGeneration == generation
             else { return }
-            collectionView.layoutIfNeeded()
-            collectionView.setContentOffset(targetOffset, animated: false)
+
+            guard !self.isActivelyScrolling(collectionView),
+                  collectionView.refreshControl?.isRefreshing != true
+            else {
+                self.pendingResetGeneration = nil
+                return
+            }
+
+            UIView.performWithoutAnimation {
+                collectionView.layoutIfNeeded()
+                collectionView.setContentOffset(
+                    CGPoint(
+                        x: collectionView.contentOffset.x,
+                        y: -collectionView.adjustedContentInset.top
+                    ),
+                    animated: false
+                )
+            }
             self.pendingResetGeneration = nil
         }
     }
 
-    func restore(anchor: WaterfallScrollAnchor?, in collectionView: UICollectionView) {
-        guard let anchor,
+    func restore(anchor: WaterfallScrollAnchor, in collectionView: UICollectionView) {
+        guard abs(
+            anchor.adjustedContentInsetTop
+                - collectionView.adjustedContentInset.top
+        ) <= 0.5,
               let layout,
               let indexPath = layout.indexPath(for: anchor.itemIdentifier),
               let attributes = layout.layoutAttributesForItem(at: indexPath)
@@ -816,16 +1043,28 @@ extension WaterfallCollectionView.Coordinator:
         fetchMoreIfNeeded(in: collectionView)
     }
 
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        cancelScheduledScrollRestore()
+    }
+
+    func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+        cancelScheduledScrollRestore()
+        pendingBoundsChangeAnchor = nil
+    }
+
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         guard !decelerate else { return }
+        scrollingDidEnd()
         flushMeasuredHeightsIfPossible()
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        scrollingDidEnd()
         flushMeasuredHeightsIfPossible()
     }
 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        scrollingDidEnd()
         flushMeasuredHeightsIfPossible()
     }
 
@@ -902,6 +1141,88 @@ enum WaterfallDatasetUpdateKind: Equatable {
     }
 }
 
+struct WaterfallContentCommitGate {
+    static func shouldDefer(
+        contentChanged: Bool,
+        loadingStateChanged: Bool = false,
+        isActivelyScrolling: Bool,
+        hasPendingCommit: Bool
+    ) -> Bool {
+        hasPendingCommit
+            || ((contentChanged || loadingStateChanged) && isActivelyScrolling)
+    }
+}
+
+struct GalleryRefreshStateMachine {
+    enum Phase: Equatable {
+        case idle
+        case refreshing
+        case waitingForContent
+        case waitingForScrollEnd
+    }
+
+    private(set) var phase: Phase = .idle
+    private var operationHasCompleted = false
+    private var contentHasCommitted = false
+
+    mutating func begin() -> Bool {
+        guard phase == .idle else { return false }
+        operationHasCompleted = false
+        contentHasCommitted = false
+        phase = .refreshing
+        return true
+    }
+
+    mutating func operationCompleted(isScrolling: Bool) -> Bool {
+        guard phase != .idle, !operationHasCompleted else { return false }
+        operationHasCompleted = true
+        guard contentHasCommitted else {
+            phase = .waitingForContent
+            return false
+        }
+        return finishIfPossible(isScrolling: isScrolling)
+    }
+
+    mutating func contentDidCommit(
+        isLoading: Bool,
+        isScrolling: Bool
+    ) -> Bool {
+        guard phase != .idle else { return false }
+        if isLoading {
+            contentHasCommitted = false
+            phase = operationHasCompleted ? .waitingForContent : .refreshing
+            return false
+        }
+        contentHasCommitted = true
+        guard operationHasCompleted else { return false }
+        return finishIfPossible(isScrolling: isScrolling)
+    }
+
+    mutating func scrollingDidEnd() -> Bool {
+        guard phase == .waitingForScrollEnd,
+              operationHasCompleted,
+              contentHasCommitted
+        else { return false }
+        phase = .idle
+        return true
+    }
+
+    mutating func cancel() {
+        operationHasCompleted = false
+        contentHasCommitted = false
+        phase = .idle
+    }
+
+    private mutating func finishIfPossible(isScrolling: Bool) -> Bool {
+        if isScrolling {
+            phase = .waitingForScrollEnd
+            return false
+        }
+        phase = .idle
+        return true
+    }
+}
+
 private struct WaterfallPendingMeasurement {
     let height: CGFloat
     let width: CGFloat
@@ -923,6 +1244,7 @@ private struct PaginationTrigger: Equatable {
 private struct WaterfallScrollAnchor {
     let itemIdentifier: WaterfallItemID
     let offsetFromVisibleTop: CGFloat
+    let adjustedContentInsetTop: CGFloat
 }
 
 private struct WaterfallHostEnvironment: Equatable {

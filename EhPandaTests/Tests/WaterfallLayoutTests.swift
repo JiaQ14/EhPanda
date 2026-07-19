@@ -338,6 +338,36 @@ final class WaterfallLayoutTests: XCTestCase {
         XCTAssertEqual(harness.itemIdentifiers, identifiers)
     }
 
+    @MainActor
+    func testDiffableReplacementSnapshotAfterLayoutItemsMatchesFullCalculation() {
+        let initialIdentifiers = galleryIdentifiers(count: 18) + [.footer]
+        let replacementIdentifiers =
+            (30..<47).map { WaterfallItemID.gallery("replacement-\($0)") }
+            + [.footer]
+        let replacementHeights = measuredHeights(for: replacementIdentifiers)
+        let harness = WaterfallDiffableLayoutHarness(
+            identifiers: initialIdentifiers,
+            measuredHeights: measuredHeights(for: initialIdentifiers)
+        )
+
+        harness.applyReplacementSnapshot(
+            replacementIdentifiers,
+            measuredHeights: replacementHeights
+        )
+
+        let expected = expectedLayout(
+            identifiers: replacementIdentifiers,
+            heights: replacementHeights,
+            columnAssignments: columnAssignments(
+                identifiers: replacementIdentifiers,
+                layout: harness.layout
+            )
+        )
+        assertLayout(harness.layout, matches: expected)
+        assertSpatialQueries(harness.layout, expected: expected)
+        XCTAssertEqual(harness.itemIdentifiers, replacementIdentifiers)
+    }
+
     func testDatasetClassifierRecognizesAppendWithinSameDataset() {
         let oldIdentifiers = galleryIdentifiers(count: 3) + [.footer]
         let newIdentifiers = galleryIdentifiers(count: 6) + [.footer]
@@ -380,6 +410,122 @@ final class WaterfallLayoutTests: XCTestCase {
             ),
             .replace
         )
+    }
+
+    func testContentCommitGateDefersChangesUntilScrollingAndPendingCommitsFinish() {
+        let cases: [(
+            contentChanged: Bool,
+            isActivelyScrolling: Bool,
+            hasPendingCommit: Bool,
+            expected: Bool
+        )] = [
+            (false, false, false, false),
+            (false, false, true, true),
+            (false, true, false, false),
+            (false, true, true, true),
+            (true, false, false, false),
+            (true, false, true, true),
+            (true, true, false, true),
+            (true, true, true, true)
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                WaterfallContentCommitGate.shouldDefer(
+                    contentChanged: testCase.contentChanged,
+                    isActivelyScrolling: testCase.isActivelyScrolling,
+                    hasPendingCommit: testCase.hasPendingCommit
+                ),
+                testCase.expected
+            )
+        }
+
+        XCTAssertTrue(
+            WaterfallContentCommitGate.shouldDefer(
+                contentChanged: false,
+                loadingStateChanged: true,
+                isActivelyScrolling: true,
+                hasPendingCommit: false
+            )
+        )
+    }
+
+    func testRefreshStateMachineWaitsForCommittedContentAfterOperationCompletes() {
+        var stateMachine = GalleryRefreshStateMachine()
+
+        XCTAssertTrue(stateMachine.begin())
+        XCTAssertEqual(stateMachine.phase, .refreshing)
+        XCTAssertFalse(stateMachine.contentDidCommit(isLoading: true, isScrolling: false))
+        XCTAssertFalse(stateMachine.operationCompleted(isScrolling: false))
+        XCTAssertEqual(stateMachine.phase, .waitingForContent)
+        XCTAssertTrue(stateMachine.contentDidCommit(isLoading: false, isScrolling: false))
+        XCTAssertEqual(stateMachine.phase, .idle)
+    }
+
+    func testRefreshStateMachineWaitsForFastOperationGestureToEnd() {
+        var stateMachine = GalleryRefreshStateMachine()
+
+        XCTAssertTrue(stateMachine.begin())
+        XCTAssertFalse(stateMachine.operationCompleted(isScrolling: true))
+        XCTAssertEqual(stateMachine.phase, .waitingForContent)
+        XCTAssertFalse(stateMachine.contentDidCommit(isLoading: false, isScrolling: true))
+        XCTAssertEqual(stateMachine.phase, .waitingForScrollEnd)
+        XCTAssertTrue(stateMachine.scrollingDidEnd())
+        XCTAssertEqual(stateMachine.phase, .idle)
+    }
+
+    func testRefreshStateMachineAcceptsContentBeforeOperationCompletes() {
+        var stateMachine = GalleryRefreshStateMachine()
+
+        XCTAssertTrue(stateMachine.begin())
+        XCTAssertFalse(stateMachine.contentDidCommit(isLoading: true, isScrolling: false))
+        XCTAssertFalse(stateMachine.contentDidCommit(isLoading: false, isScrolling: false))
+        XCTAssertTrue(stateMachine.operationCompleted(isScrolling: false))
+        XCTAssertEqual(stateMachine.phase, .idle)
+    }
+
+    func testRefreshStateMachineAcceptsCoalescedTerminalContentUpdate() {
+        var stateMachine = GalleryRefreshStateMachine()
+
+        XCTAssertTrue(stateMachine.begin())
+        XCTAssertFalse(stateMachine.contentDidCommit(isLoading: false, isScrolling: false))
+        XCTAssertTrue(stateMachine.operationCompleted(isScrolling: false))
+        XCTAssertEqual(stateMachine.phase, .idle)
+    }
+
+    func testRefreshStateMachineAcceptsCoalescedTerminalContentAfterOperationCompletes() {
+        var stateMachine = GalleryRefreshStateMachine()
+
+        XCTAssertTrue(stateMachine.begin())
+        XCTAssertFalse(stateMachine.operationCompleted(isScrolling: false))
+        XCTAssertEqual(stateMachine.phase, .waitingForContent)
+        XCTAssertTrue(stateMachine.contentDidCommit(isLoading: false, isScrolling: false))
+        XCTAssertEqual(stateMachine.phase, .idle)
+    }
+
+    func testRefreshWaitsWhenScrollEndsBeforeDeferredTerminalRevisionCommits() {
+        var stateMachine = GalleryRefreshStateMachine()
+
+        XCTAssertTrue(stateMachine.begin())
+        XCTAssertFalse(stateMachine.contentDidCommit(isLoading: true, isScrolling: true))
+        XCTAssertFalse(stateMachine.operationCompleted(isScrolling: true))
+        XCTAssertEqual(stateMachine.phase, .waitingForContent)
+        XCTAssertFalse(stateMachine.scrollingDidEnd())
+        XCTAssertEqual(stateMachine.phase, .waitingForContent)
+        XCTAssertTrue(stateMachine.contentDidCommit(isLoading: false, isScrolling: false))
+        XCTAssertEqual(stateMachine.phase, .idle)
+    }
+
+    func testRefreshStateMachineRejectsDuplicateRefreshesAndCompletions() {
+        var stateMachine = GalleryRefreshStateMachine()
+
+        XCTAssertTrue(stateMachine.begin())
+        XCTAssertFalse(stateMachine.begin())
+        XCTAssertFalse(stateMachine.operationCompleted(isScrolling: false))
+        XCTAssertFalse(stateMachine.operationCompleted(isScrolling: false))
+        XCTAssertTrue(stateMachine.contentDidCommit(isLoading: false, isScrolling: false))
+        XCTAssertFalse(stateMachine.contentDidCommit(isLoading: false, isScrolling: false))
+        XCTAssertFalse(stateMachine.scrollingDidEnd())
     }
 
     private func galleryIdentifiers(count: Int) -> [WaterfallItemID] {
@@ -676,6 +822,25 @@ private final class WaterfallDiffableLayoutHarness {
         snapshot.appendSections([0])
         snapshot.appendItems(identifiers)
         dataSource.apply(snapshot, animatingDifferences: false)
+        prepare()
+    }
+
+    func applyReplacementSnapshot(
+        _ identifiers: [WaterfallItemID],
+        measuredHeights: [WaterfallItemID: CGFloat]
+    ) {
+        layout.resetColumnAssignments()
+        layout.setItems(
+            identifiers,
+            estimatedGalleryExtraHeight: 125,
+            estimatedFooterHeight: 50
+        )
+        _ = layout.updateMeasuredHeights(measuredHeights)
+
+        var snapshot = NSDiffableDataSourceSnapshot<Int, WaterfallItemID>()
+        snapshot.appendSections([0])
+        snapshot.appendItems(identifiers)
+        dataSource.applySnapshotUsingReloadData(snapshot)
         prepare()
     }
 

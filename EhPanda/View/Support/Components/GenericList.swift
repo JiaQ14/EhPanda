@@ -230,6 +230,8 @@ private struct DetailList: View {
 
 // MARK: WaterfallList
 private struct WaterfallList: View {
+    @State private var refreshRevision = 0
+
     private let galleries: [Gallery]
     private let setting: Setting
     private let translationRevision: TagTranslator.RenderRevision?
@@ -283,12 +285,25 @@ private struct WaterfallList: View {
             pageNumber: pageNumber,
             loadingState: loadingState,
             footerLoadingState: footerLoadingState,
-            fetchAction: fetchAction,
+            refreshRevision: refreshRevision,
+            fetchAction: waterfallRefreshAction,
             fetchMoreAction: fetchMoreAction,
             navigateAction: navigateAction,
             translateAction: translateAction
         )
-        .ignoresSafeArea(.container, edges: .bottom)
+        .ignoresSafeArea(.container, edges: [.top, .bottom])
         .background(Color(uiColor: .systemGroupedBackground))
+    }
+
+    @MainActor
+    private func performRefresh() async {
+        guard let fetchAction else { return }
+        await GalleryListRefresh.perform(fetchAction)
+        refreshRevision &+= 1
+    }
+
+    private var waterfallRefreshAction: (() async -> Void)? {
+        guard fetchAction != nil else { return nil }
+        return { await performRefresh() }
     }
 }
