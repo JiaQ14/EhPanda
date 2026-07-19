@@ -8,6 +8,7 @@ import ComposableArchitecture
 
 struct DetailSearchView: View {
     @Bindable private var store: StoreOf<DetailSearchReducer>
+    @FocusState private var isSearchFocused: Bool
     private let keyword: String
     private let user: User
     @Binding private var setting: Setting
@@ -57,16 +58,13 @@ struct DetailSearchView: View {
                 .accentColor(setting.accentColor).autoBlur(radius: blurRadius)
         }
         .searchable(text: $store.keyword)
-        .searchSuggestions {
-            TagSuggestionView(
-                keyword: $store.keyword, translations: tagTranslator.translations,
-                showsImages: setting.showsImagesInTags,
-                isEnabled: setting.showsTagsSearchSuggestion,
-                style: .plain,
-                maximumCount: 5
-            )
-        }
-        .searchSuggestions(.visible, for: .content)
+        .searchFocused($isSearchFocused)
+        .tagSuggestionOverlay(
+            keyword: $store.keyword,
+            tagTranslator: tagTranslator,
+            setting: setting,
+            isPresented: isSearchFocused
+        )
         .onSubmit(of: .search) {
             store.send(.fetchGalleries())
         }

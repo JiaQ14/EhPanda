@@ -22,7 +22,12 @@ struct HistoryReducer {
 
         var filteredGalleries: [Gallery] {
             guard !keyword.isEmpty else { return galleries }
-            return galleries.filter({ $0.title.caseInsensitiveContains(keyword) })
+            return galleries.filter {
+                GalleryLocalSearchMatcher.matches(
+                    gallery: $0,
+                    query: keyword
+                )
+            }
         }
         var galleries = [Gallery]()
         var loadingState: LoadingState = .idle

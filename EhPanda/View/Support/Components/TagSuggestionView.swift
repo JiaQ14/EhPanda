@@ -6,99 +6,6 @@
 import SwiftUI
 import Kingfisher
 
-enum TagSuggestionStyle {
-    case list
-    case plain
-}
-
-struct TagSuggestionView: View {
-    @Binding private var keyword: String
-    private let translations: [String: TagTranslation]
-    private let showsImages: Bool
-    private let isEnabled: Bool
-    private let style: TagSuggestionStyle
-    private let maximumCount: Int?
-
-    @StateObject private var translationHandler = TagTranslationHandler()
-
-    init(
-        keyword: Binding<String>,
-        translations: [String: TagTranslation],
-        showsImages: Bool,
-        isEnabled: Bool,
-        style: TagSuggestionStyle = .list,
-        maximumCount: Int? = nil
-    ) {
-        _keyword = keyword
-        self.translations = translations
-        self.showsImages = showsImages
-        self.isEnabled = isEnabled
-        self.style = style
-        self.maximumCount = maximumCount
-    }
-
-    var body: some View {
-        if isEnabled {
-            Group {
-                switch style {
-                case .list:
-                    listSuggestions
-                case .plain:
-                    plainSuggestions
-                }
-            }
-            .onAppear(perform: analyze)
-            .onChange(of: keyword) {
-                analyze()
-            }
-        }
-    }
-
-    @ViewBuilder private var listSuggestions: some View {
-        if DeviceUtil.isPhone {
-            Text(L10n.Localizable.Searchable.Title.matchesCount(translationHandler.suggestions.count))
-                .foregroundColor(.secondary)
-                .font(.subheadline)
-        }
-
-        let suggestions = translationHandler.suggestions
-        ForEach(suggestions.prefix(min(suggestions.count, 10))) { suggestion in
-            SuggestionCell(
-                suggestion: suggestion,
-                showsImages: showsImages,
-                action: { complete(suggestion) }
-            )
-        }
-    }
-
-    @ViewBuilder private var plainSuggestions: some View {
-        ForEach(translationHandler.suggestions) { suggestion in
-            PlainSuggestionCell(
-                suggestion: suggestion,
-                showsImages: showsImages,
-                action: { complete(suggestion) }
-            )
-            .listRowSeparator(.hidden)
-            .listSectionSeparator(.hidden)
-        }
-    }
-
-    private func analyze() {
-        translationHandler.analyze(
-            text: &keyword,
-            translations: translations,
-            maximumCount: maximumCount
-        )
-    }
-
-    private func complete(_ suggestion: TagSuggestion) {
-        translationHandler.autoComplete(
-            suggestion: suggestion,
-            keyword: &keyword
-        )
-    }
-}
-
 // MARK: TagSuggestionOverlay
 struct TagSuggestionOverlay: View {
     @Binding private var keyword: String
@@ -183,62 +90,22 @@ struct TagSuggestionOverlay: View {
     }
 }
 
-// MARK: SuggestionCell
-private struct SuggestionCell: View {
-    private let suggestion: TagSuggestion
-    private let showsImages: Bool
-    private let action: () -> Void
-
-    init(suggestion: TagSuggestion, showsImages: Bool, action: @escaping () -> Void) {
-        self.suggestion = suggestion
-        self.showsImages = showsImages
-        self.action = action
-    }
-
-    private var displayValue: String {
-        let value = suggestion.displayValue
-        return showsImages ? value : value.emojisRipped
-    }
-
-    var body: some View {
-        if DeviceUtil.isPhone {
-            HStack(spacing: 20) {
-                Image(systemSymbol: .magnifyingglass)
-
-                VStack(alignment: .leading) {
-                    HStack(spacing: 2) {
-                        Text(displayValue.localizedKey)
-
-                        if let imageURL = suggestion.tag.valueImageURL, showsImages {
-                            Image(systemSymbol: .photo)
-                                .opacity(0)
-                                .overlay(
-                                    KFImage(imageURL)
-                                        .resizable()
-                                        .scaledToFit()
-                                )
-                        }
-                    }
-                    .font(.callout)
-                    .lineLimit(1)
-
-                    Text(suggestion.displayKey.localizedKey)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-                .allowsHitTesting(false)
-
-                Spacer()
-            }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: action)
-        } else {
-            VStack(alignment: .leading) {
-                Text(displayValue.localizedKey)
-                Text(suggestion.displayKey.localizedKey)
-            }
-            .searchCompletion(suggestion.tag.searchKeyword)
+extension View {
+    func tagSuggestionOverlay(
+        keyword: Binding<String>,
+        tagTranslator: TagTranslator,
+        setting: Setting,
+        isPresented: Bool
+    ) -> some View {
+        overlay {
+            TagSuggestionOverlay(
+                keyword: keyword,
+                translations: tagTranslator.translations,
+                showsImages: setting.showsImagesInTags,
+                isEnabled: setting.showsTagsSearchSuggestion,
+                isPresented: isPresented,
+                maximumCount: 5
+            )
         }
     }
 }
@@ -467,5 +334,64 @@ enum TagSuggestionEngine {
         return lhs.tag.searchKeyword.localizedStandardCompare(
             rhs.tag.searchKeyword
         ) == .orderedAscending
+    }
+}
+
+enum GalleryLocalSearchMatcher {
+    static func matches(
+        gallery: Gallery,
+        query: String,
+        additionalText: [String] = []
+    ) -> Bool {
+        let normalizedQuery = TagSuggestionEngine.normalizedText(query)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty else { return true }
+
+        let textValues = additionalText
+            + [gallery.title, gallery.uploader].compactMap { $0 }
+        let tagKeywords = tagSearchKeywords(for: gallery)
+        return tokens(in: normalizedQuery).allSatisfy { token in
+            if isCompletedTag(token) {
+                return tagKeywords.contains(token.lowercased())
+            }
+
+            let text = token.trimmingCharacters(
+                in: CharacterSet(charactersIn: "\"")
+            )
+            return textValues.contains {
+                $0.localizedCaseInsensitiveContains(text)
+            }
+        }
+    }
+
+    static func tokens(in query: String) -> [String] {
+        guard let regex = Defaults.Regex.tagSuggestion else { return [] }
+        let range = NSRange(query.startIndex..<query.endIndex, in: query)
+        return regex.matches(in: query, range: range).compactMap {
+            Range($0.range, in: query).map { String(query[$0]) }
+        }
+    }
+
+    private static func isCompletedTag(_ token: String) -> Bool {
+        token.hasSuffix("$") || token.hasSuffix("$\"")
+    }
+
+    private static func tagSearchKeywords(for gallery: Gallery) -> Set<String> {
+        Set(gallery.tags.flatMap { tag in
+            tag.contents.flatMap { content -> [String] in
+                let value = content.text.contains(" ")
+                    ? "\"\(content.text)$\""
+                    : "\(content.text)$"
+                var namespaces = [tag.rawNamespace]
+                if let abbreviation = tag.namespace?.abbreviation {
+                    namespaces.append(abbreviation)
+                }
+                var keywords = namespaces.map { "\($0):\(value)" }
+                if tag.namespace == .temp {
+                    keywords.append(value)
+                }
+                return keywords.map { $0.lowercased() }
+            }
+        })
     }
 }

@@ -8,6 +8,7 @@ import ComposableArchitecture
 
 struct WatchedView: View {
     @Bindable private var store: StoreOf<WatchedReducer>
+    @FocusState private var isSearchFocused: Bool
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -61,12 +62,13 @@ struct WatchedView: View {
                 .autoBlur(radius: blurRadius).environment(\.inSheet, true)
         }
         .searchable(text: $store.keyword)
-        .searchSuggestions {
-            TagSuggestionView(
-                keyword: $store.keyword, translations: tagTranslator.translations,
-                showsImages: setting.showsImagesInTags, isEnabled: setting.showsTagsSearchSuggestion
-            )
-        }
+        .searchFocused($isSearchFocused)
+        .tagSuggestionOverlay(
+            keyword: $store.keyword,
+            tagTranslator: tagTranslator,
+            setting: setting,
+            isPresented: isSearchFocused
+        )
         .onSubmit(of: .search) {
             store.send(.fetchGalleries())
         }

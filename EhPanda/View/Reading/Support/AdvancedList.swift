@@ -34,6 +34,26 @@ enum ReadingPageIndexMapper {
     }
 }
 
+struct ReadingImageLoadRequestGate {
+    private(set) var activeRequestID: UUID?
+
+    mutating func begin() -> UUID {
+        let requestID = UUID()
+        activeRequestID = requestID
+        return requestID
+    }
+
+    mutating func cancel() {
+        activeRequestID = nil
+    }
+
+    mutating func complete(_ requestID: UUID) -> Bool {
+        guard activeRequestID == requestID else { return false }
+        activeRequestID = nil
+        return true
+    }
+}
+
 struct ReadingCollectionView: UIViewRepresentable {
     @Binding var pageIndex: Int
 
@@ -809,6 +829,7 @@ private final class ReadingImageSlotView: UIView {
     private var imageAnalysisTask: Task<Void, Never>?
     private var analyzedURL: URL?
     private var representedURL: URL?
+    private var imageLoadRequestGate = ReadingImageLoadRequestGate()
     private var model: ReadingImageModel?
     private var targetPixelSize = CGSize.zero
     private var retryHandler: (() -> Void)?
@@ -965,6 +986,7 @@ private final class ReadingImageSlotView: UIView {
     }
 
     func cancelImageLoading() {
+        imageLoadRequestGate.cancel()
         imageView.kf.cancelDownloadTask()
     }
 
@@ -1000,6 +1022,7 @@ private final class ReadingImageSlotView: UIView {
         representedURL = imageURL
         imageView.image = nil
         showLoading(usesProgress: true)
+        let requestID = imageLoadRequestGate.begin()
 
         var options: KingfisherOptionsInfo = [
             .backgroundDecode
@@ -1025,7 +1048,10 @@ private final class ReadingImageSlotView: UIView {
                 self?.progressView.progress = Float(received) / Float(total)
             },
             completionHandler: { [weak self] result in
-                guard let self, representedURL == imageURL else { return }
+                guard let self,
+                      representedURL == imageURL,
+                      imageLoadRequestGate.complete(requestID)
+                else { return }
                 switch result {
                 case .success(let value):
                     showImage()

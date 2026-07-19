@@ -9,6 +9,7 @@ import ComposableArchitecture
 
 struct FrontpageView: View {
     @Bindable private var store: StoreOf<FrontpageReducer>
+    @FocusState private var isSearchFocused: Bool
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -46,6 +47,13 @@ struct FrontpageView: View {
                 .autoBlur(radius: blurRadius).environment(\.inSheet, true)
         }
         .searchable(text: $store.keyword, prompt: L10n.Localizable.Searchable.Prompt.filter)
+        .searchFocused($isSearchFocused)
+        .tagSuggestionOverlay(
+            keyword: $store.keyword,
+            tagTranslator: tagTranslator,
+            setting: setting,
+            isPresented: isSearchFocused
+        )
         .onAppear {
             if store.galleries.isEmpty {
                 DispatchQueue.main.async {

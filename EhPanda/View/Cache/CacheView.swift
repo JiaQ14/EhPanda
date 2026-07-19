@@ -119,16 +119,12 @@ struct CacheView: View {
             prompt: L10n.Localizable.CacheView.Search.Prompt.cache
         )
         .searchFocused($isSearchFocused)
-        .overlay {
-            TagSuggestionOverlay(
-                keyword: $store.searchText,
-                translations: tagTranslator.translations,
-                showsImages: setting.showsImagesInTags,
-                isEnabled: setting.showsTagsSearchSuggestion,
-                isPresented: isSearchFocused,
-                maximumCount: 5
-            )
-        }
+        .tagSuggestionOverlay(
+            keyword: $store.searchText,
+            tagTranslator: tagTranslator,
+            setting: setting,
+            isPresented: isSearchFocused
+        )
         .toolbar { toolbarContent }
         .confirmationDialog(
             L10n.Localizable.CacheView.Confirmation.DeleteAll.title,
@@ -336,65 +332,6 @@ struct CacheView: View {
             }
             .accessibilityLabel(L10n.Localizable.CacheView.Button.more)
         }
-    }
-}
-
-enum GalleryLocalSearchMatcher {
-    static func matches(
-        gallery: Gallery,
-        query: String,
-        additionalText: [String]
-    ) -> Bool {
-        let normalizedQuery = TagSuggestionEngine.normalizedText(query)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedQuery.isEmpty else { return true }
-
-        let textValues = additionalText
-            + [gallery.title, gallery.uploader].compactMap { $0 }
-        let tagKeywords = tagSearchKeywords(for: gallery)
-        return tokens(in: normalizedQuery).allSatisfy { token in
-            if isCompletedTag(token) {
-                return tagKeywords.contains(token.lowercased())
-            }
-
-            let text = token.trimmingCharacters(
-                in: CharacterSet(charactersIn: "\"")
-            )
-            return textValues.contains {
-                $0.localizedCaseInsensitiveContains(text)
-            }
-        }
-    }
-
-    static func tokens(in query: String) -> [String] {
-        guard let regex = Defaults.Regex.tagSuggestion else { return [] }
-        let range = NSRange(query.startIndex..<query.endIndex, in: query)
-        return regex.matches(in: query, range: range).compactMap {
-            Range($0.range, in: query).map { String(query[$0]) }
-        }
-    }
-
-    private static func isCompletedTag(_ token: String) -> Bool {
-        token.hasSuffix("$") || token.hasSuffix("$\"")
-    }
-
-    private static func tagSearchKeywords(for gallery: Gallery) -> Set<String> {
-        Set(gallery.tags.flatMap { tag in
-            tag.contents.flatMap { content -> [String] in
-                let value = content.text.contains(" ")
-                    ? "\"\(content.text)$\""
-                    : "\(content.text)$"
-                var namespaces = [tag.rawNamespace]
-                if let abbreviation = tag.namespace?.abbreviation {
-                    namespaces.append(abbreviation)
-                }
-                var keywords = namespaces.map { "\($0):\(value)" }
-                if tag.namespace == .temp {
-                    keywords.append(value)
-                }
-                return keywords.map { $0.lowercased() }
-            }
-        })
     }
 }
 

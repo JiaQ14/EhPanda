@@ -2352,6 +2352,19 @@ private actor GalleryCacheManager {
     }
 }
 
+struct GalleryCacheActivityUnitProgress: Equatable {
+    let completedUnitCount: Int64
+    let totalUnitCount: Int64
+
+    init(cachedPageCount: Int, totalPageCount: Int) {
+        totalUnitCount = Int64(max(totalPageCount, 0))
+        completedUnitCount = min(
+            totalUnitCount,
+            Int64(max(cachedPageCount, 0))
+        )
+    }
+}
+
 private actor GalleryCacheBackgroundTaskCoordinator {
     static let shared = GalleryCacheBackgroundTaskCoordinator()
 
@@ -2368,16 +2381,12 @@ private actor GalleryCacheBackgroundTaskCoordinator {
             status = item.status
             completedPageCount = item.cachedPageCount
             totalPageCount = item.pageCount
-            let validIndices = Set(1...item.pageCount)
-            let resolvedIndices = Set(item.remoteImageURLs.keys)
-                .union(item.originalImageURLs.keys)
-                .union(item.pageFiles.keys)
-                .intersection(validIndices)
-            totalUnitCount = Int64(item.pageCount) * 2
-            completedUnitCount = min(
-                totalUnitCount,
-                Int64(resolvedIndices.count + item.cachedPageCount)
+            let unitProgress = GalleryCacheActivityUnitProgress(
+                cachedPageCount: completedPageCount,
+                totalPageCount: totalPageCount
             )
+            completedUnitCount = unitProgress.completedUnitCount
+            totalUnitCount = unitProgress.totalUnitCount
         }
 
         var subtitle: String {

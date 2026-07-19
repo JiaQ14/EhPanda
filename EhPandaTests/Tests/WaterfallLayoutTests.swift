@@ -1179,6 +1179,29 @@ final class ReadingPageIndexMapperTests: XCTestCase {
     }
 }
 
+final class ReadingImageLoadRequestGateTests: XCTestCase {
+    func testCancelledRequestCannotReportACompletion() {
+        var gate = ReadingImageLoadRequestGate()
+        let requestID = gate.begin()
+
+        gate.cancel()
+
+        XCTAssertFalse(gate.complete(requestID))
+        XCTAssertNil(gate.activeRequestID)
+    }
+
+    func testStaleCompletionCannotClearTheCurrentRequest() {
+        var gate = ReadingImageLoadRequestGate()
+        let staleRequestID = gate.begin()
+        let currentRequestID = gate.begin()
+
+        XCTAssertFalse(gate.complete(staleRequestID))
+        XCTAssertEqual(gate.activeRequestID, currentRequestID)
+        XCTAssertTrue(gate.complete(currentRequestID))
+        XCTAssertNil(gate.activeRequestID)
+    }
+}
+
 final class ReadingReloadStateTests: XCTestCase {
     func testReloadClearsRemoteLoadingStateAndKeepsLocalPages() {
         let localURL = URL(fileURLWithPath: "/tmp/ehpanda-reader-page")
@@ -1344,6 +1367,32 @@ final class GalleryLocalSearchMatcherTests: XCTestCase {
                 additionalText: ["Panda collection"]
             )
         )
+    }
+}
+
+final class GalleryCacheActivityUnitProgressTests: XCTestCase {
+    func testResolvedURLsDoNotAdvanceDownloadProgress() {
+        let progress = GalleryCacheActivityUnitProgress(
+            cachedPageCount: 0,
+            totalPageCount: 100
+        )
+
+        XCTAssertEqual(progress.completedUnitCount, 0)
+        XCTAssertEqual(progress.totalUnitCount, 100)
+    }
+
+    func testProgressTracksDownloadedPagesAndClampsToTotal() {
+        let partialProgress = GalleryCacheActivityUnitProgress(
+            cachedPageCount: 42,
+            totalPageCount: 100
+        )
+        let completedProgress = GalleryCacheActivityUnitProgress(
+            cachedPageCount: 101,
+            totalPageCount: 100
+        )
+
+        XCTAssertEqual(partialProgress.completedUnitCount, 42)
+        XCTAssertEqual(completedProgress.completedUnitCount, 100)
     }
 }
 

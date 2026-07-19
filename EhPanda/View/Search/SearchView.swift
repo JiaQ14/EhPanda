@@ -59,15 +59,12 @@ struct SearchView: View {
         }
         .searchable(text: $store.keyword)
         .searchFocused($isSearchFocused)
-        .overlay {
-            TagSuggestionOverlay(
-                keyword: $store.keyword, translations: tagTranslator.translations,
-                showsImages: setting.showsImagesInTags,
-                isEnabled: setting.showsTagsSearchSuggestion,
-                isPresented: isSearchFocused,
-                maximumCount: 5
-            )
-        }
+        .tagSuggestionOverlay(
+            keyword: $store.keyword,
+            tagTranslator: tagTranslator,
+            setting: setting,
+            isPresented: isSearchFocused
+        )
         .onSubmit(of: .search) {
             store.send(.fetchGalleries())
         }
