@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		C0DE10000000000000000010 /* WaterfallCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000010 /* WaterfallCollectionView.swift */; };
 		C0DE10000000000000000011 /* WaterfallLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000011 /* WaterfallLayoutTests.swift */; };
+		EAF002022F00000100000001 /* ReaderImageProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF002012F00000100000001 /* ReaderImageProcessorTests.swift */; };
 		CACE10000000000000000001 /* GalleryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000001 /* GalleryCache.swift */; };
 		CACE10000000000000000002 /* CacheClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000002 /* CacheClient.swift */; };
 		CACE10000000000000000003 /* CacheReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACE00000000000000000003 /* CacheReducer.swift */; };
@@ -118,6 +119,7 @@
 		AB63EADD2699AC9100090535 /* AppEnvMO+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB63EADC2699AC9100090535 /* AppEnvMO+CoreDataClass.swift */; };
 		AB69CB8026B3DABC00699359 /* AdvancedList.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB69CB7F26B3DABC00699359 /* AdvancedList.swift */; };
 		AB69CB8226B3DAF400699359 /* ControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB69CB8126B3DAF400699359 /* ControlPanel.swift */; };
+		EAF001022F00000100000001 /* ReaderImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF001012F00000100000001 /* ReaderImageProcessor.swift */; };
 		AB6DE897268822390087C579 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB6DE896268822390087C579 /* LogsView.swift */; };
 		AB706F7927890A6C0025A48A /* AppRouteReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB706F7827890A6C0025A48A /* AppRouteReducer.swift */; };
 		AB706F7B278937500025A48A /* FrontpageReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB706F7A278937500025A48A /* FrontpageReducer.swift */; };
@@ -427,6 +429,7 @@
 		AB63EADC2699AC9100090535 /* AppEnvMO+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppEnvMO+CoreDataClass.swift"; sourceTree = "<group>"; };
 		AB69CB7F26B3DABC00699359 /* AdvancedList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedList.swift; sourceTree = "<group>"; };
 		AB69CB8126B3DAF400699359 /* ControlPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanel.swift; sourceTree = "<group>"; };
+		EAF001012F00000100000001 /* ReaderImageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderImageProcessor.swift; sourceTree = "<group>"; };
 		AB6DE896268822390087C579 /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
 		AB706F7827890A6C0025A48A /* AppRouteReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteReducer.swift; sourceTree = "<group>"; };
 		AB706F7A278937500025A48A /* FrontpageReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontpageReducer.swift; sourceTree = "<group>"; };
@@ -454,6 +457,7 @@
 		AB7B29F526AC741600EE1F14 /* GenericList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericList.swift; sourceTree = "<group>"; };
 		C0DE00000000000000000010 /* WaterfallCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallCollectionView.swift; sourceTree = "<group>"; };
 		C0DE00000000000000000011 /* WaterfallLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallLayoutTests.swift; sourceTree = "<group>"; };
+		EAF002012F00000100000001 /* ReaderImageProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderImageProcessorTests.swift; sourceTree = "<group>"; };
 		AB7BF2A827A63C89001865A3 /* Language.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Language.swift; sourceTree = "<group>"; };
 		AB7BF2AA27A642FB001865A3 /* BrowsingCountry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingCountry.swift; sourceTree = "<group>"; };
 		AB7BF2B627A9652F001865A3 /* Greeting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Greeting.swift; sourceTree = "<group>"; };
@@ -729,6 +733,7 @@
 				EA5AA4A62EA9149E00BC2B5C /* PageHandler.swift */,
 				AB69CB8126B3DAF400699359 /* ControlPanel.swift */,
 				AB69CB7F26B3DABC00699359 /* AdvancedList.swift */,
+				EAF001012F00000100000001 /* ReaderImageProcessor.swift */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -1109,6 +1114,7 @@
 		ABA12F2E27D49AD10021922D /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				EAF002012F00000100000001 /* ReaderImageProcessorTests.swift */,
 				C0DE00000000000000000011 /* WaterfallLayoutTests.swift */,
 				ABD9770C27B65A5300983DE7 /* Parser */,
 			);
@@ -1899,6 +1905,7 @@
 				ABE1867826A1733000689FDC /* LaboratorySettingView.swift in Sources */,
 				ABF45AEB25F3313D00ECB568 /* GalleryDetailCell.swift in Sources */,
 				AB69CB8026B3DABC00699359 /* AdvancedList.swift in Sources */,
+				EAF001022F00000100000001 /* ReaderImageProcessor.swift in Sources */,
 				ABC3C7892593699B00E0C11B /* Defaults.swift in Sources */,
 				AB8C821926BF801700E8C5E6 /* EhSetting.swift in Sources */,
 				AB86AC1327856F2700E61E6A /* AppLockReducer.swift in Sources */,
@@ -2028,6 +2035,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EAF002022F00000100000001 /* ReaderImageProcessorTests.swift in Sources */,
 				C0DE10000000000000000011 /* WaterfallLayoutTests.swift in Sources */,
 				AB31CD3D27B66F7D00F40E0A /* GalleryImageURLParserTests.swift in Sources */,
 				AB0CFB8227BBBFCE004BD372 /* EhSettingParserTests.swift in Sources */,

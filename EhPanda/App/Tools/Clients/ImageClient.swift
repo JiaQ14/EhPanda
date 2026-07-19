@@ -11,9 +11,8 @@ import ComposableArchitecture
 
 struct ImageClient {
     let prefetchImages: ([URL]) -> Void
-    let saveImageToPhotoLibrary: (UIImage, Bool) async -> Bool
+    let saveImageToPhotoLibrary: (UIImage) async -> Bool
     let downloadImage: (URL) async -> Result<UIImage, Error>
-    let retrieveImage: (String) async -> Result<UIImage, Error>
 }
 
 extension ImageClient {
@@ -28,12 +27,22 @@ extension ImageClient {
                 ImagePrefetcher(urls: localURLs, options: [.cacheMemoryOnly]).start()
             }
         },
-        saveImageToPhotoLibrary: { (image, isAnimated) in
+        saveImageToPhotoLibrary: { image in
             await withCheckedContinuation { continuation in
-                if let data = image.kf.data(format: isAnimated ? .GIF : .unknown) {
+                let animatedImage = ReaderAnimatedImageData(image: image)
+                let data = animatedImage?.data
+                    ?? image.kf.data(format: .unknown)
+                if let data {
                     PHPhotoLibrary.shared().performChanges {
                         let request = PHAssetCreationRequest.forAsset()
-                        request.addResource(with: .photo, data: data, options: nil)
+                        let options = PHAssetResourceCreationOptions()
+                        options.uniformTypeIdentifier =
+                            animatedImage?.format.typeIdentifier
+                        request.addResource(
+                            with: .photo,
+                            data: data,
+                            options: options
+                        )
                     } completionHandler: { (isSuccess, _) in
                         continuation.resume(returning: isSuccess)
                     }
@@ -44,26 +53,19 @@ extension ImageClient {
         },
         downloadImage: { url in
             await withCheckedContinuation { continuation in
-                KingfisherManager.shared.downloader.downloadImage(with: url, options: nil) { result in
+                KingfisherManager.shared.retrieveImage(
+                    with: url,
+                    options: [
+                        .processor(
+                            ReaderImageProcessor(targetPixelSize: .zero)
+                        ),
+                        .cacheSerializer(ReaderImageCacheSerializer()),
+                        .cacheOriginalImage
+                    ]
+                ) { result in
                     switch result {
                     case .success(let result):
                         continuation.resume(returning: .success(result.image))
-                    case .failure(let error):
-                        continuation.resume(returning: .failure(error))
-                    }
-                }
-            }
-        },
-        retrieveImage: { key in
-            await withCheckedContinuation { continuation in
-                KingfisherManager.shared.cache.retrieveImage(forKey: key) { result in
-                    switch result {
-                    case .success(let result):
-                        if let image = result.image {
-                            continuation.resume(returning: .success(image))
-                        } else {
-                            continuation.resume(returning: .failure(AppError.notFound))
-                        }
                     case .failure(let error):
                         continuation.resume(returning: .failure(error))
                     }
@@ -75,11 +77,13 @@ extension ImageClient {
     func fetchImage(url: URL) async -> Result<UIImage, Error> {
         if url.isFileURL {
             guard let data = try? Data(contentsOf: url),
-                  let image = UIImage(data: data)
+                  let image = ReaderImageProcessor(targetPixelSize: .zero)
+                    .process(
+                        item: .data(data),
+                        options: .init(nil)
+                    )
             else { return .failure(AppError.notFound) }
             return .success(image)
-        } else if KingfisherManager.shared.cache.isCached(forKey: url.absoluteString) {
-            return await retrieveImage(url.absoluteString)
         } else {
             return await downloadImage(url)
         }
@@ -121,9 +125,8 @@ extension DependencyValues {
 extension ImageClient {
     static let noop: Self = .init(
         prefetchImages: { _ in },
-        saveImageToPhotoLibrary: { _, _ in false },
-        downloadImage: { _ in .success(UIImage()) },
-        retrieveImage: { _ in .success(UIImage()) }
+        saveImageToPhotoLibrary: { _ in false },
+        downloadImage: { _ in .success(UIImage()) }
     )
 
     static func placeholder<Result>() -> Result { fatalError() }
@@ -131,7 +134,6 @@ extension ImageClient {
     static let unimplemented: Self = .init(
         prefetchImages: IssueReporting.unimplemented(placeholder: placeholder()),
         saveImageToPhotoLibrary: IssueReporting.unimplemented(placeholder: placeholder()),
-        downloadImage: IssueReporting.unimplemented(placeholder: placeholder()),
-        retrieveImage: IssueReporting.unimplemented(placeholder: placeholder())
+        downloadImage: IssueReporting.unimplemented(placeholder: placeholder())
     )
 }

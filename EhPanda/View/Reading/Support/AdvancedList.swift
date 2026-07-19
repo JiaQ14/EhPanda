@@ -1024,7 +1024,10 @@ private final class ReadingImageSlotView: UIView {
         showLoading(usesProgress: true)
         let requestID = imageLoadRequestGate.begin()
 
+        let processor = ReaderImageProcessor(targetPixelSize: targetPixelSize)
         var options: KingfisherOptionsInfo = [
+            .processor(processor),
+            .cacheSerializer(ReaderImageCacheSerializer()),
             .backgroundDecode
         ]
         if imageURL.isFileURL {
@@ -1032,14 +1035,6 @@ private final class ReadingImageSlotView: UIView {
         } else {
             options.append(.cacheOriginalImage)
         }
-        if !imageURL.isGIF {
-            options.append(
-                .processor(
-                    DownsamplingImageProcessor(size: targetPixelSize)
-                )
-            )
-        }
-
         imageView.kf.setImage(
             with: imageURL,
             options: options,

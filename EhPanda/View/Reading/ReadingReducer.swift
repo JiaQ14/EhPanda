@@ -39,9 +39,9 @@ struct ReadingReducer {
     }
 
     enum ImageAction {
-        case copy(Bool)
-        case save(Bool)
-        case share(Bool)
+        case copy
+        case save
+        case share
     }
 
     private enum CancelID: CaseIterable {
@@ -345,17 +345,17 @@ struct ReadingReducer {
                 return .merge(effects)
 
             case .copyImage(let imageURL):
-                return .send(.fetchImage(.copy(imageURL.isGIF), imageURL))
+                return .send(.fetchImage(.copy, imageURL))
 
             case .saveImage(let imageURL):
-                return .send(.fetchImage(.save(imageURL.isGIF), imageURL))
+                return .send(.fetchImage(.save, imageURL))
 
             case .saveImageDone(let isSucceeded):
                 state.hudConfig = isSucceeded ? .savedToPhotoLibrary : .error
                 return .send(.setNavigation(.hud))
 
             case .shareImage(let imageURL):
-                return .send(.fetchImage(.share(imageURL.isGIF), imageURL))
+                return .send(.fetchImage(.share, imageURL))
 
             case .fetchImage(let action, let imageURL):
                 return .run { send in
@@ -367,22 +367,27 @@ struct ReadingReducer {
             case .fetchImageDone(let action, let result):
                 if case .success(let image) = result {
                     switch action {
-                    case .copy(let isAnimated):
+                    case .copy:
                         state.hudConfig = .copiedToClipboardSucceeded
                         return .merge(
                             .send(.setNavigation(.hud)),
-                            .run(operation: { _ in clipboardClient.saveImage(image, isAnimated) })
+                            .run(operation: { _ in clipboardClient.saveImage(image) })
                         )
-                    case .save(let isAnimated):
+                    case .save:
                         return .run { send in
-                            let success = await imageClient.saveImageToPhotoLibrary(image, isAnimated)
+                            let success = await imageClient
+                                .saveImageToPhotoLibrary(image)
                             await send(.saveImageDone(success))
                         }
-                    case .share(let isAnimated):
-                        if isAnimated, let data = image.kf.data(format: .GIF) {
-                            return .send(.setNavigation(.share(.init(value: .data(data)))))
+                    case .share:
+                        if let data = ReaderAnimatedImageData(image: image)?.data {
+                            return .send(
+                                .setNavigation(.share(.init(value: .data(data))))
+                            )
                         } else {
-                            return .send(.setNavigation(.share(.init(value: .image(image)))))
+                            return .send(
+                                .setNavigation(.share(.init(value: .image(image))))
+                            )
                         }
                     }
                 } else {

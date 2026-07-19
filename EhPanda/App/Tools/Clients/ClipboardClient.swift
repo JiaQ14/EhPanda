@@ -5,13 +5,12 @@
 
 import SwiftUI
 import ComposableArchitecture
-import UniformTypeIdentifiers
 
 struct ClipboardClient {
     let url: () -> URL?
     let changeCount: () -> Int
     let saveText: (String) -> Void
-    let saveImage: (UIImage, Bool) -> Void
+    let saveImage: (UIImage) -> Void
 }
 
 extension ClipboardClient {
@@ -29,12 +28,13 @@ extension ClipboardClient {
         saveText: { text in
             UIPasteboard.general.string = text
         },
-        saveImage: { (image, isAnimated) in
-            if isAnimated {
+        saveImage: { image in
+            if let animatedImage = ReaderAnimatedImageData(image: image) {
                 DispatchQueue.global(qos: .utility).async {
-                    if let data = image.kf.data(format: .GIF) {
-                        UIPasteboard.general.setData(data, forPasteboardType: UTType.gif.identifier)
-                    }
+                    UIPasteboard.general.setData(
+                        animatedImage.data,
+                        forPasteboardType: animatedImage.format.typeIdentifier
+                    )
                 }
             } else {
                 UIPasteboard.general.image = image
@@ -63,7 +63,7 @@ extension ClipboardClient {
         url: { nil },
         changeCount: { 0 },
         saveText: { _ in },
-        saveImage: { _, _ in }
+        saveImage: { _ in }
     )
 
     static func placeholder<Result>() -> Result { fatalError() }
