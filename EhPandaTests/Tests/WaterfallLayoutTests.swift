@@ -1507,3 +1507,237 @@ final class NavigationLayoutSettingTests: XCTestCase {
         XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache])
     }
 }
+
+final class GalleryCacheLibraryIndexTests: XCTestCase {
+    private var temporaryDirectoryURL: URL!
+
+    override func setUpWithError() throws {
+        temporaryDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectoryURL,
+            withIntermediateDirectories: true
+        )
+    }
+
+    override func tearDownWithError() throws {
+        if let temporaryDirectoryURL {
+            try? FileManager.default.removeItem(at: temporaryDirectoryURL)
+        }
+    }
+
+    func testLibraryIndexRoundTripsCacheItems() throws {
+        let fingerprint = GalleryCacheDirectoryFingerprint(
+            creationDate: Date(timeIntervalSince1970: 100.123_456),
+            modificationDate: Date(timeIntervalSince1970: 200.654_321),
+            manifest: .init(
+                modificationDate: Date(timeIntervalSince1970: 300.456_789),
+                byteCount: 512
+            ),
+            jHenTaiMetadata: nil
+        )
+        let entry = GalleryCacheLibraryIndex.DirectoryEntry(
+            fingerprint: fingerprint,
+            item: makeCacheItem()
+        )
+        let index = GalleryCacheLibraryIndex(
+            directories: [entry.item.folderName: entry]
+        )
+        let store = GalleryCacheLibraryIndexStore(
+            fileURL: temporaryDirectoryURL.appendingPathComponent("index.json"),
+            maximumByteCount: 1_000_000
+        )
+
+        try store.save(index)
+
+        XCTAssertEqual(store.load(), index)
+    }
+
+    func testLibraryIndexRejectsCorruptData() throws {
+        let fileURL = temporaryDirectoryURL.appendingPathComponent("index.json")
+        try Data("not-json".utf8).write(to: fileURL)
+        let store = GalleryCacheLibraryIndexStore(
+            fileURL: fileURL,
+            maximumByteCount: 1_000_000
+        )
+
+        XCTAssertNil(store.load())
+    }
+
+    func testDirectoryFingerprintChangesAfterManualPageAddition() throws {
+        let directoryURL = temporaryDirectoryURL.appendingPathComponent(
+            "123456 - Gallery",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: false
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_000)],
+            ofItemAtPath: directoryURL.path
+        )
+        let before = try XCTUnwrap(
+            GalleryCacheDirectoryFingerprint.capture(at: directoryURL)
+        )
+
+        try Data([0x01]).write(to: directoryURL.appendingPathComponent("001.jpg"))
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 2_000)],
+            ofItemAtPath: directoryURL.path
+        )
+        let after = try XCTUnwrap(
+            GalleryCacheDirectoryFingerprint.capture(at: directoryURL)
+        )
+
+        XCTAssertNotEqual(after, before)
+    }
+
+    func testDirectoryFingerprintTracksManifestReplacement() throws {
+        let directoryURL = temporaryDirectoryURL.appendingPathComponent(
+            "123456 - Gallery",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: false
+        )
+        let manifestURL = directoryURL.appendingPathComponent(
+            GalleryCacheItem.manifestFileName
+        )
+        try Data([0x01]).write(to: manifestURL)
+        let before = try XCTUnwrap(
+            GalleryCacheDirectoryFingerprint.capture(at: directoryURL)
+        )
+
+        try Data([0x01, 0x02]).write(to: manifestURL, options: .atomic)
+        let after = try XCTUnwrap(
+            GalleryCacheDirectoryFingerprint.capture(at: directoryURL)
+        )
+
+        XCTAssertNotEqual(after.manifest, before.manifest)
+    }
+
+    func testRefreshReconcilesManuallyAddedAndDeletedPages() async throws {
+        let rootURL = try XCTUnwrap(FileUtil.prepareGalleryCachesDirectoryURL())
+        let gid = String(Int.random(in: 900_000_000...999_999_999))
+        let folderName = "\(gid) - Integration Test \(UUID().uuidString)"
+        let directoryURL = rootURL.appendingPathComponent(folderName, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        try Data([0x01]).write(to: directoryURL.appendingPathComponent("001.jpg"))
+        let item = makeCacheItem(gid: gid, folderName: folderName)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(item).write(
+            to: directoryURL.appendingPathComponent(GalleryCacheItem.manifestFileName),
+            options: .atomic
+        )
+
+        await CacheClient.live.refresh()
+        let initialItem = await CacheClient.live.item(gid)
+        var refreshedItem = try XCTUnwrap(initialItem)
+        XCTAssertEqual(refreshedItem.cachedPageCount, 1)
+        XCTAssertEqual(refreshedItem.status, .paused)
+
+        try Data([0x02]).write(to: directoryURL.appendingPathComponent("002.jpg"))
+        await CacheClient.live.refresh()
+        let addedPageItem = await CacheClient.live.item(gid)
+        refreshedItem = try XCTUnwrap(addedPageItem)
+        XCTAssertEqual(refreshedItem.cachedPageCount, 2)
+        XCTAssertEqual(refreshedItem.status, .completed)
+
+        try FileManager.default.removeItem(
+            at: directoryURL.appendingPathComponent("001.jpg")
+        )
+        await CacheClient.live.refresh()
+        let deletedPageItem = await CacheClient.live.item(gid)
+        refreshedItem = try XCTUnwrap(deletedPageItem)
+        XCTAssertEqual(refreshedItem.pageFiles, [2: "002.jpg"])
+        XCTAssertEqual(refreshedItem.status, .paused)
+
+        try FileManager.default.removeItem(at: directoryURL)
+        await CacheClient.live.refresh()
+        let removedItem = await CacheClient.live.item(gid)
+        XCTAssertNil(removedItem)
+    }
+
+    func testDeleteLogRejectsParentDirectoryTraversal() async {
+        let result = await FileClient.live.deleteLog("../unrelated.log")
+
+        XCTAssertEqual(result, .failure(.notFound))
+    }
+
+    func testDeleteLogTreatsAnAlreadyMissingFileAsDeleted() async {
+        let fileName = "missing-\(UUID().uuidString).log"
+
+        let result = await FileClient.live.deleteLog(fileName)
+
+        XCTAssertEqual(result, .success(fileName))
+    }
+
+    private func makeCacheItem(
+        gid: String = "123456",
+        folderName: String = "123456 - Gallery"
+    ) -> GalleryCacheItem {
+        let date = Date(timeIntervalSince1970: 100)
+        let gallery = Gallery(
+            gid: gid,
+            token: "token",
+            title: "Gallery",
+            rating: 4,
+            tags: [],
+            category: .manga,
+            uploader: "Uploader",
+            pageCount: 2,
+            postedDate: date,
+            coverURL: nil,
+            galleryURL: URL(string: "https://e-hentai.org/g/\(gid)/token/")
+        )
+        let detail = GalleryDetail(
+            gid: gid,
+            title: "Gallery",
+            isFavorited: false,
+            visibility: .yes,
+            rating: 4,
+            userRating: 0,
+            ratingCount: 1,
+            category: .manga,
+            language: .english,
+            uploader: "Uploader",
+            postedDate: date,
+            coverURL: nil,
+            favoritedCount: 0,
+            pageCount: 2,
+            sizeCount: 2,
+            sizeType: "MB",
+            torrentCount: 0
+        )
+        return GalleryCacheItem(
+            gallery: gallery,
+            detail: detail,
+            folderName: folderName,
+            pageCount: 2,
+            createdDate: date,
+            directoryIdentifier: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000001"
+            ),
+            status: .paused,
+            imageQuality: .standard,
+            updatedDate: date,
+            byteCount: 1,
+            errorDescription: nil,
+            coverFileName: "001.jpg",
+            pageFiles: [1: "001.jpg"],
+            pageIdentifiers: [
+                1: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+            ],
+            remoteImageURLs: [2: URL(string: "https://example.com/002.jpg")!],
+            originalImageURLs: [:]
+        )
+    }
+}

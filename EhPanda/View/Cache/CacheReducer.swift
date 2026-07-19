@@ -84,7 +84,8 @@ struct CacheReducer {
                     state.hasRestoredDownloads = true
                 }
                 if shouldRefreshLibrary || shouldRestoreDownloads {
-                    effects.append(.run { _ in
+                    effects.append(.run { send in
+                        await send(.itemsUpdated(await cacheClient.items()))
                         if shouldRefreshLibrary {
                             await cacheClient.refresh()
                         }

@@ -46,19 +46,17 @@ extension FileClient {
             }
         },
         deleteLog: { fileName in
-            await withCheckedContinuation { continuation in
-                guard let fileURL = FileUtil.logsDirectoryURL?.appendingPathComponent(fileName)
-                else {
-                continuation.resume(returning: .failure(.notFound))
-                    return
-                }
-
-                try? FileManager.default.removeItem(at: fileURL)
-
-                if FileManager.default.fileExists(atPath: fileURL.path) {
-                    continuation.resume(returning: .failure(.unknown))
-                }
-                continuation.resume(returning: .success(fileName))
+            guard !fileName.isEmpty,
+                  URL(fileURLWithPath: fileName).lastPathComponent == fileName,
+                  let fileURL = FileUtil.logsDirectoryURL?.appendingPathComponent(fileName)
+            else { return .failure(.notFound) }
+            do {
+                try FileManager.default.removeItem(at: fileURL)
+                return .success(fileName)
+            } catch {
+                return FileManager.default.fileExists(atPath: fileURL.path)
+                    ? .failure(.unknown)
+                    : .success(fileName)
             }
         },
         importTagTranslator: { url in

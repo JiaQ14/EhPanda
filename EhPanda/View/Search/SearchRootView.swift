@@ -260,7 +260,8 @@ private struct QuickSearchWordsSection: View {
     var body: some View {
         SubSection(
             title: L10n.Localizable.SearchView.Section.Title.quickSearch,
-            showAll: true, tint: .primary, showAllAction: showAllAction
+            showAll: true,
+            showAllAction: showAllAction
         ) {
             DoubleVerticalKeywordsStack(keywords: keywords, searchAction: searchAction)
         }
@@ -432,7 +433,6 @@ private struct HistoryGalleriesSection: View {
         SubSection(
             title: L10n.Localizable.SearchView.Section.Title.recentlySeen,
             showAll: true,
-            tint: .primary,
             showAllAction: showAllAction
         ) {
             ScrollView(.horizontal, showsIndicators: false) {

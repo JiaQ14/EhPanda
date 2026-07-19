@@ -50,95 +50,96 @@ struct DetailView: View {
     }
 
     var content: some View {
-        ZStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
-                    HeaderSection(
-                        gallery: store.gallery,
-                        galleryDetail: store.galleryDetail ?? .empty,
-                        user: user,
-                        displaysJapaneseTitle: setting.displaysJapaneseTitle,
-                        showFullTitle: store.showsFullTitle,
-                        showFullTitleAction: { store.send(.toggleShowFullTitle) },
-                        favorAction: { store.send(.favorGallery($0)) },
-                        unfavorAction: { store.send(.unfavorGallery) },
-                        navigateReadingAction: { store.send(.setNavigation(.reading())) },
-                        cacheItem: store.cacheItem,
-                        navigateUploaderAction: {
-                            if let uploader = store.galleryDetail?.uploader {
-                                let keyword = "uploader:" + "\"\(uploader)\""
-                                store.send(.setNavigation(.detailSearch(keyword)))
-                            }
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 24) {
+                HeaderSection(
+                    gallery: store.gallery,
+                    galleryDetail: store.galleryDetail ?? .empty,
+                    user: user,
+                    displaysJapaneseTitle: setting.displaysJapaneseTitle,
+                    showFullTitle: store.showsFullTitle,
+                    showFullTitleAction: { store.send(.toggleShowFullTitle) },
+                    favorAction: { store.send(.favorGallery($0)) },
+                    unfavorAction: { store.send(.unfavorGallery) },
+                    navigateReadingAction: { store.send(.setNavigation(.reading())) },
+                    cacheItem: store.cacheItem,
+                    navigateUploaderAction: {
+                        if let uploader = store.galleryDetail?.uploader {
+                            let keyword = "uploader:" + "\"\(uploader)\""
+                            store.send(.setNavigation(.detailSearch(keyword)))
                         }
-                    )
-                    .padding(.horizontal)
-                    DescriptionSection(
-                        gallery: store.gallery,
-                        galleryDetail: store.galleryDetail ?? .empty,
-                        navigateGalleryInfosAction: {
-                            if let galleryDetail = store.galleryDetail {
-                                store.send(.setNavigation(.galleryInfos(store.gallery, galleryDetail)))
-                            }
-                        }
-                    )
-                    ActionSection(
-                        galleryDetail: store.galleryDetail ?? .empty,
-                        userRating: store.userRating,
-                        showUserRating: store.showsUserRating,
-                        showUserRatingAction: { store.send(.toggleShowUserRating) },
-                        updateRatingAction: { store.send(.updateRating($0)) },
-                        confirmRatingAction: { store.send(.confirmRating($0)) },
-                        navigateSimilarGalleryAction: {
-                            if let trimmedTitle = store.galleryDetail?.trimmedTitle {
-                                store.send(.setNavigation(.detailSearch(trimmedTitle)))
-                            }
-                        }
-                    )
-                    if !store.galleryTags.isEmpty {
-                        TagsSection(
-                            tags: store.galleryTags, showsImages: setting.showsImagesInTags,
-                            voteTagAction: { store.send(.voteTag($0, $1)) },
-                            navigateSearchAction: { store.send(.setNavigation(.detailSearch($0))) },
-                            navigateTagDetailAction: { store.send(.setNavigation(.tagDetail($0))) },
-                            translateAction: { tagTranslator.lookup(word: $0, returnOriginal: !setting.translatesTags) }
-                        )
                     }
-                    if !store.galleryPreviewURLs.isEmpty {
-                        PreviewsSection(
-                            pageCount: store.galleryDetail?.pageCount ?? 0,
-                            previewURLs: store.galleryPreviewURLs,
-                            navigatePreviewsAction: { store.send(.setNavigation(.previews)) },
-                            navigateReadingAction: {
-                                store.send(.updateReadingProgress($0))
-                                store.send(.setNavigation(.reading()))
-                            }
-                        )
+                )
+                .padding(.horizontal)
+                DescriptionSection(
+                    gallery: store.gallery,
+                    galleryDetail: store.galleryDetail ?? .empty,
+                    navigateGalleryInfosAction: {
+                        if let galleryDetail = store.galleryDetail {
+                            store.send(.setNavigation(.galleryInfos(store.gallery, galleryDetail)))
+                        }
                     }
-                    CommentsSection(
-                        comments: store.galleryComments,
-                        navigateCommentAction: {
-                            if let galleryURL = store.gallery.galleryURL {
-                                store.send(.setNavigation(.comments(galleryURL)))
-                            }
-                        },
-                        navigatePostCommentAction: { store.send(.setNavigation(.postComment())) }
+                )
+                ActionSection(
+                    galleryDetail: store.galleryDetail ?? .empty,
+                    userRating: store.userRating,
+                    showUserRating: store.showsUserRating,
+                    showUserRatingAction: { store.send(.toggleShowUserRating) },
+                    updateRatingAction: { store.send(.updateRating($0)) },
+                    confirmRatingAction: { store.send(.confirmRating($0)) },
+                    navigateSimilarGalleryAction: {
+                        if let trimmedTitle = store.galleryDetail?.trimmedTitle {
+                            store.send(.setNavigation(.detailSearch(trimmedTitle)))
+                        }
+                    }
+                )
+                if !store.galleryTags.isEmpty {
+                    TagsSection(
+                        tags: store.galleryTags, showsImages: setting.showsImagesInTags,
+                        voteTagAction: { store.send(.voteTag($0, $1)) },
+                        navigateSearchAction: { store.send(.setNavigation(.detailSearch($0))) },
+                        navigateTagDetailAction: { store.send(.setNavigation(.tagDetail($0))) },
+                        translateAction: { tagTranslator.lookup(word: $0, returnOriginal: !setting.translatesTags) }
+                    )
+                }
+                if !store.galleryPreviewURLs.isEmpty {
+                    PreviewsSection(
+                        pageCount: store.galleryDetail?.pageCount ?? 0,
+                        previewURLs: store.galleryPreviewURLs,
+                        navigatePreviewsAction: { store.send(.setNavigation(.previews)) },
+                        navigateReadingAction: {
+                            store.send(.updateReadingProgress($0))
+                            store.send(.setNavigation(.reading()))
+                        }
+                    )
+                }
+                CommentsSection(
+                    comments: store.galleryComments,
+                    navigateCommentAction: {
+                        if let galleryURL = store.gallery.galleryURL {
+                            store.send(.setNavigation(.comments(galleryURL)))
+                        }
+                    },
+                    navigatePostCommentAction: { store.send(.setNavigation(.postComment())) }
+                )
+            }
+        }
+        .contentMargins(.top, 16, for: .scrollContent)
+        .contentMargins(.bottom, 20, for: .scrollContent)
+        .opacity(store.galleryDetail == nil ? 0 : 1)
+        .overlay {
+            if store.galleryDetail == nil {
+                if store.loadingState == .loading {
+                    LoadingView()
+                } else if let error = store.loadingState.failed {
+                    ErrorView(
+                        error: error,
+                        action: error.isRetryable != false
+                            ? { store.send(.fetchGalleryDetail) }
+                            : nil
                     )
                 }
             }
-            .contentMargins(.top, 16, for: .scrollContent)
-            .contentMargins(.bottom, 20, for: .scrollContent)
-            .opacity(store.galleryDetail == nil ? 0 : 1)
-
-            LoadingView()
-                .opacity(
-                    store.galleryDetail == nil
-                    && store.loadingState == .loading ? 1 : 0
-                )
-
-            let error = store.loadingState.failed
-            let retryAction: () -> Void = { store.send(.fetchGalleryDetail) }
-            ErrorView(error: error ?? .unknown, action: error?.isRetryable != false ? retryAction : nil)
-                .opacity(store.galleryDetail == nil && error != nil ? 1 : 0)
         }
     }
 

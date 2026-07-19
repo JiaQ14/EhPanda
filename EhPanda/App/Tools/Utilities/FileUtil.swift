@@ -18,6 +18,9 @@ struct FileUtil {
     static var galleryCachesDirectoryURL: URL? {
         validatedGalleryCachesDirectoryURL(createIfNeeded: false)
     }
+    static var galleryCacheLibraryIndexURL: URL? {
+        cachesDirectory?.appendingPathComponent("GalleryCacheLibraryIndex-v1.json")
+    }
     static var temporaryDirectory: URL {
         .init(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
     }

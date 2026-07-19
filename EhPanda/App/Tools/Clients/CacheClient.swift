@@ -157,8 +157,8 @@ private enum GalleryCacheManagerError: Error {
 }
 
 struct JHenTaiCacheImporter {
-    private static let metadataFileName = "metadata"
-    private static let imageExtensions = Set([
+    static let metadataFileName = "metadata"
+    static let imageExtensions = Set([
         "jpg", "jpeg", "png", "gif", "webp", "avif"
     ])
 
@@ -270,6 +270,13 @@ struct JHenTaiCacheImporter {
             remoteImageURLs: remoteURLs,
             originalImageURLs: originalURLs
         )
+    }
+
+    static func importedPageFiles(
+        in directoryURL: URL,
+        pageCount: Int
+    ) -> [Int: String] {
+        pageFiles(in: directoryURL, pageCount: pageCount)
     }
 }
 
@@ -469,6 +476,162 @@ private struct ManagedCacheDirectory {
     let createdByCurrentManager: Bool
 }
 
+struct GalleryCacheDirectoryFingerprint: Codable, Equatable {
+    struct FileFingerprint: Codable, Equatable {
+        let modificationDate: Date?
+        let byteCount: Int?
+    }
+
+    let creationDate: Date?
+    let modificationDate: Date?
+    let manifest: FileFingerprint?
+    let jHenTaiMetadata: FileFingerprint?
+
+    static func capture(at directoryURL: URL) -> Self? {
+        var directoryURL = directoryURL
+        directoryURL.removeAllCachedResourceValues()
+        guard let directoryValues = try? directoryURL.resourceValues(
+            forKeys: [
+                .creationDateKey,
+                .contentModificationDateKey,
+                .isDirectoryKey,
+                .isSymbolicLinkKey
+            ]
+        ),
+              directoryValues.isDirectory == true,
+              directoryValues.isSymbolicLink != true
+        else { return nil }
+
+        return .init(
+            creationDate: directoryValues.creationDate,
+            modificationDate: directoryValues.contentModificationDate,
+            manifest: fileFingerprint(
+                at: directoryURL.appendingPathComponent(
+                    GalleryCacheItem.manifestFileName
+                )
+            ),
+            jHenTaiMetadata: fileFingerprint(
+                at: directoryURL.appendingPathComponent(
+                    JHenTaiCacheImporter.metadataFileName
+                )
+            )
+        )
+    }
+
+    private static func fileFingerprint(at fileURL: URL) -> FileFingerprint? {
+        var fileURL = fileURL
+        fileURL.removeAllCachedResourceValues()
+        guard let values = try? fileURL.resourceValues(
+            forKeys: [
+                .contentModificationDateKey,
+                .fileSizeKey,
+                .isRegularFileKey,
+                .isSymbolicLinkKey
+            ]
+        ),
+              values.isRegularFile == true,
+              values.isSymbolicLink != true
+        else { return nil }
+        return .init(
+            modificationDate: values.contentModificationDate,
+            byteCount: values.fileSize
+        )
+    }
+}
+
+struct GalleryCacheLibraryIndex: Codable, Equatable {
+    struct DirectoryEntry: Codable, Equatable {
+        let fingerprint: GalleryCacheDirectoryFingerprint
+        var item: GalleryCacheItem
+    }
+
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    var directories: [String: DirectoryEntry]
+
+    init(directories: [String: DirectoryEntry]) {
+        schemaVersion = Self.currentSchemaVersion
+        self.directories = directories
+    }
+}
+
+struct GalleryCacheLibraryIndexStore {
+    let fileURL: URL
+    let maximumByteCount: Int
+
+    func load() -> GalleryCacheLibraryIndex? {
+        guard let values = try? fileURL.resourceValues(
+            forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]
+        ),
+              values.isRegularFile == true,
+              values.isSymbolicLink != true,
+              let fileSize = values.fileSize,
+              fileSize > 0,
+              fileSize <= maximumByteCount,
+              let data = try? Data(contentsOf: fileURL, options: .mappedIfSafe)
+        else { return nil }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        guard let index = try? decoder.decode(GalleryCacheLibraryIndex.self, from: data),
+              index.schemaVersion == GalleryCacheLibraryIndex.currentSchemaVersion
+        else { return nil }
+        return index
+    }
+
+    func save(_ index: GalleryCacheLibraryIndex) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(index)
+        guard data.count <= maximumByteCount else {
+            throw GalleryCacheManagerError.invalidMetadata
+        }
+        try data.write(to: fileURL, options: .atomic)
+    }
+}
+
+private final class GalleryCacheDirectoryPresenter: NSObject, NSFilePresenter {
+    let presentedItemURL: URL?
+    let presentedItemOperationQueue: OperationQueue
+    private let onChange: @Sendable () -> Void
+
+    init(url: URL, onChange: @escaping @Sendable () -> Void) {
+        presentedItemURL = url
+        self.onChange = onChange
+        let queue = OperationQueue()
+        queue.name = "app.ehpanda.cache-directory-presenter"
+        queue.maxConcurrentOperationCount = 1
+        presentedItemOperationQueue = queue
+        super.init()
+    }
+
+    func presentedItemDidChange() {
+        onChange()
+    }
+
+    func presentedSubitemDidAppear(at url: URL) {
+        onChange()
+    }
+
+    func presentedSubitemDidChange(at url: URL) {
+        onChange()
+    }
+
+    func presentedSubitem(at oldURL: URL, didMoveTo newURL: URL) {
+        onChange()
+    }
+
+    func accommodatePresentedSubitemDeletion(
+        at url: URL,
+        completionHandler: @escaping (Error?) -> Void
+    ) {
+        onChange()
+        completionHandler(nil)
+    }
+}
+
 private enum ManagedCacheDirectoryResolution {
     case target(ManagedCacheDirectory)
     case gone
@@ -478,9 +641,14 @@ private enum ManagedCacheDirectoryResolution {
 private actor GalleryCacheManager {
     static let shared = GalleryCacheManager()
     private static let maximumManifestByteCount = 16 * 1024 * 1024
+    private static let maximumLibraryIndexByteCount = 64 * 1024 * 1024
 
     private var didLoadItems = false
+    private var didReconcileLibrary = false
     private var storedItems = [String: GalleryCacheItem]()
+    private var indexedDirectories = [
+        String: GalleryCacheLibraryIndex.DirectoryEntry
+    ]()
     private var tasks = [String: GalleryCacheTask]()
     private var retiringGIDs = Set<String>()
     private var preemptingGIDs = Set<String>()
@@ -498,6 +666,9 @@ private actor GalleryCacheManager {
     private var managedDirectoriesByGID = [String: [URL: ManagedCacheDirectory]]()
     private var needsRefresh = false
     private var continuations = [UUID: AsyncStream<[GalleryCacheItem]>.Continuation]()
+    private var directoryPresenter: GalleryCacheDirectoryPresenter?
+    private var directoryRefreshTask: Task<Void, Never>?
+    private var libraryIndexWriteTask: Task<Void, Never>?
 
     func allItems() -> [GalleryCacheItem] {
         loadItemsIfNeeded()
@@ -545,6 +716,7 @@ private actor GalleryCacheManager {
 
     func localImageSnapshot(gid: String) -> GalleryCacheImageSnapshot {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return .empty }
         guard let item = storedItems[gid] else { return .empty }
         guard (try? verifiedDirectoryURL(gid: gid)) != nil else {
             if tasks.isEmpty {
@@ -625,11 +797,7 @@ private actor GalleryCacheManager {
             needsRefresh = true
             return
         }
-        storedItems.removeAll()
-        localImageURLsByGID.removeAll()
-        managedDirectoriesByGID.removeAll()
-        didLoadItems = false
-        loadItemsIfNeeded()
+        _ = reconcileLibrary()
         publish()
     }
 
@@ -639,6 +807,7 @@ private actor GalleryCacheManager {
         options: CacheDownloadOptions
     ) -> GalleryCacheOperation? {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return nil }
         if var item = storedItems[gallery.id] {
             guard isValidMetadata(item), !item.isComplete else { return nil }
             if item.pageFiles.isEmpty {
@@ -718,6 +887,7 @@ private actor GalleryCacheManager {
 
     func resume(gid: String, options: CacheDownloadOptions) -> GalleryCacheOperation? {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return nil }
         guard let item = storedItems[gid], isValidMetadata(item), !item.isComplete else {
             return nil
         }
@@ -758,6 +928,7 @@ private actor GalleryCacheManager {
 
     func resumeAll(options: CacheDownloadOptions) -> [GalleryCacheOperation] {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return [] }
         let items = storedItems.values.filter {
             isValidMetadata($0) && !$0.isComplete && !$0.status.isActive
         }.sorted { $0.updatedDate < $1.updatedDate }
@@ -771,6 +942,7 @@ private actor GalleryCacheManager {
 
     func restoreInterrupted(options: CacheDownloadOptions) {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return }
         let items = storedItems.values.filter {
             isValidMetadata($0) && !$0.isComplete && $0.status == .paused
         }.sorted { $0.updatedDate < $1.updatedDate }
@@ -789,6 +961,7 @@ private actor GalleryCacheManager {
         pageIdentifier: UUID
     ) {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return }
         guard var item = storedItems[gid],
               item.directoryIdentifier == directoryIdentifier,
               item.pageIdentifiers?[index] == pageIdentifier,
@@ -820,6 +993,7 @@ private actor GalleryCacheManager {
     @discardableResult
     func delete(gid: String) -> UUID? {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return nil }
         let operationID = operationIDsByGID.removeValue(forKey: gid)
         let runningOperationID = tasks[gid]?.operationID
         removePending(gid: gid)
@@ -836,6 +1010,7 @@ private actor GalleryCacheManager {
             storedItems.removeValue(forKey: gid)
             localImageURLsByGID.removeValue(forKey: gid)
             managedDirectoriesByGID.removeValue(forKey: gid)
+            removeIndexedDirectories(gid: gid)
         } else if var item = storedItems[gid] {
             item.status = .failed
             item.errorDescription = CocoaError(.fileWriteNoPermission).localizedDescription
@@ -855,6 +1030,7 @@ private actor GalleryCacheManager {
     @discardableResult
     func deleteAll() -> [UUID] {
         loadItemsIfNeeded()
+        guard reconcileLibraryIfNeeded() else { return [] }
         let operationIDs = Array(operationIDsByGID.values)
         let runningOperationIDs = Set(tasks.values.map(\.operationID))
         operationIDsByGID.removeAll()
@@ -874,6 +1050,7 @@ private actor GalleryCacheManager {
                 storedItems.removeValue(forKey: gid)
                 localImageURLsByGID.removeValue(forKey: gid)
                 managedDirectoriesByGID.removeValue(forKey: gid)
+                removeIndexedDirectories(gid: gid)
             } else if var item = storedItems[gid] {
                 item.status = .failed
                 item.errorDescription = CocoaError(.fileWriteNoPermission).localizedDescription
@@ -968,8 +1145,33 @@ private actor GalleryCacheManager {
     private func loadItemsIfNeeded() {
         guard !didLoadItems else { return }
         didLoadItems = true
+        guard let fileURL = FileUtil.galleryCacheLibraryIndexURL,
+              let index = GalleryCacheLibraryIndexStore(
+                fileURL: fileURL,
+                maximumByteCount: Self.maximumLibraryIndexByteCount
+              ).load()
+        else { return }
+
+        indexedDirectories = index.directories.reduce(into: [:]) { result, element in
+            let (folderName, entry) = element
+            guard let item = normalizedIndexedItem(entry.item, folderName: folderName)
+            else { return }
+            result[folderName] = .init(
+                fingerprint: entry.fingerprint,
+                item: item
+            )
+        }
+        rebuildStoredItems()
+    }
+
+    private func reconcileLibraryIfNeeded() -> Bool {
+        didReconcileLibrary || reconcileLibrary()
+    }
+
+    @discardableResult
+    private func reconcileLibrary() -> Bool {
         guard let rootURL = prepareRootDirectory(),
-              let directories = try? FileManager.default.contentsOfDirectory(
+              let directoryURLs = try? FileManager.default.contentsOfDirectory(
                 at: rootURL,
                 includingPropertiesForKeys: [
                     .isDirectoryKey,
@@ -978,10 +1180,20 @@ private actor GalleryCacheManager {
                 ],
                 options: [.skipsHiddenFiles]
               )
-        else { return }
+        else { return false }
+        ensureDirectoryPresenter(for: rootURL)
 
-        for directoryURL in directories {
-            guard let resourceValues = try? directoryURL.resourceValues(
+        let previousDirectories = indexedDirectories
+        var reconciledDirectories = [
+            String: GalleryCacheLibraryIndex.DirectoryEntry
+        ]()
+        var reconciledManagedDirectories = [
+            String: [URL: ManagedCacheDirectory]
+        ]()
+
+        for directoryURL in directoryURLs {
+            let standardizedDirectoryURL = directoryURL.standardizedFileURL
+            guard let resourceValues = try? standardizedDirectoryURL.resourceValues(
                 forKeys: [
                     .isDirectoryKey,
                     .isSymbolicLinkKey,
@@ -989,84 +1201,155 @@ private actor GalleryCacheManager {
                 ]
             ),
                   resourceValues.isDirectory == true,
-                  resourceValues.isSymbolicLink != true
+                  resourceValues.isSymbolicLink != true,
+                  let initialFingerprint = GalleryCacheDirectoryFingerprint.capture(
+                    at: standardizedDirectoryURL
+                  )
             else { continue }
 
-            let decodedItem: GalleryCacheItem
-            let importedFromJHenTai: Bool
-            if let item = decodedCacheItem(from: directoryURL) {
-                decodedItem = item
-                importedFromJHenTai = false
-            } else if let item = JHenTaiCacheImporter.importItem(
-                from: directoryURL,
-                maximumMetadataByteCount: Self.maximumManifestByteCount
-            ),
-                      isValidMetadata(item)
+            let folderName = standardizedDirectoryURL.lastPathComponent
+            let item: GalleryCacheItem
+            if let previousEntry = previousDirectories[folderName],
+               previousEntry.fingerprint == initialFingerprint,
+               let indexedItem = normalizedIndexedItem(
+                previousEntry.item,
+                folderName: folderName
+               )
             {
-                decodedItem = item
-                importedFromJHenTai = true
+                item = indexedItem
+            } else if let reconciledItem = reconciledItem(
+                from: standardizedDirectoryURL
+            ) {
+                item = reconciledItem
             } else {
                 continue
             }
 
-            var item = decodedItem
-            item.folderName = directoryURL.lastPathComponent
-            if item.directoryIdentifier == nil {
-                item.directoryIdentifier = UUID()
-            }
-            item.remoteImageURLs = item.remoteImageURLs.filter {
-                isValidRemoteURL($0.value) && (1...item.pageCount).contains($0.key)
-            }
-            item.originalImageURLs = item.originalImageURLs.filter {
-                isValidRemoteURL($0.value) && (1...item.pageCount).contains($0.key)
-            }
-            item.pageFiles = validatedPageFiles(item)
-            var pageIdentifiers = item.pageIdentifiers?.filter {
-                item.pageFiles[$0.key] != nil
-            } ?? [:]
-            for index in item.pageFiles.keys where pageIdentifiers[index] == nil {
-                pageIdentifiers[index] = UUID()
-            }
-            item.pageIdentifiers = pageIdentifiers
-            item.remoteImageURLs = item.remoteImageURLs.filter {
-                item.pageFiles[$0.key] == nil
-            }
-            item.originalImageURLs = item.originalImageURLs.filter {
-                item.pageFiles[$0.key] == nil
-            }
-            if let coverFileURL = item.coverFileURL {
-                if !FileManager.default.fileExists(atPath: coverFileURL.path) {
-                    item.coverFileName = nil
-                }
-            } else {
-                item.coverFileName = nil
-            }
-            item.byteCount = byteCount(of: item)
-            if item.status.isActive {
-                item.status = .paused
-            }
-            if item.hasAllPages {
-                item.status = .completed
-                item.errorDescription = nil
-                item.remoteImageURLs.removeAll()
-                item.originalImageURLs.removeAll()
-            } else if item.status == .completed {
-                item.status = .paused
-            }
-
-            guard let directoryIdentifier = item.directoryIdentifier else { continue }
-            let standardizedDirectoryURL = directoryURL.standardizedFileURL
-            managedDirectoriesByGID[item.id, default: [:]][standardizedDirectoryURL] = .init(
+            guard let directoryIdentifier = item.directoryIdentifier,
+                  let finalFingerprint = GalleryCacheDirectoryFingerprint.capture(
+                    at: standardizedDirectoryURL
+                  )
+            else { continue }
+            reconciledDirectories[folderName] = .init(
+                fingerprint: finalFingerprint,
+                item: item
+            )
+            reconciledManagedDirectories[item.id, default: [:]][standardizedDirectoryURL] = .init(
                 url: standardizedDirectoryURL,
                 directoryIdentifier: directoryIdentifier,
                 fileResourceIdentifier: resourceValues.fileResourceIdentifier as? AnyHashable,
                 createdByCurrentManager: false
             )
-            removeStalePartialFiles(in: standardizedDirectoryURL)
-            if importedFromJHenTai || item != decodedItem {
-                try? writeManifest(item, to: standardizedDirectoryURL)
-            }
+        }
 
+        indexedDirectories = reconciledDirectories
+        managedDirectoriesByGID = reconciledManagedDirectories
+        rebuildStoredItems()
+        didReconcileLibrary = true
+        writeLibraryIndexNow()
+        return true
+    }
+
+    private func reconciledItem(from directoryURL: URL) -> GalleryCacheItem? {
+        let decodedItem: GalleryCacheItem
+        let importedFromJHenTai: Bool
+        if let item = decodedCacheItem(from: directoryURL) {
+            decodedItem = item
+            importedFromJHenTai = false
+        } else if let item = JHenTaiCacheImporter.importItem(
+            from: directoryURL,
+            maximumMetadataByteCount: Self.maximumManifestByteCount
+        ),
+                  isValidMetadata(item)
+        {
+            decodedItem = item
+            importedFromJHenTai = true
+        } else {
+            return nil
+        }
+
+        guard var item = normalizedIndexedItem(
+            decodedItem,
+            folderName: directoryURL.lastPathComponent
+        ) else { return nil }
+        if item.directoryIdentifier == nil {
+            item.directoryIdentifier = UUID()
+        }
+        item.pageFiles = reconciledPageFiles(item, in: directoryURL)
+        var pageIdentifiers = item.pageIdentifiers?.filter {
+            item.pageFiles[$0.key] != nil
+        } ?? [:]
+        for index in item.pageFiles.keys where pageIdentifiers[index] == nil {
+            pageIdentifiers[index] = UUID()
+        }
+        item.pageIdentifiers = pageIdentifiers
+        item.remoteImageURLs = item.remoteImageURLs.filter {
+            item.pageFiles[$0.key] == nil
+        }
+        item.originalImageURLs = item.originalImageURLs.filter {
+            item.pageFiles[$0.key] == nil
+        }
+        if let coverFileURL = item.coverFileURL {
+            if !FileManager.default.fileExists(atPath: coverFileURL.path) {
+                item.coverFileName = nil
+            }
+        } else {
+            item.coverFileName = nil
+        }
+        if item.coverFileName == nil {
+            item.coverFileName = item.pageFiles.sorted(by: { $0.key < $1.key }).first?.value
+        }
+        item.byteCount = byteCount(of: item)
+        if item.hasAllPages {
+            item.status = .completed
+            item.errorDescription = nil
+            item.remoteImageURLs.removeAll()
+            item.originalImageURLs.removeAll()
+        } else if item.status == .completed {
+            item.status = .paused
+        }
+
+        removeStalePartialFiles(in: directoryURL)
+        if importedFromJHenTai || item != decodedItem {
+            try? writeManifest(item, to: directoryURL)
+        }
+        return item
+    }
+
+    private func normalizedIndexedItem(
+        _ indexedItem: GalleryCacheItem,
+        folderName: String
+    ) -> GalleryCacheItem? {
+        guard !folderName.isEmpty,
+              URL(fileURLWithPath: folderName).lastPathComponent == folderName,
+              isValidMetadata(indexedItem)
+        else { return nil }
+
+        var item = indexedItem
+        item.folderName = folderName
+        item.remoteImageURLs = item.remoteImageURLs.filter {
+            isValidRemoteURL($0.value) && (1...item.pageCount).contains($0.key)
+        }
+        item.originalImageURLs = item.originalImageURLs.filter {
+            isValidRemoteURL($0.value) && (1...item.pageCount).contains($0.key)
+        }
+        item.pageFiles = item.pageFiles.filter {
+            (1...item.pageCount).contains($0.key)
+        }
+        item.pageIdentifiers = item.pageIdentifiers?.filter {
+            item.pageFiles[$0.key] != nil
+        }
+        if item.status.isActive {
+            item.status = .paused
+        }
+        return item
+    }
+
+    private func rebuildStoredItems() {
+        storedItems.removeAll()
+        localImageURLsByGID.removeAll()
+        for entry in indexedDirectories.values {
+            let item = entry.item
             let shouldUseItem: Bool
             if let existing = storedItems[item.id] {
                 shouldUseItem = item.cachedPageCount > existing.cachedPageCount
@@ -1079,10 +1362,9 @@ private actor GalleryCacheManager {
             }
             if shouldUseItem {
                 storedItems[item.id] = item
-                localImageURLsByGID[item.id] = item.localImageURLs
+                localImageURLsByGID[item.id] = item.managedLocalImageURLs
             }
         }
-
     }
 
     private func decodedCacheItem(from directoryURL: URL) -> GalleryCacheItem? {
@@ -1117,6 +1399,99 @@ private actor GalleryCacheManager {
         return rootURL
     }
 
+    private func ensureDirectoryPresenter(for rootURL: URL) {
+        guard directoryPresenter?.presentedItemURL != rootURL else { return }
+        if let directoryPresenter {
+            NSFileCoordinator.removeFilePresenter(directoryPresenter)
+        }
+        let presenter = GalleryCacheDirectoryPresenter(url: rootURL) {
+            Task {
+                await GalleryCacheManager.shared.scheduleDirectoryRefresh()
+            }
+        }
+        directoryPresenter = presenter
+        NSFileCoordinator.addFilePresenter(presenter)
+    }
+
+    private func scheduleDirectoryRefresh() {
+        directoryRefreshTask?.cancel()
+        directoryRefreshTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(400))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.performScheduledDirectoryRefresh()
+        }
+    }
+
+    private func performScheduledDirectoryRefresh() {
+        directoryRefreshTask = nil
+        refresh()
+    }
+
+    private func updateLibraryIndex(
+        item: GalleryCacheItem,
+        directoryURL: URL
+    ) {
+        guard let fingerprint = GalleryCacheDirectoryFingerprint.capture(
+            at: directoryURL
+        ) else { return }
+        indexedDirectories[directoryURL.lastPathComponent] = .init(
+            fingerprint: fingerprint,
+            item: item
+        )
+        scheduleLibraryIndexWrite()
+    }
+
+    private func removeIndexedDirectories(gid: String) {
+        indexedDirectories = indexedDirectories.filter { $0.value.item.id != gid }
+        scheduleLibraryIndexWrite()
+    }
+
+    private func scheduleLibraryIndexWrite() {
+        libraryIndexWriteTask?.cancel()
+        libraryIndexWriteTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(500))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.performScheduledLibraryIndexWrite()
+        }
+    }
+
+    private func performScheduledLibraryIndexWrite() {
+        libraryIndexWriteTask = nil
+        writeLibraryIndexNow()
+    }
+
+    private func writeLibraryIndexNow() {
+        guard let fileURL = FileUtil.galleryCacheLibraryIndexURL else { return }
+        let persistedDirectories = indexedDirectories.mapValues { entry in
+            var item = entry.item
+            item.remoteImageURLs.removeAll()
+            item.originalImageURLs.removeAll()
+            if item.status.isActive {
+                item.status = .paused
+            }
+            return GalleryCacheLibraryIndex.DirectoryEntry(
+                fingerprint: entry.fingerprint,
+                item: item
+            )
+        }
+        do {
+            try GalleryCacheLibraryIndexStore(
+                fileURL: fileURL,
+                maximumByteCount: Self.maximumLibraryIndexByteCount
+            ).save(.init(directories: persistedDirectories))
+        } catch {
+            Logger.error("Unable to persist cache library index: \(error)")
+        }
+    }
+
     @discardableResult
     private func persist(gid: String) -> Error? {
         do {
@@ -1126,6 +1501,7 @@ private actor GalleryCacheManager {
             else { throw GalleryCacheManagerError.invalidMetadata }
             let directoryURL = try writableDirectoryURL(gid: gid, item: item)
             try writeManifest(item, to: directoryURL)
+            updateLibraryIndex(item: item, directoryURL: directoryURL)
             return nil
         } catch {
             return error
@@ -2181,6 +2557,58 @@ private actor GalleryCacheManager {
             validated[index] = fileName
         }
         return validated
+    }
+
+    private func reconciledPageFiles(
+        _ item: GalleryCacheItem,
+        in directoryURL: URL
+    ) -> [Int: String] {
+        var pageFiles = validatedPageFiles(item)
+        var seenFileNames = Set(pageFiles.values)
+        let hasJHenTaiMetadata = FileManager.default.fileExists(
+            atPath: directoryURL.appendingPathComponent(
+                JHenTaiCacheImporter.metadataFileName
+            ).path
+        )
+
+        if hasJHenTaiMetadata {
+            for (index, fileName) in JHenTaiCacheImporter.importedPageFiles(
+                in: directoryURL,
+                pageCount: item.pageCount
+            ) where pageFiles[index] == nil && !seenFileNames.contains(fileName) {
+                pageFiles[index] = fileName
+                seenFileNames.insert(fileName)
+            }
+            return pageFiles
+        }
+
+        guard let fileURLs = try? FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else { return pageFiles }
+        for fileURL in fileURLs.sorted(by: {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent)
+                == .orderedAscending
+        }) {
+            let fileName = fileURL.lastPathComponent
+            guard JHenTaiCacheImporter.imageExtensions.contains(
+                fileURL.pathExtension.lowercased()
+            ),
+                  let index = Int(fileURL.deletingPathExtension().lastPathComponent),
+                  (1...item.pageCount).contains(index),
+                  pageFiles[index] == nil,
+                  !seenFileNames.contains(fileName),
+                  let values = try? fileURL.resourceValues(
+                    forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+                  ),
+                  values.isRegularFile == true,
+                  values.isSymbolicLink != true
+            else { continue }
+            pageFiles[index] = fileName
+            seenFileNames.insert(fileName)
+        }
+        return pageFiles
     }
 
     private func byteCount(of item: GalleryCacheItem) -> Int64 {
