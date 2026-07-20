@@ -6,6 +6,11 @@
 import SwiftUI
 import ComposableArchitecture
 
+struct ReducerCancellationID<Operation: Hashable>: Hashable {
+    let scope: UUID
+    let operation: Operation
+}
+
 extension Reducer {
     func haptics<Enum, Case>(
         unwrapping enum: @escaping (State) -> Enum?,

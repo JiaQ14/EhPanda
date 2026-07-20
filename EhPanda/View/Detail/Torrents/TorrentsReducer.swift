@@ -15,12 +15,15 @@ struct TorrentsReducer {
         case share(URL)
     }
 
-    private enum CancelID: CaseIterable {
+    private enum CancelOperation: CaseIterable {
         case fetchTorrent, fetchGalleryTorrents
     }
 
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
+
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
         var torrents = [GalleryTorrent]()
         var loadingState: LoadingState = .idle
@@ -75,10 +78,14 @@ struct TorrentsReducer {
                     let response = await DataRequest(url: torrentURL).response()
                     await send(.fetchTorrentDone(hash, response))
                 }
-                .cancellable(id: CancelID.fetchTorrent)
+                .cancellable(id: cancelID(.fetchTorrent, state: state))
 
             case .teardown:
-                return .merge(CancelID.allCases.map(Effect.cancel(id:)))
+                return .merge(
+                    CancelOperation.allCases.map {
+                        Effect.cancel(id: cancelID($0, state: state))
+                    }
+                )
 
             case .fetchTorrentDone(let hash, let result):
                 if case .success(let data) = result, !data.isEmpty {
@@ -93,7 +100,7 @@ struct TorrentsReducer {
                     let response = await GalleryTorrentsRequest(gid: gid, token: token).response()
                     await send(.fetchGalleryTorrentsDone(response))
                 }
-                .cancellable(id: CancelID.fetchGalleryTorrents)
+                .cancellable(id: cancelID(.fetchGalleryTorrents, state: state))
 
             case .fetchGalleryTorrentsDone(let result):
                 state.loadingState = .idle
@@ -115,5 +122,9 @@ struct TorrentsReducer {
             case: \.share,
             hapticsClient: hapticsClient
         )
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

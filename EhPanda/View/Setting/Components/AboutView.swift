@@ -42,7 +42,7 @@ struct AboutView: View {
                 }
             }
         }
-        .navigationTitle(L10n.Localizable.AboutView.Title.ehPanda)
+        .settingRootNavigationTitle(L10n.Localizable.AboutView.Title.ehPanda)
         .toolbar {
             ToolbarItem(placement: .largeSubtitle) {
                 VStack(alignment: .leading) {

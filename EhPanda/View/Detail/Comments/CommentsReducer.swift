@@ -16,12 +16,16 @@ struct CommentsReducer {
         case postComment(String)
     }
 
-    private enum CancelID: CaseIterable {
+    private enum CancelOperation: CaseIterable {
         case postComment, voteComment, fetchGallery
+        case deferredNavigation, scrollPresentation, postCommentFocus
     }
+
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
 
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
         var commentContent = ""
         var postCommentFocused = false
@@ -41,6 +45,7 @@ struct CommentsReducer {
         case binding(BindingAction<State>)
         case setNavigation(Route?)
         case clearSubStates
+        case resetSubStates
         case clearScrollCommentID
 
         case setHUDConfig(TTProgressHUDConfig)
@@ -50,6 +55,7 @@ struct CommentsReducer {
         case performScrollOpacityEffect
         case handleCommentLink(URL)
         case handleGalleryLink(URL)
+        case presentGalleryLink(URL)
         case onPostCommentAppear
         case onAppear
 
@@ -87,10 +93,21 @@ struct CommentsReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
+                return .concatenate(
+                    .merge(
+                        .cancel(id: cancelID(.deferredNavigation, state: state)),
+                        .cancel(id: cancelID(.scrollPresentation, state: state)),
+                        .cancel(id: cancelID(.postCommentFocus, state: state))
+                    ),
+                    .send(.detail(.teardown)),
+                    .send(.resetSubStates)
+                )
+
+            case .resetSubStates:
                 state.detailState.wrappedValue = .init()
                 state.commentContent = .init()
                 state.postCommentFocused = false
-                return .send(.detail(.teardown))
+                return .none
 
             case .clearScrollCommentID:
                 state.scrollCommentID = nil
@@ -127,6 +144,10 @@ struct CommentsReducer {
                         await send(.clearScrollCommentID)
                     }
                 )
+                .cancellable(
+                    id: cancelID(.scrollPresentation, state: state),
+                    cancelInFlight: true
+                )
 
             case .handleCommentLink(let url):
                 guard urlClient.checkIfHandleable(url) else {
@@ -140,8 +161,16 @@ struct CommentsReducer {
                 return .send(.fetchGallery(url, isGalleryImageURL))
 
             case .handleGalleryLink(let url):
+                return .concatenate(
+                    .cancel(id: cancelID(.deferredNavigation, state: state)),
+                    .send(.detail(.teardown)),
+                    .send(.presentGalleryLink(url))
+                )
+
+            case .presentGalleryLink(let url):
                 let (_, pageIndex, commentID) = urlClient.analyzeURL(url)
                 let gid = urlClient.parseGalleryID(url)
+                state.detailState.wrappedValue = .init()
                 var effects = [Effect<Action>]()
                 if let pageIndex = pageIndex {
                     effects.append(.send(.updateReadingProgress(gid, pageIndex)))
@@ -150,14 +179,23 @@ struct CommentsReducer {
                             try await Task.sleep(for: .milliseconds(750))
                             await send(.detail(.setNavigation(.reading())))
                         }
+                        .cancellable(
+                            id: cancelID(.deferredNavigation, state: state),
+                            cancelInFlight: true
+                        )
                     )
                 } else if let commentID = commentID {
+                    state.detailState.wrappedValue?.commentsState.wrappedValue = .init()
                     state.detailState.wrappedValue?.commentsState.wrappedValue?.scrollCommentID = commentID
                     effects.append(
                         .run { send in
                             try await Task.sleep(for: .milliseconds(750))
                             await send(.detail(.setNavigation(.comments(url))))
                         }
+                        .cancellable(
+                            id: cancelID(.deferredNavigation, state: state),
+                            cancelInFlight: true
+                        )
                     )
                 }
                 effects.append(.send(.setNavigation(.detail(gid))))
@@ -168,6 +206,10 @@ struct CommentsReducer {
                     try await Task.sleep(for: .milliseconds(750))
                     await send(.setPostCommentFocused(true))
                 }
+                .cancellable(
+                    id: cancelID(.postCommentFocus, state: state),
+                    cancelInFlight: true
+                )
 
             case .onAppear:
                 if state.detailState.wrappedValue == nil {
@@ -182,7 +224,13 @@ struct CommentsReducer {
                 }
 
             case .teardown:
-                return .merge(CancelID.allCases.map(Effect.cancel(id:)))
+                var effects = CancelOperation.allCases.map {
+                    Effect<Action>.cancel(id: cancelID($0, state: state))
+                }
+                if state.detailState.wrappedValue != nil {
+                    effects.append(.send(.detail(.teardown)))
+                }
+                return .merge(effects)
 
             case .postComment(let galleryURL, let commentID):
                 guard !state.commentContent.isEmpty else { return .none }
@@ -196,7 +244,7 @@ struct CommentsReducer {
                         .response()
                         await send(.performCommentActionDone(response))
                     }
-                    .cancellable(id: CancelID.postComment)
+                    .cancellable(id: cancelID(.postComment, state: state))
                 } else {
                     return .run { [commentContent = state.commentContent] send in
                         let response = await CommentGalleryRequest(
@@ -205,7 +253,7 @@ struct CommentsReducer {
                         .response()
                         await send(.performCommentActionDone(response))
                     }
-                    .cancellable(id: CancelID.postComment)
+                    .cancellable(id: cancelID(.postComment, state: state))
                 }
 
             case .voteComment(let gid, let token, let apiKey, let commentID, let vote):
@@ -224,12 +272,13 @@ struct CommentsReducer {
                     .response()
                     await send(.performCommentActionDone(response))
                 }
-                .cancellable(id: CancelID.voteComment)
+                .cancellable(id: cancelID(.voteComment, state: state))
 
             case .performCommentActionDone:
                 return .none
 
             case .fetchGallery(let url, let isGalleryImageURL):
+                state.hudConfig = .loading
                 state.route = .hud
                 return .run {  send in
                     let response = await GalleryReverseRequest(
@@ -238,21 +287,22 @@ struct CommentsReducer {
                     .response()
                     await send(.fetchGalleryDone(url, response))
                 }
-                .cancellable(id: CancelID.fetchGallery)
+                .cancellable(
+                    id: cancelID(.fetchGallery, state: state),
+                    cancelInFlight: true
+                )
 
             case .fetchGalleryDone(let url, let result):
-                state.route = nil
                 switch result {
                 case .success(let gallery):
+                    state.route = nil
                     return .merge(
                         .run(operation: { _ in await databaseClient.cacheGalleries([gallery]) }),
                         .send(.handleGalleryLink(url))
                     )
                 case .failure:
-                    return .run { send in
-                        try await Task.sleep(for: .milliseconds(500))
-                        await send(.setHUDConfig(.error))
-                    }
+                    state.hudConfig = .error
+                    return .none
                 }
 
             case .detail:
@@ -264,5 +314,9 @@ struct CommentsReducer {
             case: \.postComment,
             hapticsClient: hapticsClient
         )
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

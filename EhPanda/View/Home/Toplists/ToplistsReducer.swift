@@ -57,12 +57,6 @@ struct ToplistsReducer {
             return index > 0 && index <= pageNumber.maximum + 1
         }
 
-        var detailState: Heap<DetailReducer.State?>
-
-        init() {
-            detailState = .init(.init())
-        }
-
         mutating func insertGalleries(type: ToplistsType, galleries: [Gallery]) {
             rawGalleries[type]?.appendUniqueGalleries(galleries)
         }
@@ -83,7 +77,6 @@ struct ToplistsReducer {
         case fetchMoreGalleries
         case fetchMoreGalleriesDone(ToplistsType, Result<(PageNumber, [Gallery]), AppError>)
 
-        case detail(DetailReducer.Action)
     }
 
     @Dependency(\.databaseClient) private var databaseClient
@@ -110,8 +103,7 @@ struct ToplistsReducer {
                 return .send(.fetchGalleries())
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
-                return .send(.detail(.teardown))
+                return .none
 
             case .performJumpPage:
                 guard let index = Int(state.jumpPageIndex),
@@ -202,11 +194,7 @@ struct ToplistsReducer {
                 }
                 return .none
 
-            case .detail:
-                return .none
             }
         }
-
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

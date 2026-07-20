@@ -29,11 +29,6 @@ struct SearchRootReducer {
         var historyState = HistoryReducer.State()
         var filtersState = FiltersReducer.State()
         var quickSearchState = QuickSearchReducer.State()
-        var detailState: Heap<DetailReducer.State?>
-
-        init() {
-            detailState = .init(.init())
-        }
 
         mutating func appendHistoryKeywords(_ keywords: [String]) {
             guard !keywords.isEmpty else { return }
@@ -71,6 +66,7 @@ struct SearchRootReducer {
         case setNavigation(Route?)
         case setKeyword(String)
         case clearSubStates
+        case resetSubStates
 
         case syncHistoryKeywords
         case fetchDatabaseInfos
@@ -84,7 +80,6 @@ struct SearchRootReducer {
         case history(HistoryReducer.Action)
         case filters(FiltersReducer.Action)
         case quickSearch(QuickSearchReducer.Action)
-        case detail(DetailReducer.Action)
     }
 
     @Dependency(\.databaseClient) private var databaseClient
@@ -124,16 +119,20 @@ struct SearchRootReducer {
                 return .none
 
             case .clearSubStates:
+                return .concatenate(
+                    .merge(
+                        .send(.search(.teardown)),
+                        .send(.quickSearch(.teardown))
+                    ),
+                    .send(.resetSubStates)
+                )
+
+            case .resetSubStates:
                 state.searchState = .init()
                 state.historyState = .init()
-                state.detailState.wrappedValue = .init()
                 state.filtersState = .init()
                 state.quickSearchState = .init()
-                return .merge(
-                    .send(.search(.teardown)),
-                    .send(.quickSearch(.teardown)),
-                    .send(.detail(.teardown))
-                )
+                return .none
 
             case .syncHistoryKeywords:
                 return .run { [state] _ in
@@ -189,8 +188,6 @@ struct SearchRootReducer {
             case .quickSearch:
                 return .none
 
-            case .detail:
-                return .none
             }
         }
         .haptics(
@@ -208,6 +205,5 @@ struct SearchRootReducer {
         Scope(state: \.historyState, action: \.history, child: HistoryReducer.init)
         Scope(state: \.filtersState, action: \.filters, child: FiltersReducer.init)
         Scope(state: \.quickSearchState, action: \.quickSearch, child: QuickSearchReducer.init)
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

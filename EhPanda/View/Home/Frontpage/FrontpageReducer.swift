@@ -37,11 +37,6 @@ struct FrontpageReducer {
         var footerLoadingState: LoadingState = .idle
 
         var filtersState = FiltersReducer.State()
-        var detailState: Heap<DetailReducer.State?>
-
-        init() {
-            detailState = .init(.init())
-        }
 
         mutating func insertGalleries(_ galleries: [Gallery]) {
             self.galleries.appendUniqueGalleries(galleries)
@@ -60,7 +55,6 @@ struct FrontpageReducer {
         case fetchMoreGalleriesDone(Result<(PageNumber, [Gallery]), AppError>)
 
         case filters(FiltersReducer.Action)
-        case detail(DetailReducer.Action)
     }
 
     @Dependency(\.databaseClient) private var databaseClient
@@ -82,9 +76,8 @@ struct FrontpageReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
                 state.filtersState = .init()
-                return .send(.detail(.teardown))
+                return .none
 
             case .teardown:
                 return .merge(CancelID.allCases.map(Effect.cancel(id:)))
@@ -156,8 +149,6 @@ struct FrontpageReducer {
             case .filters:
                 return .none
 
-            case .detail:
-                return .none
             }
         }
         .haptics(
@@ -167,6 +158,5 @@ struct FrontpageReducer {
         )
 
         Scope(state: \.filtersState, action: \.filters, child: FiltersReducer.init)
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

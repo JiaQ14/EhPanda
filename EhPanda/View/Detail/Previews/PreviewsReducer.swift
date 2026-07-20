@@ -13,12 +13,15 @@ struct PreviewsReducer {
         case reading(EquatableVoid = .init())
     }
 
-    private enum CancelID: CaseIterable {
+    private enum CancelOperation: CaseIterable {
         case fetchDatabaseInfos, fetchPreviewURLs
     }
 
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
+
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
 
         var gallery: Gallery = .empty
@@ -53,6 +56,7 @@ struct PreviewsReducer {
         case binding(BindingAction<State>)
         case setNavigation(Route?)
         case clearSubStates
+        case resetSubStates
 
         case syncPreviewURLs([Int: URL])
         case updateReadingProgress(Int)
@@ -85,8 +89,14 @@ struct PreviewsReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
+                return .concatenate(
+                    .send(.reading(.teardown)),
+                    .send(.resetSubStates)
+                )
+
+            case .resetSubStates:
                 state.readingState = .init()
-                return .send(.reading(.teardown))
+                return .none
 
             case .syncPreviewURLs(let previewURLs):
                 return .run { [galleryID = state.gallery.id] _ in
@@ -103,7 +113,11 @@ struct PreviewsReducer {
                 state.pendingPreviewIndices.removeAll()
                 state.pageErrors.removeAll()
                 state.automaticallyRetriedPages.removeAll()
-                return .merge(CancelID.allCases.map(Effect.cancel(id:)))
+                var effects = CancelOperation.allCases.map {
+                    Effect<Action>.cancel(id: cancelID($0, state: state))
+                }
+                effects.append(.send(.reading(.teardown)))
+                return .merge(effects)
 
             case .fetchDatabaseInfos(let gid):
                 guard state.databaseLoadingState == .loading else { return .none }
@@ -119,7 +133,7 @@ struct PreviewsReducer {
                     let cache = await databaseClient.fetchGalleryPreviewCache(gid: gid)
                     await send(.fetchDatabaseInfosDone(cache))
                 }
-                .cancellable(id: CancelID.fetchDatabaseInfos)
+                .cancellable(id: cancelID(.fetchDatabaseInfos, state: state))
 
             case .fetchDatabaseInfosDone(let cache):
                 if let cache {
@@ -170,7 +184,7 @@ struct PreviewsReducer {
                     let response = await GalleryPreviewURLsRequest(galleryURL: galleryURL, pageNum: pageNum).response()
                     await send(.fetchPreviewURLsDone(pageNum, response))
                 }
-                .cancellable(id: CancelID.fetchPreviewURLs)
+                .cancellable(id: cancelID(.fetchPreviewURLs, state: state))
 
             case .fetchPreviewURLsDone(let pageNum, let result):
                 state.loadingPages.remove(pageNum)
@@ -224,6 +238,10 @@ struct PreviewsReducer {
             try await Task.sleep(for: .milliseconds(800))
             await send(.fetchPreviewURLs(retryIndex))
         }
-        .cancellable(id: CancelID.fetchPreviewURLs)
+        .cancellable(id: cancelID(.fetchPreviewURLs, state: state))
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

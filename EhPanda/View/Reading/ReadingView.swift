@@ -42,8 +42,8 @@ struct ReadingView: View {
                 activity.appEntityIdentifier = EntityIdentifier(for: entity)
                 activity.userInfo = ["gid": entity.id]
             }
-            .sheet(item: $store.route.sending(\.setNavigation).readingSetting) { _ in
-                NavigationView {
+            .sheet(isPresented: isReadingSettingPresented) {
+                NavigationStack {
                     ReadingSettingView(
                         readingDirection: $setting.readingDirection,
                         prefetchLimit: $setting.prefetchLimit,
@@ -54,13 +54,11 @@ struct ReadingView: View {
                         doubleTapScaleFactor: $setting.doubleTapScaleFactor
                     )
                     .toolbar {
-                        if !DeviceUtil.isPad && DeviceUtil.isLandscape {
-                            CustomToolbarItem(placement: .cancellationAction) {
-                                Button {
-                                    store.send(.setNavigation(nil))
-                                } label: {
-                                    Image(systemSymbol: .chevronDown)
-                                }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button(role: .cancel) {
+                                store.send(.setNavigation(nil))
+                            } label: {
+                                Image(systemSymbol: .xmark)
                             }
                         }
                     }
@@ -68,7 +66,6 @@ struct ReadingView: View {
                 .accentColor(setting.accentColor)
                 .tint(setting.accentColor)
                 .autoBlur(radius: blurRadius)
-                .navigationViewStyle(.stack)
             }
             .sheet(item: $store.route.sending(\.setNavigation).share) { shareItemBox in
                 ActivityView(activityItems: [shareItemBox.wrappedValue.associatedValue])
@@ -88,11 +85,44 @@ struct ReadingView: View {
                 setAutoPlayPolocy(.off)
             }
             .onAppear { store.send(.onAppear(gid, setting.enablesLandscape)) }
+            .onKeyPress(.leftArrow) {
+                updatePageIndex(
+                    pageIndex + (setting.readingDirection == .rightToLeft ? 1 : -1)
+                )
+                return .handled
+            }
+            .onKeyPress(.rightArrow) {
+                updatePageIndex(
+                    pageIndex + (setting.readingDirection == .rightToLeft ? -1 : 1)
+                )
+                return .handled
+            }
+            .onKeyPress(.space) {
+                updatePageIndex(pageIndex + 1)
+                return .handled
+            }
+            .onKeyPress(.escape) {
+                store.send(.onPerformDismiss)
+                return .handled
+            }
     }
 
     private var screenGalleryEntity: GalleryEntity? {
         guard !store.gallery.id.isEmpty else { return nil }
         return GalleryEntity(gallery: store.gallery)
+    }
+
+    private var isReadingSettingPresented: Binding<Bool> {
+        Binding(
+            get: {
+                guard case .readingSetting = store.route else { return false }
+                return true
+            },
+            set: { isPresented in
+                guard !isPresented, case .readingSetting = store.route else { return }
+                store.send(.setNavigation(nil))
+            }
+        )
     }
 
     var content: some View {

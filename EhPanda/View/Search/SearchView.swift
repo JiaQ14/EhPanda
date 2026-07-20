@@ -75,36 +75,17 @@ struct SearchView: View {
                 }
             }
         }
-        .background(navigationLink)
         .toolbar(content: toolbar)
         .navigationTitle(store.lastKeyword)
 
-        if DeviceUtil.isPad {
-            content
-                .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { route in
-                    NavigationView {
-                        DetailView(
-                            store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                            gid: route.wrappedValue, user: user, setting: $setting,
-                            blurRadius: blurRadius, tagTranslator: tagTranslator
-                        )
-                    }
-                    .autoBlur(radius: blurRadius).environment(\.inSheet, true).navigationViewStyle(.stack)
-                }
-        } else {
-            content
-        }
-    }
-
-    @ViewBuilder private var navigationLink: some View {
-        if DeviceUtil.isPhone {
-            NavigationLink(unwrapping: $store.route, case: \.detail) { route in
-                DetailView(
-                    store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                    gid: route.wrappedValue, user: user, setting: $setting,
-                    blurRadius: blurRadius, tagTranslator: tagTranslator
-                )
-            }
+        content.adaptiveGalleryDetail(
+            selection: $store.route.sending(\.setNavigation).detail,
+            blurRadius: blurRadius
+        ) { gid in
+            GalleryDetailContainer(
+                gid: gid, user: user, setting: $setting,
+                blurRadius: blurRadius, tagTranslator: tagTranslator
+            )
         }
     }
     private func toolbar() -> some ToolbarContent {

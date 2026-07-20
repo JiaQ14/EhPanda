@@ -991,3 +991,6 @@
 "Search Galleries from Image" = "画像から漫画を検索";
 "Open Cache" = "キャッシュを開く";
 "Refresh Cache" = "キャッシュを更新";
+"Navigate" = "移動";
+"Refresh" = "更新";
+"Open in New Window" = "新しいウインドウで開く";

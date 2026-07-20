@@ -73,7 +73,7 @@ struct CacheSettingView: View {
                 Text(L10n.Localizable.CacheSettingView.Section.Footer.storage)
             }
         }
-        .navigationTitle(L10n.Localizable.CacheSettingView.Title.cache)
+        .settingRootNavigationTitle(L10n.Localizable.CacheSettingView.Title.cache)
     }
 }
 

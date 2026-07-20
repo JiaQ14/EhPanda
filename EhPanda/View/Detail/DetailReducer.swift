@@ -24,13 +24,17 @@ struct DetailReducer {
         case galleryInfos(Gallery, GalleryDetail)
     }
 
-    private enum CancelID: CaseIterable {
+    private enum CancelOperation: CaseIterable {
         case fetchDatabaseInfos, fetchGalleryDetail, observeCache
         case rateGallery, favorGallery, unfavorGallery, postComment, voteTag
+        case postCommentFocus, ratingConfirmation
     }
+
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
 
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
         var commentContent = ""
         var postCommentFocused = false
@@ -72,6 +76,7 @@ struct DetailReducer {
         case binding(BindingAction<State>)
         case setNavigation(Route?)
         case clearSubStates
+        case resetSubStates
         case onPostCommentAppear
         case onAppear(String, Bool)
         case onPreviewAppear(String)
@@ -144,6 +149,26 @@ struct DetailReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
+                var teardownEffects: [Effect<Action>] = [
+                    .cancel(id: cancelID(.postCommentFocus, state: state)),
+                    .cancel(id: cancelID(.ratingConfirmation, state: state)),
+                    .send(.reading(.teardown)),
+                    .send(.archives(.teardown)),
+                    .send(.torrents(.teardown)),
+                    .send(.previews(.teardown))
+                ]
+                if state.commentsState.wrappedValue != nil {
+                    teardownEffects.append(.send(.comments(.teardown)))
+                }
+                if state.detailSearchState.wrappedValue != nil {
+                    teardownEffects.append(.send(.detailSearch(.teardown)))
+                }
+                return .concatenate(
+                    .merge(teardownEffects),
+                    .send(.resetSubStates)
+                )
+
+            case .resetSubStates:
                 state.readingState = .init()
                 state.archivesState = .init()
                 state.torrentsState = .init()
@@ -153,20 +178,17 @@ struct DetailReducer {
                 state.postCommentFocused = false
                 state.galleryInfosState = .init()
                 state.detailSearchState.wrappedValue = .init()
-                return .merge(
-                    .send(.reading(.teardown)),
-                    .send(.archives(.teardown)),
-                    .send(.torrents(.teardown)),
-                    .send(.previews(.teardown)),
-                    .send(.comments(.teardown)),
-                    .send(.detailSearch(.teardown))
-                )
+                return .none
 
             case .onPostCommentAppear:
                 return .run { send in
                     try await Task.sleep(for: .milliseconds(750))
                     await send(.setPostCommentFocused(true))
                 }
+                .cancellable(
+                    id: cancelID(.postCommentFocus, state: state),
+                    cancelInFlight: true
+                )
 
             case .onAppear(let gid, let showsNewDawnGreeting):
                 state.showsNewDawnGreeting = showsNewDawnGreeting
@@ -216,6 +238,10 @@ struct DetailReducer {
                         try await Task.sleep(for: .seconds(1))
                         await send(.confirmRatingDone)
                     }
+                    .cancellable(
+                        id: cancelID(.ratingConfirmation, state: state),
+                        cancelInFlight: true
+                    )
                 )
 
             case .confirmRatingDone:
@@ -261,7 +287,22 @@ struct DetailReducer {
                 }
 
             case .teardown:
-                return .merge(CancelID.allCases.map(Effect.cancel(id:)))
+                var effects = CancelOperation.allCases.map {
+                    Effect<Action>.cancel(id: cancelID($0, state: state))
+                }
+                effects.append(contentsOf: [
+                    .send(.reading(.teardown)),
+                    .send(.archives(.teardown)),
+                    .send(.torrents(.teardown)),
+                    .send(.previews(.teardown))
+                ])
+                if state.commentsState.wrappedValue != nil {
+                    effects.append(.send(.comments(.teardown)))
+                }
+                if state.detailSearchState.wrappedValue != nil {
+                    effects.append(.send(.detailSearch(.teardown)))
+                }
+                return .merge(effects)
 
             case .fetchDatabaseInfos(let gid, let recordsHistory):
                 let gallery = databaseClient.fetchGallery(gid: gid)
@@ -276,7 +317,7 @@ struct DetailReducer {
                         guard let dbState = await databaseClient.fetchGalleryState(gid: galleryID) else { return }
                         await send(.fetchDatabaseInfosDone(dbState))
                     }
-                    .cancellable(id: CancelID.fetchDatabaseInfos)
+                    .cancellable(id: cancelID(.fetchDatabaseInfos, state: state))
                 ]
                 if recordsHistory {
                     effects.append(.send(.saveGalleryHistory))
@@ -298,7 +339,7 @@ struct DetailReducer {
                     let response = await GalleryDetailRequest(gid: galleryID, galleryURL: galleryURL).response()
                     await send(.fetchGalleryDetailDone(response))
                 }
-                .cancellable(id: CancelID.fetchGalleryDetail)
+                .cancellable(id: cancelID(.fetchGalleryDetail, state: state))
 
             case .fetchGalleryDetailDone(let result):
                 state.loadingState = .idle
@@ -338,7 +379,10 @@ struct DetailReducer {
                         await send(.cacheItemUpdated(items.first(where: { $0.id == gid })))
                     }
                 }
-                .cancellable(id: CancelID.observeCache, cancelInFlight: true)
+                .cancellable(
+                    id: cancelID(.observeCache, state: state),
+                    cancelInFlight: true
+                )
 
             case .cacheItemUpdated(let item):
                 state.cacheItem = item
@@ -375,7 +419,7 @@ struct DetailReducer {
                     )
                         .response()
                     await send(.anyGalleryOpsDone(response))
-                }.cancellable(id: CancelID.rateGallery)
+                }.cancellable(id: cancelID(.rateGallery, state: state))
 
             case .favorGallery(let favIndex):
                 return .run { [state] send in
@@ -387,14 +431,14 @@ struct DetailReducer {
                         .response()
                     await send(.anyGalleryOpsDone(response))
                 }
-                .cancellable(id: CancelID.favorGallery)
+                .cancellable(id: cancelID(.favorGallery, state: state))
 
             case .unfavorGallery:
                 return .run { [galleryID = state.gallery.id] send in
                     let response = await UnfavorGalleryRequest(gid: galleryID).response()
                     await send(.anyGalleryOpsDone(response))
                 }
-                .cancellable(id: CancelID.unfavorGallery)
+                .cancellable(id: cancelID(.unfavorGallery, state: state))
 
             case .postComment(let galleryURL):
                 guard !state.commentContent.isEmpty else { return .none }
@@ -405,7 +449,7 @@ struct DetailReducer {
                         .response()
                     await send(.anyGalleryOpsDone(response))
                 }
-                .cancellable(id: CancelID.postComment)
+                .cancellable(id: cancelID(.postComment, state: state))
 
             case .voteTag(let tag, let vote):
                 guard let apiuid = Int(cookieClient.apiuid), let gid = Int(state.gallery.id)
@@ -422,7 +466,7 @@ struct DetailReducer {
                         .response()
                     await send(.anyGalleryOpsDone(response))
                 }
-                .cancellable(id: CancelID.voteTag)
+                .cancellable(id: cancelID(.voteTag, state: state))
 
             case .anyGalleryOpsDone(let result):
                 if case .success = result {
@@ -544,5 +588,9 @@ struct DetailReducer {
             Scope(state: \.previewsState, action: \.previews, child: PreviewsReducer.init)
             Scope(state: \.galleryInfosState, action: \.galleryInfos, child: GalleryInfosReducer.init)
         }
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

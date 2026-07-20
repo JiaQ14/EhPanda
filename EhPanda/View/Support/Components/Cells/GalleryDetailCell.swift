@@ -174,6 +174,7 @@ extension View {
 
 private struct GalleryContextMenuModifier: ViewModifier {
     @Environment(\.galleryContextMenuConfiguration) private var configuration
+    @State private var presentationRevision = 0
 
     let gallery: Gallery
     let actions: [GalleryListAction]
@@ -200,7 +201,38 @@ private struct GalleryContextMenuModifier: ViewModifier {
                         gallery: gallery,
                         configuration: configuration
                     )
+                    .onDisappear {
+                        presentationRevision &+= 1
+                    }
                 }
+                .id(presentationRevision)
+                .modifier(
+                    GalleryDraggableModifier(
+                        gid: gallery.id,
+                        url: gallery.galleryURL
+                    )
+                )
+        } else {
+            content.modifier(
+                GalleryDraggableModifier(
+                    gid: gallery.id,
+                    url: gallery.galleryURL
+                )
+            )
+        }
+    }
+}
+
+private struct GalleryDraggableModifier: ViewModifier {
+    let gid: String
+    let url: URL?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if DeviceUtil.isPad {
+            content.onDrag {
+                GallerySceneActivity.itemProvider(gid: gid, url: url)
+            }
         } else {
             content
         }
@@ -221,6 +253,8 @@ private struct GalleryDownloadContextMenu: View {
 }
 
 private struct GalleryStandardContextMenu: View {
+    @Environment(\.isStandaloneGalleryWindow)
+    private var isStandaloneGalleryWindow
     @Dependency(\.databaseClient) private var databaseClient
     @Dependency(\.cacheClient) private var cacheClient
     @Dependency(\.hapticsClient) private var hapticsClient
@@ -242,6 +276,20 @@ private struct GalleryStandardContextMenu: View {
 
     var body: some View {
         Group {
+            if DeviceUtil.isPad && !isStandaloneGalleryWindow {
+                Button {
+                    GallerySceneActivity.openWindow(
+                        gid: gallery.id,
+                        title: gallery.title
+                    )
+                } label: {
+                    Label(
+                        L10n.Localizable.openInNewWindow,
+                        systemImage: "macwindow.badge.plus"
+                    )
+                }
+            }
+
             if galleryIsFavorited {
                 Button(role: .destructive) {
                     performUnfavorite()
@@ -620,13 +668,14 @@ struct GalleryDetailCell: View {
         }
         .padding(12)
         .contentShape(shape)
-        .glassEffect(.regular.interactive(), in: shape)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: shape)
         .overlay {
             shape.stroke(
                 .primary.opacity(colorScheme == .light ? 0.06 : 0.12),
                 lineWidth: 0.5
             )
         }
+        .hoverEffect(.highlight)
     }
 }
 

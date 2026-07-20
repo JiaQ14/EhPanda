@@ -83,6 +83,7 @@ struct ControlPanel: View {
 
 // MARK: UpperPanel
 private struct UpperPanel: View {
+    @Environment(\.windowSize) private var windowSize
     @Binding private var setting: Setting
     @Binding private var enablesLiveText: Bool
     @Binding private var autoPlayPolicy: AutoPlayPolicy
@@ -219,15 +220,24 @@ private struct UpperPanel: View {
             .glassEffect(.regular.interactive())
         }
         .foregroundStyle(.primary)
-        .padding(.horizontal, 12)
+        .padding(.leading, 12 + windowControlsLeadingInset)
+        .padding(.trailing, 12)
         .background(Color.clear)
         .contentShape(Rectangle())
         .onTapGesture {}
+    }
+
+    private var windowControlsLeadingInset: CGFloat {
+        guard #available(iOS 26.0, *), DeviceUtil.isWindowed(windowSize) else {
+            return 0
+        }
+        return 64
     }
 }
 
 // MARK: LowerPanel
 private struct LowerPanel: View {
+    @Environment(\.windowSize) private var windowSize
     @Binding private var showsSliderPreview: Bool
     @Binding private var sliderValue: Float
     private let previewURLs: [Int: URL]
@@ -270,7 +280,7 @@ private struct LowerPanel: View {
                     in: range,
                     onEditingChanged: { if !$0 { showsSliderPreview = false } }
                 )
-                .frame(width: DeviceUtil.windowW * 0.6)
+                .frame(width: min(shortSide * 0.6, 900))
                 .rotationEffect(.init(degrees: isReversed ? 180 : 0))
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: .infinity, maximumDistance: .infinity)
@@ -289,10 +299,15 @@ private struct LowerPanel: View {
         .glassEffect(in: .rect(cornerRadius: 16))
         .padding(.horizontal, SliderPreivew.outerPadding)
     }
+
+    private var shortSide: CGFloat {
+        min(windowSize.width, windowSize.height)
+    }
 }
 
 // MARK: SliderPreview
 private struct SliderPreivew: View {
+    @Environment(\.windowSize) private var windowSize
     @Binding private var showsSliderPreview: Bool
     @Binding var sliderValue: Float
     private let previewURLs: [Int: URL]
@@ -332,7 +347,7 @@ private struct SliderPreivew: View {
                         .frame(width: previewWidth, height: showsSliderPreview ? previewHeight : 0)
 
                     Text("\(index)")
-                        .font(DeviceUtil.isPadWidth ? .callout : .caption)
+                        .font(isPadWidth ? .callout : .caption)
                         .foregroundColor(index == Int(sliderValue) ? .accentColor : .secondary)
                 }
                 .onAppear {
@@ -351,12 +366,17 @@ private struct SliderPreivew: View {
 }
 
 private extension SliderPreivew {
+    var shortSide: CGFloat {
+        min(windowSize.width, windowSize.height)
+    }
+    var isPadWidth: Bool { shortSide >= 744 }
+    var isLandscape: Bool { windowSize.width > windowSize.height }
     var verticalPadding: CGFloat {
-        DeviceUtil.isPadWidth ? 30 : 20
+        isPadWidth ? 30 : 20
     }
     var horizontalPadding: CGFloat { verticalPadding * 0.5 }
     var previewsCount: Int {
-        DeviceUtil.isPadWidth ? DeviceUtil.isLandscape ? 7 : 5 : 3
+        isPadWidth ? isLandscape ? 7 : 5 : 3
     }
     var previewsIndices: [Int] {
         guard !previewURLs.isEmpty else { return [] }
@@ -376,7 +396,7 @@ private extension SliderPreivew {
         guard previewsCount > 0 else { return 0 }
         let count = CGFloat(previewsCount)
         let spacing = (count + 1) * previewSpacing + horizontalPadding * 2 + Self.outerPadding * 2
-        return (DeviceUtil.windowW - spacing) / count
+        return (shortSide - spacing) / count
     }
     func checkIndex(_ index: Int) -> Bool {
         index >= Int(range.lowerBound) && index <= Int(range.upperBound)

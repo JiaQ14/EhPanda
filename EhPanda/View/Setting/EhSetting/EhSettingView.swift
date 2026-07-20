@@ -556,8 +556,9 @@ private struct FilteredRemovalCountSection: View {
                 isOn: $ehSetting.showFilteredRemovalCount
             )
         } header: {
-            Text(L10n.Localizable.EhSettingView.Section.Title.filteredRemovalCount).newlineBold()
-            + Text(L10n.Localizable.EhSettingView.Description.filteredRemovalCount)
+            Text(L10n.Localizable.EhSettingView.Section.Title.filteredRemovalCount)
+                .newlineBold()
+                .appending(L10n.Localizable.EhSettingView.Description.filteredRemovalCount)
         }
     }
 }
@@ -589,10 +590,11 @@ private struct ExcludedLanguagesSection: View {
         Section {
             HStack {
                 Text("")
-                    .frame(width: DeviceUtil.windowW * 0.25)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 ForEach(EhSetting.ExcludedLanguagesCategory.allCases) { category in
                     Color.clear
+                        .frame(maxWidth: .infinity)
                         .overlay {
                             Text(category.value)
                                 .lineLimit(1)
@@ -635,11 +637,12 @@ private struct ExcludeRow: View {
                 .font(.subheadline)
                 .fixedSize()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(width: DeviceUtil.windowW * 0.25)
 
             ForEach(0..<bindings.count, id: \.self) { index in
                 let shouldHide = isFirstRow && index == 0
-                ExcludeToggle(isOn: bindings[index]).opacity(shouldHide ? 0 : 1)
+                ExcludeToggle(isOn: bindings[index])
+                    .frame(maxWidth: .infinity)
+                    .opacity(shouldHide ? 0 : 1)
             }
         }
     }
@@ -998,11 +1001,11 @@ private extension String {
 
 private extension Text {
     func newlineBold() -> Text {
-        bold() + Text("\n")
+        Text("\(bold())\n")
     }
 
     func appending(_ string: some StringProtocol) -> Text {
-        self + Text(string)
+        Text("\(self)\(Text(verbatim: String(string)))")
     }
 }
 

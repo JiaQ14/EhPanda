@@ -3,6 +3,7 @@
 //  EhPanda
 //
 
+import Foundation
 import ComposableArchitecture
 
 @Reducer
@@ -14,12 +15,15 @@ struct DetailSearchReducer {
         case detail(String)
     }
 
-    private enum CancelID: CaseIterable {
+    private enum CancelOperation: CaseIterable {
         case fetchGalleries, fetchMoreGalleries
     }
 
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
+
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
         var keyword = ""
         var lastKeyword = ""
@@ -46,6 +50,7 @@ struct DetailSearchReducer {
         case binding(BindingAction<State>)
         case setNavigation(Route?)
         case clearSubStates
+        case resetSubStates
 
         case teardown
         case fetchGalleries(String? = nil)
@@ -85,16 +90,29 @@ struct DetailSearchReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
+                return .concatenate(
+                    .merge(
+                        .send(.detail(.teardown)),
+                        .send(.quickSearch(.teardown))
+                    ),
+                    .send(.resetSubStates)
+                )
+
+            case .resetSubStates:
                 state.detailState.wrappedValue = .init()
                 state.filtersState = .init()
                 state.quickDetailSearchState = .init()
-                return .merge(
-                    .send(.detail(.teardown)),
-                    .send(.quickSearch(.teardown))
-                )
+                return .none
 
             case .teardown:
-                return .merge(CancelID.allCases.map(Effect.cancel(id:)))
+                var effects = CancelOperation.allCases.map {
+                    Effect<Action>.cancel(id: cancelID($0, state: state))
+                }
+                if state.detailState.wrappedValue != nil {
+                    effects.append(.send(.detail(.teardown)))
+                }
+                effects.append(.send(.quickSearch(.teardown)))
+                return .merge(effects)
 
             case .fetchGalleries(let keyword):
                 guard state.loadingState != .loading else { return .none }
@@ -109,7 +127,7 @@ struct DetailSearchReducer {
                     let response = await SearchGalleriesRequest(keyword: lastKeyword, filter: filter).response()
                     await send(.fetchGalleriesDone(response))
                 }
-                .cancellable(id: CancelID.fetchGalleries)
+                .cancellable(id: cancelID(.fetchGalleries, state: state))
 
             case .fetchGalleriesDone(let result):
                 state.loadingState = .idle
@@ -143,7 +161,7 @@ struct DetailSearchReducer {
                     .response()
                     await send(.fetchMoreGalleriesDone(response))
                 }
-                .cancellable(id: CancelID.fetchMoreGalleries)
+                .cancellable(id: cancelID(.fetchMoreGalleries, state: state))
 
             case .fetchMoreGalleriesDone(let result):
                 state.footerLoadingState = .idle
@@ -190,5 +208,9 @@ struct DetailSearchReducer {
 
         Scope(state: \.filtersState, action: \.filters, child: FiltersReducer.init)
         Scope(state: \.quickDetailSearchState, action: \.quickSearch, child: QuickSearchReducer.init)
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

@@ -21,7 +21,7 @@ struct LaboratorySettingView: View {
                 )
             }
         }
-        .navigationTitle(L10n.Localizable.LaboratorySettingView.Title.laboratory)
+        .settingRootNavigationTitle(L10n.Localizable.LaboratorySettingView.Title.laboratory)
     }
 }
 

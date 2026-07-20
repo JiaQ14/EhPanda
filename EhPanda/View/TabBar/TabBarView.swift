@@ -7,11 +7,46 @@ import SwiftUI
 import UIKit
 import Combine
 import CoreSpotlight
+import ImageIO
 import SFSafeSymbols
 import ComposableArchitecture
 
+struct AppCommandActions {
+    let navigate: (AppNavigationItem) -> Void
+    let refresh: () -> Void
+}
+
+private struct AppCommandActionsKey: FocusedValueKey {
+    typealias Value = AppCommandActions
+}
+
+extension FocusedValues {
+    var ehPandaCommandActions: AppCommandActions? {
+        get { self[AppCommandActionsKey.self] }
+        set { self[AppCommandActionsKey.self] = newValue }
+    }
+}
+
+private struct AppDropDestinationModifier: ViewModifier {
+    let urlHandler: ([URL]) -> Bool
+    let dataHandler: ([Data]) -> Bool
+
+    func body(content: Content) -> some View {
+        content
+            .dropDestination(for: URL.self) { urls, _ in
+                return urlHandler(urls)
+            }
+            .dropDestination(for: Data.self) { items, _ in
+                return dataHandler(items)
+            }
+    }
+}
+
 struct TabBarView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("appTabViewCustomization")
+    private var tabViewCustomization: TabViewCustomization
+    @State private var visualSearchTask: Task<Void, Never>?
     @Bindable private var store: StoreOf<AppReducer>
 
     init(store: StoreOf<AppReducer>) {
@@ -20,26 +55,9 @@ struct TabBarView: View {
 
     var body: some View {
         ZStack {
-            TabView(
-                selection: .init(
-                    get: { store.tabBarState.tabBarItemType },
-                    set: { store.send(.tabBar(.setTabBarItemType($0))) }
-                )
-            ) {
-                ForEach(visibleTabItems) { type in
-                    Tab(value: type) {
-                        AppNavigationContent(
-                            store: store,
-                            item: type,
-                            embedsInNavigationStack: true
-                        )
-                    } label: {
-                        type.label()
-                    }
-                }
-            }
-            .accentColor(store.settingState.setting.accentColor)
-            .autoBlur(radius: store.appLockState.blurRadius)
+            tabNavigation
+                .accentColor(store.settingState.setting.accentColor)
+                .autoBlur(radius: store.appLockState.blurRadius)
             Button {
                 store.send(.appLock(.authorize))
             } label: {
@@ -71,10 +89,24 @@ struct TabBarView: View {
                     blurRadius: store.appLockState.blurRadius,
                     tagTranslator: store.settingState.tagTranslator
                 )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(role: .cancel) {
+                            store.send(.appRoute(.setNavigation(nil)))
+                        } label: {
+                            Image(systemSymbol: .xmark)
+                        }
+                    }
+                }
             }
             .accentColor(store.settingState.setting.accentColor)
-            .autoBlur(radius: store.appLockState.blurRadius)
-            .environment(\.inSheet, true)
+            .gallerySheetPresentation(
+                gid: route.wrappedValue,
+                blurRadius: store.appLockState.blurRadius,
+                onDetached: {
+                    store.send(.appRoute(.setNavigation(nil)))
+                }
+            )
         }
         .progressHUD(
             config: store.appRouteState.hudConfig,
@@ -106,10 +138,222 @@ struct TabBarView: View {
             store.send(.handleIntentRoute(.gallery(gid: galleryID, readingProgress: nil)))
         }
         .onOpenURL { store.send(.appRoute(.handleDeepLink($0))) }
+        .modifier(
+            AppDropDestinationModifier(
+                urlHandler: handleDroppedURLs,
+                dataHandler: handleDroppedImageData
+            )
+        )
+        .focusedSceneValue(
+            \.ehPandaCommandActions,
+            AppCommandActions(
+                navigate: { item in
+                    store.send(.navigateToSection(item))
+                },
+                refresh: {
+                    store.send(.tabBar(.setTabBarItemType(store.tabBarState.tabBarItemType)))
+                }
+            )
+        )
+        .onDisappear {
+            visualSearchTask?.cancel()
+            visualSearchTask = nil
+        }
     }
 
-    private var visibleTabItems: [AppNavigationItem] {
+    @ViewBuilder
+    private var tabNavigation: some View {
+        if DeviceUtil.isPad {
+            iPadTabView
+                .tabViewStyle(.sidebarAdaptable)
+                .tabViewCustomization($tabViewCustomization)
+                .defaultAdaptableTabBarPlacement(.tabBar)
+                .background(TabSidebarLayoutConfigurator())
+        } else {
+            phoneTabView
+        }
+    }
+
+    private var phoneTabView: some View {
+        TabView(selection: tabSelection) {
+            ForEach(phoneTabItems) { type in
+                navigationTab(type)
+            }
+        }
+    }
+
+    private var iPadTabView: some View {
+        TabView(selection: tabSelection) {
+            ForEach(AppNavigationItem.iPadItems) { type in
+                navigationTab(type)
+                    .customizationID(type.customizationID)
+                    .customizationBehavior(
+                        type.nativeCustomizationBehavior,
+                        for: .sidebar,
+                        .tabBar
+                    )
+                    .defaultVisibility(
+                        defaultTabBarVisibility(for: type),
+                        for: .tabBar
+                    )
+            }
+        }
+    }
+
+    private func navigationTab(_ type: AppNavigationItem) -> some TabContent<AppNavigationItem> {
+        Tab(value: type, role: type == .search ? .search : nil) {
+            AppNavigationContent(
+                store: store,
+                item: type,
+                embedsInNavigationStack: true
+            )
+        } label: {
+            type.label()
+        }
+    }
+
+    private var tabSelection: Binding<AppNavigationItem> {
+        .init(
+            get: { store.tabBarState.tabBarItemType },
+            set: { store.send(.tabBar(.setTabBarItemType($0))) }
+        )
+    }
+
+    private var phoneTabItems: [AppNavigationItem] {
         [.home] + store.settingState.setting.tabBarItems + [.more]
+    }
+
+    private func defaultTabBarVisibility(for type: AppNavigationItem) -> Visibility {
+        if type == .home || type == .setting
+            || store.settingState.setting.tabBarItems.contains(type) {
+            return .visible
+        }
+        return .hidden
+    }
+
+    private func handleDroppedURLs(_ urls: [URL]) -> Bool {
+        for url in urls {
+            let resolvedURL = URLClient.live.resolveAppSchemeURL(url) ?? url
+            if URLClient.live.checkIfHandleable(resolvedURL) {
+                store.send(.appRoute(.handleDeepLink(resolvedURL)))
+                return true
+            }
+        }
+
+        guard store.settingState.setting.enablesVisualSearch, !urls.isEmpty else {
+            return false
+        }
+        store.send(.appRoute(.setNavigation(.hud)))
+        visualSearchTask?.cancel()
+        visualSearchTask = Task {
+            for url in urls {
+                guard !Task.isCancelled else { return }
+                guard let data = await GalleryVisualSearchImageLoader.data(
+                    from: url,
+                    session: .shared
+                ), let image = Self.image(from: data) else { continue }
+                await completeVisualSearch(image)
+                return
+            }
+            guard !Task.isCancelled else { return }
+            store.send(.appRoute(.setNavigation(nil)))
+        }
+        return true
+    }
+
+    private func handleDroppedImageData(_ items: [Data]) -> Bool {
+        guard store.settingState.setting.enablesVisualSearch,
+              let image = items.lazy.compactMap(Self.image(from:)).first
+        else { return false }
+        store.send(.appRoute(.setNavigation(.hud)))
+        visualSearchTask?.cancel()
+        visualSearchTask = Task { await completeVisualSearch(image) }
+        return true
+    }
+
+    private func completeVisualSearch(_ image: CGImage) async {
+        let output = await GalleryVisualSearchService.shared.search(image: image)
+        guard !Task.isCancelled else { return }
+        store.send(.appRoute(.setNavigation(nil)))
+        store.send(.handleIntentRoute(output.navigationRoute))
+    }
+
+    private static func image(from data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+}
+
+private struct TabSidebarLayoutConfigurator: UIViewRepresentable {
+    func makeUIView(context: Context) -> ResolverView {
+        ResolverView()
+    }
+
+    func updateUIView(_ uiView: ResolverView, context: Context) {
+        uiView.applyPreferredLayout()
+    }
+
+    final class ResolverView: UIView {
+        private weak var tabBarController: UITabBarController?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            applyPreferredLayout()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            applyPreferredLayout()
+        }
+
+        func applyPreferredLayout() {
+            if let tabBarController {
+                configure(tabBarController)
+                return
+            }
+
+            var responder: UIResponder? = self
+            while let nextResponder = responder?.next {
+                if let tabBarController = nextResponder as? UITabBarController {
+                    configure(tabBarController)
+                    return
+                }
+                responder = nextResponder
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let rootViewController = self?.window?.rootViewController,
+                      let tabBarController = rootViewController.descendantTabBarController
+                else {
+                    return
+                }
+                self?.configure(tabBarController)
+            }
+        }
+
+        private func configure(_ tabBarController: UITabBarController) {
+            self.tabBarController = tabBarController
+            if tabBarController.sidebar.preferredLayout != .overlap {
+                tabBarController.sidebar.preferredLayout = .overlap
+                tabBarController.view.setNeedsLayout()
+            }
+        }
+    }
+}
+
+private extension UIViewController {
+    var descendantTabBarController: UITabBarController? {
+        if let tabBarController = self as? UITabBarController {
+            return tabBarController
+        }
+        for child in children {
+            if let tabBarController = child.descendantTabBarController {
+                return tabBarController
+            }
+        }
+        return presentedViewController?.descendantTabBarController
     }
 }
 
@@ -139,35 +383,32 @@ private struct AppNavigationContent: View {
                 tagTranslator: store.settingState.tagTranslator
             )
         case .popular:
-            navigationContainer {
-                PopularView(
-                    store: store.scope(state: \.homeState.popularState, action: \.home.popular),
-                    user: store.settingState.user,
-                    setting: $store.settingState.setting,
-                    blurRadius: store.appLockState.blurRadius,
-                    tagTranslator: store.settingState.tagTranslator
-                )
-            }
+            PopularView(
+                store: store.scope(state: \.homeState.popularState, action: \.home.popular),
+                user: store.settingState.user,
+                setting: $store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator,
+                embedsInNavigationStack: embedsInNavigationStack
+            )
         case .watched:
-            navigationContainer {
-                WatchedView(
-                    store: store.scope(state: \.homeState.watchedState, action: \.home.watched),
-                    user: store.settingState.user,
-                    setting: $store.settingState.setting,
-                    blurRadius: store.appLockState.blurRadius,
-                    tagTranslator: store.settingState.tagTranslator
-                )
-            }
+            WatchedView(
+                store: store.scope(state: \.homeState.watchedState, action: \.home.watched),
+                user: store.settingState.user,
+                setting: $store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator,
+                embedsInNavigationStack: embedsInNavigationStack
+            )
         case .history:
-            navigationContainer {
-                HistoryView(
-                    store: store.scope(state: \.homeState.historyState, action: \.home.history),
-                    user: store.settingState.user,
-                    setting: $store.settingState.setting,
-                    blurRadius: store.appLockState.blurRadius,
-                    tagTranslator: store.settingState.tagTranslator
-                )
-            }
+            HistoryView(
+                store: store.scope(state: \.homeState.historyState, action: \.home.history),
+                user: store.settingState.user,
+                setting: $store.settingState.setting,
+                blurRadius: store.appLockState.blurRadius,
+                tagTranslator: store.settingState.tagTranslator,
+                embedsInNavigationStack: embedsInNavigationStack
+            )
         case .favorites:
             FavoritesView(
                 store: store.scope(state: \.favoritesState, action: \.favorites),
@@ -206,18 +447,6 @@ private struct AppNavigationContent: View {
         }
     }
 
-    @ViewBuilder
-    private func navigationContainer<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        if embedsInNavigationStack {
-            NavigationStack {
-                content()
-            }
-        } else {
-            content()
-        }
-    }
 }
 
 private struct MoreView: View {
@@ -555,12 +784,14 @@ private struct NavigationItemsTable: UIViewRepresentable {
             {
                 completeFullTabBarMove(
                     in: tableView,
-                    movedItem: sourceRow.item,
-                    displacedItem: displacedItem,
-                    sourceIndex: sourceIndex,
-                    destinationIndex: destinationIndex,
-                    finalTabBarItems: draft.tabBarItems,
-                    finalMoreItems: draft.moreItems
+                    move: FullTabBarMove(
+                        movedItem: sourceRow.item,
+                        displacedItem: displacedItem,
+                        sourceIndex: sourceIndex,
+                        destinationIndex: destinationIndex,
+                        finalTabBarItems: draft.tabBarItems,
+                        finalMoreItems: draft.moreItems
+                    )
                 )
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 return
@@ -584,36 +815,31 @@ private struct NavigationItemsTable: UIViewRepresentable {
 
         private func completeFullTabBarMove(
             in tableView: UITableView,
-            movedItem: AppNavigationItem,
-            displacedItem: AppNavigationItem,
-            sourceIndex: Int,
-            destinationIndex: Int,
-            finalTabBarItems: [AppNavigationItem],
-            finalMoreItems: [AppNavigationItem]
+            move: FullTabBarMove
         ) {
             var intermediateTabBarItems = tabBarItems
             var intermediateMoreItems = moreItems
-            intermediateMoreItems.remove(at: sourceIndex)
+            intermediateMoreItems.remove(at: move.sourceIndex)
             intermediateTabBarItems.insert(
-                movedItem,
+                move.movedItem,
                 at: min(
-                    max(destinationIndex, 0),
+                    max(move.destinationIndex, 0),
                     intermediateTabBarItems.count
                 )
             )
             tabBarItems = intermediateTabBarItems
             moreItems = intermediateMoreItems
             guard let displacedSourceIndex =
-                    intermediateTabBarItems.firstIndex(of: displacedItem),
+                    intermediateTabBarItems.firstIndex(of: move.displacedItem),
                   let displacedDestinationIndex =
-                    finalMoreItems.firstIndex(of: displacedItem)
+                    move.finalMoreItems.firstIndex(of: move.displacedItem)
             else {
                 DispatchQueue.main.async { [weak self, weak tableView] in
                     guard let self, let tableView else { return }
-                    self.tabBarItems = finalTabBarItems
-                    self.moreItems = finalMoreItems
-                    self.parent.tabBarItems = finalTabBarItems
-                    self.parent.moreItems = finalMoreItems
+                    self.tabBarItems = move.finalTabBarItems
+                    self.moreItems = move.finalMoreItems
+                    self.parent.tabBarItems = move.finalTabBarItems
+                    self.parent.moreItems = move.finalMoreItems
                     tableView.reloadData()
                 }
                 return
@@ -621,8 +847,8 @@ private struct NavigationItemsTable: UIViewRepresentable {
 
             DispatchQueue.main.async { [weak self, weak tableView] in
                 guard let self, let tableView else { return }
-                self.tabBarItems = finalTabBarItems
-                self.moreItems = finalMoreItems
+                self.tabBarItems = move.finalTabBarItems
+                self.moreItems = move.finalMoreItems
                 tableView.performBatchUpdates {
                     tableView.moveRow(
                         at: IndexPath(
@@ -635,8 +861,8 @@ private struct NavigationItemsTable: UIViewRepresentable {
                         )
                     )
                 }
-                self.parent.tabBarItems = finalTabBarItems
-                self.parent.moreItems = finalMoreItems
+                self.parent.tabBarItems = move.finalTabBarItems
+                self.parent.moreItems = move.finalMoreItems
             }
         }
 
@@ -712,7 +938,33 @@ private struct NavigationEditorRow {
     let isFixed: Bool
 }
 
+private struct FullTabBarMove {
+    let movedItem: AppNavigationItem
+    let displacedItem: AppNavigationItem
+    let sourceIndex: Int
+    let destinationIndex: Int
+    let finalTabBarItems: [AppNavigationItem]
+    let finalMoreItems: [AppNavigationItem]
+}
+
 extension AppNavigationItem {
+    static let iPadItems: [Self] = [
+        .home, .setting, .popular, .watched, .history, .favorites, .cache, .search
+    ]
+
+    var customizationID: String {
+        "app.ehpanda.tab.\(rawValue)"
+    }
+
+    var nativeCustomizationBehavior: TabCustomizationBehavior {
+        switch self {
+        case .home, .search:
+            return .disabled
+        default:
+            return .automatic
+        }
+    }
+
     var title: String {
         switch self {
         case .home:

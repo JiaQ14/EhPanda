@@ -41,12 +41,7 @@ struct FavoritesReducer {
             rawFooterLoadingState[index]
         }
 
-        var detailState: Heap<DetailReducer.State?>
         var quickSearchState = QuickSearchReducer.State()
-
-        init() {
-            detailState = .init(.init())
-        }
 
         mutating func insertGalleries(index: Int, galleries: [Gallery]) {
             rawGalleries[index]?.appendUniqueGalleries(galleries)
@@ -65,7 +60,6 @@ struct FavoritesReducer {
         case fetchMoreGalleries
         case fetchMoreGalleriesDone(Int, Result<(PageNumber, FavoritesSortOrder?, [Gallery]), AppError>)
 
-        case detail(DetailReducer.Action)
         case quickSearch(QuickSearchReducer.Action)
     }
 
@@ -99,8 +93,7 @@ struct FavoritesReducer {
                 return .send(.fetchGalleries())
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
-                return .send(.detail(.teardown))
+                return .none
 
             case .onNotLoginViewButtonTapped:
                 return .none
@@ -184,9 +177,6 @@ struct FavoritesReducer {
                 }
                 return .none
 
-            case .detail:
-                return .none
-
             case .quickSearch:
                 return .none
             }
@@ -197,7 +187,6 @@ struct FavoritesReducer {
             hapticsClient: hapticsClient
         )
 
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
         Scope(state: \.quickSearchState, action: \.quickSearch, child: QuickSearchReducer.init)
     }
 }

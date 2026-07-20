@@ -6,6 +6,17 @@
 import SwiftUI
 import Foundation
 
+private struct WindowSizeKey: EnvironmentKey {
+    static let defaultValue = CGSize.zero
+}
+
+extension EnvironmentValues {
+    var windowSize: CGSize {
+        get { self[WindowSizeKey.self] }
+        set { self[WindowSizeKey.self] = newValue }
+    }
+}
+
 struct DeviceUtil {
     static var isPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
@@ -44,6 +55,19 @@ struct DeviceUtil {
             .contains(keyWindow?.windowScene?.effectiveGeometry.interfaceOrientation)
     }
 
+    static func isWindowed(_ windowSize: CGSize) -> Bool {
+        guard isPad,
+              let window = keyWindow,
+              let screenSize = window.windowScene?.screen.bounds.size,
+              windowSize.width > 0,
+              windowSize.height > 0
+        else { return false }
+
+        let windowArea = windowSize.width * windowSize.height
+        let screenArea = screenSize.width * screenSize.height
+        return windowArea < screenArea * 0.98
+    }
+
     static var windowW: CGFloat {
         min(absWindowW, absWindowH)
     }
@@ -69,10 +93,10 @@ struct DeviceUtil {
     }
 
     static var absScreenW: CGFloat {
-        UIScreen.main.bounds.size.width
+        anyWindow?.windowScene?.screen.bounds.size.width ?? 0
     }
 
     static var absScreenH: CGFloat {
-        UIScreen.main.bounds.size.height
+        anyWindow?.windowScene?.screen.bounds.size.height ?? 0
     }
 }

@@ -24,7 +24,6 @@ struct CacheReducer {
         var hasStartedObservation = false
         var hasRefreshedLibrary = false
         var hasRestoredDownloads = false
-        var detailState: Heap<DetailReducer.State?> = .init(.init())
 
         var filteredItems: [GalleryCacheItem] {
             guard !searchText.isEmpty else { return items }
@@ -55,7 +54,6 @@ struct CacheReducer {
         case delete(String)
         case deleteAll
 
-        case detail(DetailReducer.Action)
     }
 
     @Dependency(\.cacheClient) private var cacheClient
@@ -140,8 +138,7 @@ struct CacheReducer {
                 return .send(.setNavigation(.detail(gid)))
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
-                return .send(.detail(.teardown))
+                return .none
 
             case .pause(let gid):
                 return .run { _ in await cacheClient.pause(gid) }
@@ -165,15 +162,7 @@ struct CacheReducer {
                 state.route = nil
                 return .run { _ in await cacheClient.deleteAll() }
 
-            case .detail:
-                return .none
             }
         }
-
-        Scope(
-            state: \.detailState.wrappedValue!,
-            action: \.detail,
-            child: DetailReducer.init
-        )
     }
 }

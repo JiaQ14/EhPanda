@@ -99,7 +99,7 @@ struct AppearanceSettingView: View {
             }
         }
         .background(navigationLink)
-        .navigationTitle(L10n.Localizable.AppearanceSettingView.Title.appearance)
+        .settingRootNavigationTitle(L10n.Localizable.AppearanceSettingView.Title.appearance)
     }
 
     private var navigationLink: some View {

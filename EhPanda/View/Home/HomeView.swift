@@ -34,16 +34,14 @@ struct HomeView: View {
                     destination(for: route)
                 }
         }
-        .sheet(item: detailSheetRoute, id: \.self) { route in
-            NavigationStack {
-                DetailView(
-                    store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                    gid: route.wrappedValue, user: user, setting: $setting,
-                    blurRadius: blurRadius, tagTranslator: tagTranslator
-                )
-            }
-            .autoBlur(radius: blurRadius)
-            .environment(\.inSheet, true)
+        .adaptiveGalleryDetail(
+            selection: detailRoute,
+            blurRadius: blurRadius
+        ) { gid in
+            GalleryDetailContainer(
+                gid: gid, user: user, setting: $setting,
+                blurRadius: blurRadius, tagTranslator: tagTranslator
+            )
         }
     }
 
@@ -109,8 +107,8 @@ struct HomeView: View {
         Binding(
             get: {
                 guard let route = store.route else { return nil }
-                if DeviceUtil.isPad, case .detail = route { return nil }
-                return route
+                if case .section = route { return route }
+                return nil
             },
             set: { route in
                 store.send(.setNavigation(route))
@@ -118,10 +116,10 @@ struct HomeView: View {
         )
     }
 
-    private var detailSheetRoute: Binding<String?> {
+    private var detailRoute: Binding<String?> {
         Binding(
             get: {
-                guard DeviceUtil.isPad, case .detail(let gid) = store.route else { return nil }
+                guard case .detail(let gid) = store.route else { return nil }
                 return gid
             },
             set: { gid in
@@ -137,8 +135,7 @@ private extension HomeView {
     @ViewBuilder func destination(for route: HomeReducer.Route) -> some View {
         switch route {
         case .detail(let gid):
-            DetailView(
-                store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
+            GalleryDetailContainer(
                 gid: gid, user: user, setting: $setting,
                 blurRadius: blurRadius, tagTranslator: tagTranslator
             )

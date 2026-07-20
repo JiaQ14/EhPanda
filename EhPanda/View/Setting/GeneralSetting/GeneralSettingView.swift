@@ -93,7 +93,7 @@ struct GeneralSettingView: View {
                         .frame(width: 50)
                         .padding(.leading, 20)
                 }
-                if enablesTagsExtension && !tagTranslatorEmpty {
+                if enablesTagsExtension {
                     Toggle(L10n.Localizable.GeneralSettingView.Title.translatesTags, isOn: $translatesTags)
                     Toggle(
                         L10n.Localizable.GeneralSettingView.Title.showsTagsSearchSuggestion,
@@ -212,7 +212,7 @@ struct GeneralSettingView: View {
             store.send(.calculateWebImageDiskCache)
         }
         .background(navigationLink)
-        .navigationTitle(L10n.Localizable.GeneralSettingView.Title.general)
+        .settingRootNavigationTitle(L10n.Localizable.GeneralSettingView.Title.general)
     }
 
     private var navigationLink: some View {

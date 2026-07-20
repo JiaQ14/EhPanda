@@ -30,11 +30,6 @@ struct WatchedReducer {
 
         var filtersState = FiltersReducer.State()
         var quickSearchState = QuickSearchReducer.State()
-        var detailState: Heap<DetailReducer.State?>
-
-        init() {
-            detailState = .init(.init())
-        }
 
         mutating func insertGalleries(_ galleries: [Gallery]) {
             self.galleries.appendUniqueGalleries(galleries)
@@ -45,6 +40,7 @@ struct WatchedReducer {
         case binding(BindingAction<State>)
         case setNavigation(Route?)
         case clearSubStates
+        case resetSubStates
         case onNotLoginViewButtonTapped
 
         case teardown
@@ -54,7 +50,6 @@ struct WatchedReducer {
         case fetchMoreGalleriesDone(Result<(PageNumber, [Gallery]), AppError>)
 
         case filters(FiltersReducer.Action)
-        case detail(DetailReducer.Action)
         case quickSearch(QuickSearchReducer.Action)
     }
 
@@ -77,13 +72,15 @@ struct WatchedReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
+                return .concatenate(
+                    .send(.quickSearch(.teardown)),
+                    .send(.resetSubStates)
+                )
+
+            case .resetSubStates:
                 state.filtersState = .init()
                 state.quickSearchState = .init()
-                return .merge(
-                    .send(.detail(.teardown)),
-                    .send(.quickSearch(.teardown))
-                )
+                return .none
 
             case .onNotLoginViewButtonTapped:
                 return .none
@@ -167,8 +164,6 @@ struct WatchedReducer {
             case .filters:
                 return .none
 
-            case .detail:
-                return .none
             }
         }
         .haptics(
@@ -184,6 +179,5 @@ struct WatchedReducer {
 
         Scope(state: \.filtersState, action: \.filters, child: FiltersReducer.init)
         Scope(state: \.quickSearchState, action: \.quickSearch, child: QuickSearchReducer.init)
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

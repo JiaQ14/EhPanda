@@ -12,14 +12,12 @@ private let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.Check
 private struct LinkColoredText: View {
     private enum Component {
         case text(String)
-        case link(String, URL)
+        case link(String)
     }
 
-    private let text: String
     private let components: [Component]
 
     init(text: String, links: [NSTextCheckingResult]) {
-        self.text = text
         let nsText = text as NSString
 
         var components: [Component] = []
@@ -31,7 +29,7 @@ private struct LinkColoredText: View {
                 )
                 components.append(.text(trimmedText))
             }
-            components.append(.link(nsText.substring(with: result.range), result.url!))
+            components.append(.link(nsText.substring(with: result.range)))
             index = result.range.location + result.range.length
         }
 
@@ -43,14 +41,16 @@ private struct LinkColoredText: View {
     }
 
     var body: some View {
-        components.map { component in
+        components.reduce(Text("")) { partial, component in
+            let next: Text
             switch component {
             case .text(let text):
-                return Text(verbatim: text)
-            case .link(let text, _):
-                return Text(verbatim: text).foregroundColor(.accentColor)
+                next = Text(verbatim: text)
+            case .link(let text):
+                next = Text(verbatim: text).foregroundColor(.accentColor)
             }
-        }.reduce(Text(""), +)
+            return Text("\(partial)\(next)")
+        }
     }
 }
 
@@ -103,11 +103,13 @@ private struct LinkTapOverlay: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: LinkTapOverlayView, context: Context) {
+        context.coordinator.overlay = self
         let attributedString = NSAttributedString(
             string: text, attributes: [.font: UIFont.preferredFont(forTextStyle: .body)]
         )
-        context.coordinator.textStorage = NSTextStorage(attributedString: attributedString)
-        context.coordinator.textStorage!.addLayoutManager(context.coordinator.layoutManager)
+        let textStorage = NSTextStorage(attributedString: attributedString)
+        textStorage.addLayoutManager(context.coordinator.layoutManager)
+        context.coordinator.textStorage = textStorage
     }
 
     func makeCoordinator() -> Coordinator {
@@ -115,7 +117,7 @@ private struct LinkTapOverlay: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        let overlay: LinkTapOverlay
+        var overlay: LinkTapOverlay
 
         let layoutManager = NSLayoutManager()
         let textContainer = NSTextContainer(size: .zero)
@@ -131,13 +133,15 @@ private struct LinkTapOverlay: UIViewRepresentable {
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            let location = touch.location(in: gestureRecognizer.view!)
+            guard let view = gestureRecognizer.view else { return false }
+            let location = touch.location(in: view)
             let result = link(at: location)
             return result != nil
         }
 
         @objc func didTapLabel(_ gesture: UITapGestureRecognizer) {
-            let location = gesture.location(in: gesture.view!)
+            guard let view = gesture.view else { return }
+            let location = gesture.location(in: view)
             guard let result = link(at: location) else {
                 return
             }
@@ -166,7 +170,7 @@ private struct LinkTapOverlay: UIViewRepresentable {
 }
 
 private final class LinkTapOverlayView: UIView {
-    var textContainer: NSTextContainer!
+    var textContainer = NSTextContainer(size: .zero)
 
     override func layoutSubviews() {
         super.layoutSubviews()

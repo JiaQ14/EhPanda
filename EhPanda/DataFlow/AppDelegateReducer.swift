@@ -42,6 +42,9 @@ struct AppDelegateReducer {
             case .removeExpiredImageURLs:
                 return .run(operation: { _ in await databaseClient.removeExpiredImageURLs() })
 
+            case .migration(.onDatabasePreparationSuccess):
+                return .send(.removeExpiredImageURLs)
+
             case .migration:
                 return .none
             }
@@ -53,8 +56,8 @@ struct AppDelegateReducer {
 
 // MARK: AppDelegate
 class AppDelegate: UIResponder, UIApplicationDelegate {
-    let store = Store(initialState: .init()) {
-        AppReducer()
+    let store = Store(initialState: AppDelegateReducer.State()) {
+        AppDelegateReducer()
     }
 
     static var orientationMask: UIInterfaceOrientationMask = DeviceUtil.isPad ? .all : [.portrait, .portraitUpsideDown]
@@ -69,7 +72,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> Bool {
         AppIntentDependencies.register()
         if !AppUtil.isTesting {
-            store.send(.appDelegate(.onLaunchFinish))
+            store.send(.onLaunchFinish)
         }
         return true
     }

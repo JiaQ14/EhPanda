@@ -13,16 +13,19 @@ struct HistoryView: View {
     @Binding private var setting: Setting
     private let blurRadius: Double
     private let tagTranslator: TagTranslator
+    private let embedsInNavigationStack: Bool
 
     init(
         store: StoreOf<HistoryReducer>,
-        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator
+        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator,
+        embedsInNavigationStack: Bool = true
     ) {
         self.store = store
         self.user = user
         _setting = setting
         self.blurRadius = blurRadius
         self.tagTranslator = tagTranslator
+        self.embedsInNavigationStack = embedsInNavigationStack
     }
 
     var body: some View {
@@ -55,36 +58,19 @@ struct HistoryView: View {
                 }
             }
         }
-        .background(navigationLink)
         .toolbar(content: toolbar)
         .navigationTitle(L10n.Localizable.HistoryView.Title.history)
 
-        if DeviceUtil.isPad {
-            content
-                .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { route in
-                    NavigationStack {
-                        DetailView(
-                            store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                            gid: route.wrappedValue, user: user, setting: $setting,
-                            blurRadius: blurRadius, tagTranslator: tagTranslator
-                        )
-                    }
-                    .autoBlur(radius: blurRadius).environment(\.inSheet, true)
-                }
-        } else {
-            content
-        }
-    }
-
-    @ViewBuilder private var navigationLink: some View {
-        if DeviceUtil.isPhone {
-            NavigationLink(unwrapping: $store.route, case: \.detail) { route in
-                DetailView(
-                    store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                    gid: route.wrappedValue, user: user, setting: $setting,
-                    blurRadius: blurRadius, tagTranslator: tagTranslator
-                )
-            }
+        content
+            .embeddedInNavigationStack(embedsInNavigationStack)
+            .adaptiveGalleryDetail(
+            selection: $store.route.sending(\.setNavigation).detail,
+            blurRadius: blurRadius
+        ) { gid in
+            GalleryDetailContainer(
+                gid: gid, user: user, setting: $setting,
+                blurRadius: blurRadius, tagTranslator: tagTranslator
+            )
         }
     }
     private func toolbar() -> some ToolbarContent {

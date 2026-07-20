@@ -29,7 +29,47 @@ private struct DetailGalleryInfosDestination: Hashable {
     }
 }
 
+struct GalleryDetailContainer: View {
+    private let gid: String
+    private let user: User
+    @Binding private var setting: Setting
+    private let blurRadius: Double
+    private let tagTranslator: TagTranslator
+
+    @State private var store: StoreOf<DetailReducer>
+
+    init(
+        gid: String,
+        user: User,
+        setting: Binding<Setting>,
+        blurRadius: Double,
+        tagTranslator: TagTranslator
+    ) {
+        self.gid = gid
+        self.user = user
+        _setting = setting
+        self.blurRadius = blurRadius
+        self.tagTranslator = tagTranslator
+        _store = State(
+            initialValue: Store(initialState: .init()) { DetailReducer() }
+        )
+    }
+
+    var body: some View {
+        DetailView(
+            store: store,
+            gid: gid,
+            user: user,
+            setting: $setting,
+            blurRadius: blurRadius,
+            tagTranslator: tagTranslator
+        )
+    }
+}
+
 struct DetailView: View {
+    @Environment(\.isStandaloneGalleryWindow)
+    private var isStandaloneGalleryWindow
     @Bindable private var store: StoreOf<DetailReducer>
     private let gid: String
     private let user: User
@@ -127,6 +167,8 @@ struct DetailView: View {
         }
         .contentMargins(.top, 16, for: .scrollContent)
         .contentMargins(.bottom, 20, for: .scrollContent)
+        .frame(maxWidth: 1000)
+        .frame(maxWidth: .infinity)
         .opacity(store.galleryDetail == nil ? 0 : 1)
         .overlay {
             if store.galleryDetail == nil {
@@ -212,12 +254,14 @@ struct DetailView: View {
     var body: some View {
         modalModifiers(content: { content })
             .userActivity(
-                "com.zjq9714.ehpanda.gallery",
+                GallerySceneActivity.activityType,
                 element: screenGalleryEntity
             ) { entity, activity in
                 activity.title = entity.title
                 activity.appEntityIdentifier = EntityIdentifier(for: entity)
+                activity.targetContentIdentifier = GallerySceneActivity.targetContentIdentifier
                 activity.userInfo = ["gid": entity.id]
+                activity.requiredUserInfoKeys = ["gid"]
             }
             .animation(.default, value: store.showsUserRating)
             .animation(.default, value: store.showsFullTitle)
@@ -331,6 +375,20 @@ private extension DetailView {
     func toolbar() -> some ToolbarContent {
         CustomToolbarItem {
             ToolbarFeaturesMenu {
+                if DeviceUtil.isPad && !isStandaloneGalleryWindow {
+                    Button {
+                        GallerySceneActivity.openWindow(
+                            gid: gid,
+                            title: store.gallery.title
+                        )
+                    } label: {
+                        Label(
+                            L10n.Localizable.openInNewWindow,
+                            systemImage: "macwindow.badge.plus"
+                        )
+                    }
+                    Divider()
+                }
                 cacheMenuItems
                 Divider()
                 Button {
@@ -634,39 +692,56 @@ private struct DescriptionSection: View {
             description: galleryDetail.sizeType, value: .init(galleryDetail.sizeCount)
         )
     ]}
-    private var itemWidth: Double {
-        max(DeviceUtil.absWindowW / 5, 80)
-    }
-
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(infos) { info in
-                    Group {
-                        if info.isRating {
-                            DescScrollRatingItem(title: info.title, rating: info.rating)
-                        } else {
-                            DescScrollItem(title: info.title, value: info.value, description: info.description)
-                        }
-                    }
-                    .frame(width: itemWidth)
-                    Divider()
-                        .frame(height: 40)
-                    if info == infos.last {
-                        Button(action: navigateGalleryInfosAction) {
-                            Image(systemSymbol: .ellipsis)
-                                .font(.system(size: 20, weight: .bold))
-                        }
-                        .buttonStyle(.glass)
-                        .buttonBorderShape(.circle)
-                        .controlSize(.large)
-                        .frame(width: itemWidth)
-                    }
+        GeometryReader { proxy in
+            if proxy.size.width >= 700 {
+                infoRow(
+                    itemWidth: max(
+                        (proxy.size.width - 169) / CGFloat(infos.count),
+                        92
+                    ),
+                    moreWidth: 52
+                )
+                .padding(.horizontal, 16)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    infoRow(
+                        itemWidth: max(proxy.size.width / 2.4, 110),
+                        moreWidth: 64
+                    )
                 }
+                .contentMargins(.horizontal, 16, for: .scrollContent)
             }
         }
-        .contentMargins(.horizontal, 16, for: .scrollContent)
-        .frame(minHeight: 64)
+        .frame(height: 72)
+    }
+
+    private func infoRow(itemWidth: CGFloat, moreWidth: CGFloat) -> some View {
+        HStack(spacing: 8) {
+            ForEach(infos) { info in
+                Group {
+                    if info.isRating {
+                        DescScrollRatingItem(title: info.title, rating: info.rating)
+                    } else {
+                        DescScrollItem(
+                            title: info.title,
+                            value: info.value,
+                            description: info.description
+                        )
+                    }
+                }
+                .frame(width: itemWidth)
+                Divider().frame(height: 40)
+            }
+            Button(action: navigateGalleryInfosAction) {
+                Image(systemSymbol: .ellipsis)
+                    .font(.system(size: 20, weight: .bold))
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
+            .frame(width: moreWidth)
+        }
     }
 }
 

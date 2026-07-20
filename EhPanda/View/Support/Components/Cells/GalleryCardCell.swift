@@ -75,10 +75,11 @@ struct GalleryCardCell: View {
         }
         .frame(width: width, height: height)
         .contentShape(shape)
-        .glassEffect(
-            .regular.interactive(),
-            in: shape
-        )
+        .background(.regularMaterial, in: shape)
+        .overlay {
+            shape.stroke(.primary.opacity(0.08), lineWidth: 0.5)
+        }
+        .hoverEffect(.highlight)
     }
 }
 

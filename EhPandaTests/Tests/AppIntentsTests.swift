@@ -83,6 +83,112 @@ final class AppIntentsTests: XCTestCase {
     }
 
     @MainActor
+    func testAppWindowNavigationStateIsIndependent() {
+        var primaryWindow = AppReducer.State()
+        var secondaryWindow = AppReducer.State()
+
+        primaryWindow.navigateToSection(.search)
+        secondaryWindow.navigateToSection(.cache)
+
+        XCTAssertEqual(primaryWindow.tabBarState.tabBarItemType, .search)
+        XCTAssertNil(primaryWindow.moreState.route)
+        XCTAssertEqual(secondaryWindow.tabBarState.tabBarItemType, .more)
+        XCTAssertEqual(secondaryWindow.moreState.route, .cache)
+    }
+
+    @MainActor
+    func testIPadNavigationSelectsEveryDestinationDirectly() {
+        var state = AppReducer.State()
+
+        state.navigateToSection(.cache, usesNativeTabs: true)
+
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .cache)
+        XCTAssertNil(state.moreState.route)
+
+        state.navigateToSection(.more, usesNativeTabs: true)
+
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .setting)
+        XCTAssertNil(state.moreState.route)
+    }
+
+    func testIPadNativeTabsReplaceMoreWithoutDroppingDestinations() {
+        XCTAssertEqual(
+            Set(AppNavigationItem.iPadItems),
+            Set(AppNavigationItem.allCases).subtracting([.more])
+        )
+        XCTAssertEqual(AppNavigationItem.iPadItems.first, .home)
+        XCTAssertFalse(AppNavigationItem.iPadItems.contains(.more))
+    }
+
+    func testGallerySceneValueRoundTripsThroughStateRestorationData() throws {
+        let value = GallerySceneValue(gid: "12345")
+
+        let data = try JSONEncoder().encode(value)
+
+        XCTAssertEqual(try JSONDecoder().decode(GallerySceneValue.self, from: data), value)
+    }
+
+    func testGallerySceneActivityRoutesToGalleryWindow() throws {
+        let activity = GallerySceneActivity.make(
+            gid: "12345",
+            title: "Gallery Title"
+        )
+
+        XCTAssertEqual(activity.activityType, GallerySceneActivity.activityType)
+        XCTAssertEqual(
+            activity.targetContentIdentifier,
+            GallerySceneActivity.targetContentIdentifier
+        )
+        XCTAssertEqual(activity.title, "Gallery Title")
+        XCTAssertTrue(activity.requiredUserInfoKeys?.contains("gid") == true)
+        XCTAssertEqual(
+            GallerySceneActivity.sceneValue(from: activity),
+            GallerySceneValue(gid: "12345")
+        )
+    }
+
+    func testGallerySceneActivityRejectsMissingGalleryID() {
+        let activity = NSUserActivity(
+            activityType: GallerySceneActivity.activityType
+        )
+
+        XCTAssertNil(GallerySceneActivity.sceneValue(from: activity))
+    }
+
+    func testGallerySceneActivityPreservesSheetDetachmentToken() throws {
+        let token = UUID()
+        let activity = GallerySceneActivity.make(
+            gid: "12345",
+            detachmentToken: token
+        )
+
+        XCTAssertEqual(
+            GallerySceneActivity.detachmentToken(from: activity),
+            token
+        )
+        XCTAssertTrue(
+            try XCTUnwrap(activity.requiredUserInfoKeys)
+                .contains("detachmentToken")
+        )
+    }
+
+    @MainActor
+    func testDetailSessionsUseIndependentCancellationScopes() {
+        let first = DetailReducer.State()
+        let second = DetailReducer.State()
+
+        XCTAssertNotEqual(first.cancellationScope, second.cancellationScope)
+        XCTAssertNotEqual(
+            first.readingState.cancellationScope,
+            second.readingState.cancellationScope
+        )
+        XCTAssertNotEqual(
+            first.previewsState.cancellationScope,
+            second.previewsState.cancellationScope
+        )
+    }
+
+    @MainActor
     func testLegacySettingsKeepSystemIntegrationsDisabled() throws {
         var setting = Setting()
         setting.enablesSystemContentSearch = true

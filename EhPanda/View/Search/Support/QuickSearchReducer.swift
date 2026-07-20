@@ -20,12 +20,15 @@ struct QuickSearchReducer {
         case content
     }
 
-    private enum CancelID {
+    private enum CancelOperation {
         case fetchQuickSearchWords
     }
 
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
+
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
         var focusedField: FocusField?
         var editingWord: QuickSearchWord = .empty
@@ -119,7 +122,9 @@ struct QuickSearchReducer {
                 return .send(.syncQuickSearchWords)
 
             case .teardown:
-                return .cancel(id: CancelID.fetchQuickSearchWords)
+                return .cancel(
+                    id: cancelID(.fetchQuickSearchWords, state: state)
+                )
 
             case .fetchQuickSearchWords:
                 state.loadingState = .loading
@@ -127,7 +132,9 @@ struct QuickSearchReducer {
                     let quickSearchWords = await databaseClient.fetchQuickSearchWords()
                     await send(.fetchQuickSearchWordsDone(quickSearchWords))
                 }
-                .cancellable(id: CancelID.fetchQuickSearchWords)
+                .cancellable(
+                    id: cancelID(.fetchQuickSearchWords, state: state)
+                )
 
             case .fetchQuickSearchWordsDone(let words):
                 state.loadingState = .idle
@@ -135,5 +142,9 @@ struct QuickSearchReducer {
                 return .none
             }
         }
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

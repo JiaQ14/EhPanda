@@ -30,12 +30,7 @@ struct SearchReducer {
         var footerLoadingState: LoadingState = .idle
 
         var filtersState = FiltersReducer.State()
-        var detailState: Heap<DetailReducer.State?>
         var quickSearchState = QuickSearchReducer.State()
-
-        init() {
-            detailState = .init(.init())
-        }
 
         mutating func insertGalleries(_ galleries: [Gallery]) {
             self.galleries.appendUniqueGalleries(galleries)
@@ -46,6 +41,7 @@ struct SearchReducer {
         case binding(BindingAction<State>)
         case setNavigation(Route?)
         case clearSubStates
+        case resetSubStates
 
         case teardown
         case fetchGalleries(String? = nil)
@@ -53,7 +49,6 @@ struct SearchReducer {
         case fetchMoreGalleries
         case fetchMoreGalleriesDone(Result<(PageNumber, [Gallery]), AppError>)
 
-        case detail(DetailReducer.Action)
         case filters(FiltersReducer.Action)
         case quickSearch(QuickSearchReducer.Action)
     }
@@ -85,13 +80,15 @@ struct SearchReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
+                return .concatenate(
+                    .send(.quickSearch(.teardown)),
+                    .send(.resetSubStates)
+                )
+
+            case .resetSubStates:
                 state.filtersState = .init()
                 state.quickSearchState = .init()
-                return .merge(
-                    .send(.detail(.teardown)),
-                    .send(.quickSearch(.teardown))
-                )
+                return .none
 
             case .teardown:
                 return .merge(CancelID.allCases.map(Effect.cancel(id:)))
@@ -167,9 +164,6 @@ struct SearchReducer {
                 }
                 return .none
 
-            case .detail:
-                return .none
-
             case .filters:
                 return .none
 
@@ -190,6 +184,5 @@ struct SearchReducer {
 
         Scope(state: \.filtersState, action: \.filters, child: FiltersReducer.init)
         Scope(state: \.quickSearchState, action: \.quickSearch, child: QuickSearchReducer.init)
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

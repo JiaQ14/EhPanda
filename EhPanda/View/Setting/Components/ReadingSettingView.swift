@@ -77,7 +77,7 @@ struct ReadingSettingView: View {
                 )
             }
         }
-        .navigationTitle(L10n.Localizable.ReadingSettingView.Title.reading)
+        .settingRootNavigationTitle(L10n.Localizable.ReadingSettingView.Title.reading)
     }
 }
 

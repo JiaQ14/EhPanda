@@ -213,16 +213,22 @@ internal enum L10n {
     internal static let history = L10n.tr("Localizable", "History", fallback: "History")
     /// Home
     internal static let home = L10n.tr("Localizable", "Home", fallback: "Home")
+    /// Navigate
+    internal static let navigate = L10n.tr("Localizable", "Navigate", fallback: "Navigate")
     /// Open a section in EhPanda.
     internal static let openASectionInEhPanda = L10n.tr("Localizable", "Open a section in EhPanda.", fallback: "Open a section in EhPanda.")
     /// Open Cache
     internal static let openCache = L10n.tr("Localizable", "Open Cache", fallback: "Open Cache")
     /// Open Gallery
     internal static let openGallery = L10n.tr("Localizable", "Open Gallery", fallback: "Open Gallery")
+    /// Open in New Window
+    internal static let openInNewWindow = L10n.tr("Localizable", "Open in New Window", fallback: "Open in New Window")
     /// Open Section
     internal static let openSection = L10n.tr("Localizable", "Open Section", fallback: "Open Section")
     /// Popular
     internal static let popular = L10n.tr("Localizable", "Popular", fallback: "Popular")
+    /// Refresh
+    internal static let refresh = L10n.tr("Localizable", "Refresh", fallback: "Refresh")
     /// Refresh Cache
     internal static let refreshCache = L10n.tr("Localizable", "Refresh Cache", fallback: "Refresh Cache")
     /// Refresh Cache Library

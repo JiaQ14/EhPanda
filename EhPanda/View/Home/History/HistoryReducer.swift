@@ -31,12 +31,6 @@ struct HistoryReducer {
         }
         var galleries = [Gallery]()
         var loadingState: LoadingState = .idle
-
-        var detailState: Heap<DetailReducer.State?>
-
-        init() {
-            detailState = .init(.init())
-        }
     }
 
     enum Action: BindableAction {
@@ -48,7 +42,6 @@ struct HistoryReducer {
         case fetchGalleries
         case fetchGalleriesDone([Gallery])
 
-        case detail(DetailReducer.Action)
     }
 
     @Dependency(\.databaseClient) private var databaseClient
@@ -70,8 +63,7 @@ struct HistoryReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
-                return .send(.detail(.teardown))
+                return .none
 
             case .clearHistoryGalleries:
                 state.loadingState = .loading
@@ -98,11 +90,7 @@ struct HistoryReducer {
                 }
                 return .none
 
-            case .detail:
-                return .none
             }
         }
-
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

@@ -48,11 +48,12 @@ struct SettingView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .modifier(SettingPageLayoutModifier())
         .navigationTitle(L10n.Localizable.SettingView.Title.setting)
-        .navigationDestination(
-            item: $store.route.sending(\.setNavigation),
-            destination: settingDestination
-        )
+        .navigationDestination(item: $store.route.sending(\.setNavigation)) { route in
+            settingDestination(for: route)
+                .modifier(SettingDestinationPageModifier(title: route.value))
+        }
     }
 
     private var primaryRoutes: [SettingReducer.Route] {
@@ -181,6 +182,67 @@ private struct SettingRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct SettingPageLayoutModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if DeviceUtil.isPad {
+            content
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .background(Color(uiColor: .systemGroupedBackground))
+        } else {
+            content
+        }
+    }
+}
+
+private struct SettingDestinationPageModifier: ViewModifier {
+    let title: String
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if DeviceUtil.isPad {
+            content
+                .modifier(SettingPageLayoutModifier())
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    HStack {
+                        Text(title)
+                            .font(.largeTitle.bold())
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+                    .frame(maxWidth: 760)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(uiColor: .systemGroupedBackground))
+                }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func settingRootNavigationTitle(_ title: String) -> some View {
+        modifier(SettingRootNavigationTitleModifier(title: title))
+    }
+}
+
+private struct SettingRootNavigationTitleModifier: ViewModifier {
+    let title: String
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if DeviceUtil.isPad {
+            content
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            content.navigationTitle(title)
+        }
     }
 }
 

@@ -15,12 +15,15 @@ struct ArchivesReducer {
         case communicatingHUD
     }
 
-    private enum CancelID: CaseIterable {
+    private enum CancelOperation: CaseIterable {
         case fetchArchive, fetchArchiveFunds, fetchDownloadResponse
     }
 
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
+
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
         var selectedArchive: GalleryArchive.HathArchive?
 
@@ -68,7 +71,11 @@ struct ArchivesReducer {
                 }
 
             case .teardown:
-                return .merge(CancelID.allCases.map(Effect.cancel(id:)))
+                return .merge(
+                    CancelOperation.allCases.map {
+                        Effect.cancel(id: cancelID($0, state: state))
+                    }
+                )
 
             case .fetchArchive(let gid, let galleryURL, let archiveURL):
                 guard state.loadingState != .loading else { return .none }
@@ -77,7 +84,7 @@ struct ArchivesReducer {
                     let response = await GalleryArchiveRequest(archiveURL: archiveURL).response()
                     await send(.fetchArchiveDone(gid, galleryURL, response))
                 }
-                .cancellable(id: CancelID.fetchArchive)
+                .cancellable(id: cancelID(.fetchArchive, state: state))
 
             case .fetchArchiveDone(let gid, let galleryURL, let result):
                 state.loadingState = .idle
@@ -106,7 +113,7 @@ struct ArchivesReducer {
                     let response = await GalleryArchiveFundsRequest(gid: gid, galleryURL: galleryURL).response()
                     await send(.fetchArchiveFundsDone(response))
                 }
-                .cancellable(id: CancelID.fetchArchiveFunds)
+                .cancellable(id: cancelID(.fetchArchiveFunds, state: state))
 
             case .fetchArchiveFundsDone(let result):
                 if case .success(let (galleryPoints, credits)) = result {
@@ -127,7 +134,7 @@ struct ArchivesReducer {
                     .response()
                     await send(.fetchDownloadResponseDone(response))
                 }
-                .cancellable(id: CancelID.fetchDownloadResponse)
+                .cancellable(id: cancelID(.fetchDownloadResponse, state: state))
 
             case .fetchDownloadResponseDone(let result):
                 state.route = .messageHUD
@@ -157,5 +164,9 @@ struct ArchivesReducer {
                 }
             }
         }
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

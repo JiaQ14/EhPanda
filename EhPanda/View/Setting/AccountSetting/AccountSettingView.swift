@@ -78,7 +78,7 @@ struct AccountSettingView: View {
             )
         }
         .onAppear { store.send(.loadCookies) }
-        .navigationTitle(L10n.Localizable.AccountSettingView.Title.account)
+        .settingRootNavigationTitle(L10n.Localizable.AccountSettingView.Title.account)
     }
 }
 

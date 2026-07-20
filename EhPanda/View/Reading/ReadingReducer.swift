@@ -44,7 +44,7 @@ struct ReadingReducer {
         case share
     }
 
-    private enum CancelID: CaseIterable {
+    private enum CancelOperation: CaseIterable {
         case fetchImage
         case fetchDatabaseInfos
         case fetchPreviewURLs
@@ -56,8 +56,11 @@ struct ReadingReducer {
         case observeCache
     }
 
+    private typealias CancelID = ReducerCancellationID<CancelOperation>
+
     @ObservableState
     struct State: Equatable {
+        var cancellationScope = UUID()
         var route: Route?
         var gallery: Gallery = .empty
         var galleryDetail: GalleryDetail?
@@ -320,20 +323,19 @@ struct ReadingReducer {
             case .reloadAllWebImages:
                 state.resetRemoteImageLoadingState()
                 return .merge(
-                    .cancel(id: CancelID.fetchPreviewURLs),
-                    .cancel(id: CancelID.fetchThumbnailURLs),
-                    .cancel(id: CancelID.fetchNormalImageURLs),
-                    .cancel(id: CancelID.refetchNormalImageURLs),
-                    .cancel(id: CancelID.fetchMPVKeys),
-                    .cancel(id: CancelID.fetchMPVImageURL),
+                    .cancel(id: cancelID(.fetchPreviewURLs, state: state)),
+                    .cancel(id: cancelID(.fetchThumbnailURLs, state: state)),
+                    .cancel(id: cancelID(.fetchNormalImageURLs, state: state)),
+                    .cancel(id: cancelID(.refetchNormalImageURLs, state: state)),
+                    .cancel(id: cancelID(.fetchMPVKeys, state: state)),
+                    .cancel(id: cancelID(.fetchMPVImageURL, state: state)),
                     .run { [state] _ in
                         await databaseClient.removeImageURLs(gid: state.gallery.id)
                     }
                 )
 
             case .retryAllFailedWebImages:
-                let effects: [Effect<Action>] = state.imageURLLoadingStates.compactMap {
-                    index, loadingState in
+                let effects: [Effect<Action>] = state.imageURLLoadingStates.compactMap { index, loadingState in
                     guard case .failed = loadingState else { return nil }
                     return .send(.retryImage(index))
                 }
@@ -362,7 +364,7 @@ struct ReadingReducer {
                     let result = await imageClient.fetchImage(url: imageURL)
                     await send(.fetchImageDone(action, result))
                 }
-                .cancellable(id: CancelID.fetchImage)
+                .cancellable(id: cancelID(.fetchImage, state: state))
 
             case .fetchImageDone(let action, let result):
                 if case .success(let image) = result {
@@ -421,7 +423,11 @@ struct ReadingReducer {
 
             case .teardown:
                 var effects: [Effect<Action>] = [
-                    .merge(CancelID.allCases.map(Effect.cancel(id:)))
+                    .merge(
+                        CancelOperation.allCases.map {
+                            Effect.cancel(id: cancelID($0, state: state))
+                        }
+                    )
                 ]
                 if !deviceClient.isPad() {
                     effects.append(.send(.setOrientationPortrait(true)))
@@ -436,7 +442,7 @@ struct ReadingReducer {
                     guard let dbState = await databaseClient.fetchGalleryState(gid: state.gallery.id) else { return }
                     await send(.fetchDatabaseInfosDone(dbState))
                 }
-                .cancellable(id: CancelID.fetchDatabaseInfos)
+                .cancellable(id: cancelID(.fetchDatabaseInfos, state: state))
 
             case .fetchDatabaseInfosDone(let galleryState):
                 if let previewConfig = galleryState.previewConfig {
@@ -459,7 +465,10 @@ struct ReadingReducer {
                         await send(.cachedImageURLsUpdated(snapshot))
                     }
                 }
-                .cancellable(id: CancelID.observeCache, cancelInFlight: true)
+                .cancellable(
+                    id: cancelID(.observeCache, state: state),
+                    cancelInFlight: true
+                )
 
             case .fetchCachedImageURLs(let gid):
                 return .run { send in
@@ -498,7 +507,7 @@ struct ReadingReducer {
                     let response = await GalleryPreviewURLsRequest(galleryURL: galleryURL, pageNum: pageNum).response()
                     await send(.fetchPreviewURLsDone(index, response))
                 }
-                .cancellable(id: CancelID.fetchPreviewURLs)
+                .cancellable(id: cancelID(.fetchPreviewURLs, state: state))
 
             case .fetchPreviewURLsDone(let index, let result):
                 switch result {
@@ -593,7 +602,7 @@ struct ReadingReducer {
                     let response = await ThumbnailURLsRequest(galleryURL: galleryURL, pageNum: pageNum).response()
                     await send(.fetchThumbnailURLsDone(index, response))
                 }
-                .cancellable(id: CancelID.fetchThumbnailURLs)
+                .cancellable(id: cancelID(.fetchThumbnailURLs, state: state))
 
             case .fetchThumbnailURLsDone(let index, let result):
                 let batchRange = state.previewConfig.batchRange(index: index)
@@ -629,7 +638,7 @@ struct ReadingReducer {
                     .response()
                     await send(.fetchNormalImageURLsDone(index, response))
                 }
-                .cancellable(id: CancelID.fetchNormalImageURLs)
+                .cancellable(id: cancelID(.fetchNormalImageURLs, state: state))
 
             case .fetchNormalImageURLsDone(let index, let result):
                 let batchRange = state.previewConfig.batchRange(index: index)
@@ -667,7 +676,7 @@ struct ReadingReducer {
                     .response()
                     await send(.refetchNormalImageURLsDone(index, response))
                 }
-                .cancellable(id: CancelID.refetchNormalImageURLs)
+                .cancellable(id: cancelID(.refetchNormalImageURLs, state: state))
 
             case .refetchNormalImageURLsDone(let index, let result):
                 switch result {
@@ -694,7 +703,7 @@ struct ReadingReducer {
                     let response = await MPVKeysRequest(mpvURL: mpvURL).response()
                     await send(.fetchMPVKeysDone(index, response))
                 }
-                .cancellable(id: CancelID.fetchMPVKeys)
+                .cancellable(id: cancelID(.fetchMPVKeys, state: state))
 
             case .fetchMPVKeysDone(let index, let result):
                 let batchRange = state.previewConfig.batchRange(index: index)
@@ -739,7 +748,7 @@ struct ReadingReducer {
                     .response()
                     await send(.fetchMPVImageURLDone(index, response))
                 }
-                .cancellable(id: CancelID.fetchMPVImageURL)
+                .cancellable(id: cancelID(.fetchMPVImageURL, state: state))
 
             case .fetchMPVImageURLDone(let index, let result):
                 switch result {
@@ -769,5 +778,9 @@ struct ReadingReducer {
             case: \.share,
             hapticsClient: hapticsClient
         )
+    }
+
+    private func cancelID(_ operation: CancelOperation, state: State) -> CancelID {
+        CancelID(scope: state.cancellationScope, operation: operation)
     }
 }

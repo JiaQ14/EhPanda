@@ -91,6 +91,7 @@ struct ErrorView: View {
 
 struct AlertView<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.windowSize) private var windowSize
     private let symbol: SFSymbol
     private let message: String
     private let actions: Content
@@ -108,7 +109,7 @@ struct AlertView<Content: View>: View {
                 .font(.headline).padding(.bottom, 5)
             actions
         }
-        .frame(maxWidth: DeviceUtil.windowW * 0.8)
+        .frame(maxWidth: max(min(windowSize.width * 0.8, 640), 280))
     }
 }
 

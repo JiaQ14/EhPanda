@@ -79,14 +79,21 @@ struct CacheView: View {
         })
     }
 
-    @ViewBuilder var body: some View {
-        if embedsInNavigationStack {
-            NavigationStack {
-                navigationContent
+    var body: some View {
+        navigationContent
+            .embeddedInNavigationStack(embedsInNavigationStack)
+            .adaptiveGalleryDetail(
+                selection: $store.route.sending(\.setNavigation).detail,
+                blurRadius: blurRadius
+            ) { gid in
+                GalleryDetailContainer(
+                    gid: gid,
+                    user: user,
+                    setting: $setting,
+                    blurRadius: blurRadius,
+                    tagTranslator: tagTranslator
+                )
             }
-        } else {
-            navigationContent
-        }
     }
 
     private var navigationContent: some View {
@@ -104,16 +111,6 @@ struct CacheView: View {
             }
         }
         .navigationTitle(L10n.Localizable.CacheView.Title.cache)
-        .navigationDestination(item: $store.route.sending(\.setNavigation).detail) { gid in
-            DetailView(
-                store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                gid: gid,
-                user: user,
-                setting: $setting,
-                blurRadius: blurRadius,
-                tagTranslator: tagTranslator
-            )
-        }
         .searchable(
             text: $store.searchText,
             prompt: L10n.Localizable.CacheView.Search.Prompt.cache

@@ -14,7 +14,6 @@ struct AppReducer {
 
     @ObservableState
     struct State: Equatable {
-        var appDelegateState = AppDelegateReducer.State()
         var appRouteState = AppRouteReducer.State()
         var appLockState = AppLockReducer.State()
         var tabBarState = TabBarReducer.State()
@@ -30,8 +29,15 @@ struct AppReducer {
             settingState.accountSettingState.route = isLoggedIn ? nil : .login()
         }
 
-        mutating func navigateToSection(_ item: AppNavigationItem) {
+        mutating func navigateToSection(
+            _ item: AppNavigationItem,
+            usesNativeTabs: Bool = false
+        ) {
             moreState.route = nil
+            if usesNativeTabs {
+                tabBarState.tabBarItemType = item == .more ? .setting : item
+                return
+            }
             if item == .home || settingState.setting.tabBarItems.contains(item) {
                 tabBarState.tabBarItemType = item
             } else {
@@ -43,12 +49,13 @@ struct AppReducer {
 
     enum Action: BindableAction {
         case binding(BindingAction<State>)
+        case onDatabaseReady(String?)
         case onScenePhaseChange(ScenePhase)
+        case navigateToSection(AppNavigationItem)
         case consumePendingIntentRoute
         case handleIntentRoute(AppIntentRoute)
         case syncSystemSearchIndex
 
-        case appDelegate(AppDelegateReducer.Action)
         case appRoute(AppRouteReducer.Action)
         case appLock(AppLockReducer.Action)
 
@@ -94,6 +101,22 @@ struct AppReducer {
                 case .binding:
                     return .none
 
+                case .onDatabaseReady(let initialGalleryID):
+                    var effects: [Effect<Action>] = [
+                        .send(.setting(.loadUserSettings))
+                    ]
+                    if let initialGalleryID {
+                        effects.append(.send(.appRoute(.openGallery(initialGalleryID, nil))))
+                    }
+                    return .merge(effects)
+
+                case .navigateToSection(let item):
+                    state.navigateToSection(
+                        item,
+                        usesNativeTabs: deviceClient.isPad()
+                    )
+                    return .none
+
                 case .onScenePhaseChange(let scenePhase):
                     guard state.settingState.hasLoadedInitialSetting else { return .none }
 
@@ -126,13 +149,19 @@ struct AppReducer {
                 case .handleIntentRoute(let route):
                     switch route {
                     case .section(let section):
-                        state.navigateToSection(section.navigationItem)
+                        state.navigateToSection(
+                            section.navigationItem,
+                            usesNativeTabs: deviceClient.isPad()
+                        )
                         return .none
 
                     case .search(let query):
                         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !query.isEmpty else { return .none }
-                        state.navigateToSection(.search)
+                        state.navigateToSection(
+                            .search,
+                            usesNativeTabs: deviceClient.isPad()
+                        )
                         state.searchRootState.keyword = query
                         state.searchRootState.route = .search
                         return .send(.searchRoot(.search(.fetchGalleries(query))))
@@ -148,15 +177,6 @@ struct AppReducer {
                         await SystemSearchIndexService.shared.synchronize(using: setting)
                     }
                     .cancellable(id: CancelID.systemSearchIndex, cancelInFlight: true)
-
-                case .appDelegate(.migration(.onDatabasePreparationSuccess)):
-                    return .merge(
-                        .send(.appDelegate(.removeExpiredImageURLs)),
-                        .send(.setting(.loadUserSettings))
-                    )
-
-                case .appDelegate:
-                    return .none
 
                 case .appRoute(.clearSubStates):
                     var effects = [Effect<Action>]()
@@ -265,8 +285,13 @@ struct AppReducer {
                 case .home(.watched(.onNotLoginViewButtonTapped)), .favorites(.onNotLoginViewButtonTapped):
                     let isLoggedIn = cookieClient.didLogin
                     state.prepareLoginNavigation(isLoggedIn: isLoggedIn)
-                    state.moreState.route = .setting
-                    state.tabBarState.tabBarItemType = .more
+                    if deviceClient.isPad() {
+                        state.moreState.route = nil
+                        state.tabBarState.tabBarItemType = .setting
+                    } else {
+                        state.moreState.route = .setting
+                        state.tabBarState.tabBarItemType = .more
+                    }
                     return .run(operation: { _ in hapticsClient.generateFeedback(.soft) })
 
                 case .home:
@@ -318,7 +343,6 @@ struct AppReducer {
 
             Scope(state: \.appRouteState, action: \.appRoute, child: AppRouteReducer.init)
             Scope(state: \.appLockState, action: \.appLock, child: AppLockReducer.init)
-            Scope(state: \.appDelegateState, action: \.appDelegate, child: AppDelegateReducer.init)
             Scope(state: \.tabBarState, action: \.tabBar, child: TabBarReducer.init)
             Scope(state: \.moreState, action: \.more, child: MoreReducer.init)
             Scope(state: \.homeState, action: \.home, child: HomeReducer.init)

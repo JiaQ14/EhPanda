@@ -35,11 +35,6 @@ struct PopularReducer {
         var loadingState: LoadingState = .idle
 
         var filtersState = FiltersReducer.State()
-        var detailState: Heap<DetailReducer.State?>
-
-        init() {
-            detailState = .init(.init())
-        }
     }
 
     enum Action: BindableAction {
@@ -52,7 +47,6 @@ struct PopularReducer {
         case fetchGalleriesDone(Result<[Gallery], AppError>)
 
         case filters(FiltersReducer.Action)
-        case detail(DetailReducer.Action)
     }
 
     @Dependency(\.databaseClient) private var databaseClient
@@ -74,9 +68,8 @@ struct PopularReducer {
                 return route == nil ? .send(.clearSubStates) : .none
 
             case .clearSubStates:
-                state.detailState.wrappedValue = .init()
                 state.filtersState = .init()
-                return .send(.detail(.teardown))
+                return .none
 
             case .teardown:
                 return .cancel(id: CancelID.fetchGalleries)
@@ -109,8 +102,6 @@ struct PopularReducer {
             case .filters:
                 return .none
 
-            case .detail:
-                return .none
             }
         }
         .haptics(
@@ -120,6 +111,5 @@ struct PopularReducer {
         )
 
         Scope(state: \.filtersState, action: \.filters, child: FiltersReducer.init)
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

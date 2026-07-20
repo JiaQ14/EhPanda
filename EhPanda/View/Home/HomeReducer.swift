@@ -29,11 +29,6 @@ struct HomeReducer {
         var popularState = PopularReducer.State()
         var watchedState = WatchedReducer.State()
         var historyState = HistoryReducer.State()
-        var detailState: Heap<DetailReducer.State?>
-
-        init() {
-            detailState = .init(.init())
-        }
 
         mutating func setPopularGalleries(_ galleries: [Gallery]) {
             let sortedGalleries = galleries.sorted { lhs, rhs in
@@ -73,7 +68,6 @@ struct HomeReducer {
         case popular(PopularReducer.Action)
         case watched(WatchedReducer.Action)
         case history(HistoryReducer.Action)
-        case detail(DetailReducer.Action)
     }
 
     @Dependency(\.databaseClient) private var databaseClient
@@ -99,13 +93,11 @@ struct HomeReducer {
                 state.popularState = .init()
                 state.watchedState = .init()
                 state.historyState = .init()
-                state.detailState.wrappedValue = .init()
                 return .merge(
                     .send(.frontpage(.teardown)),
                     .send(.toplists(.teardown)),
                     .send(.popular(.teardown)),
-                    .send(.watched(.teardown)),
-                    .send(.detail(.teardown))
+                    .send(.watched(.teardown))
                 )
 
             case .fetchAllGalleries:
@@ -208,8 +200,6 @@ struct HomeReducer {
             case .history:
                 return .none
 
-            case .detail:
-                return .none
             }
         }
 
@@ -218,6 +208,5 @@ struct HomeReducer {
         Scope(state: \.popularState, action: \.popular, child: PopularReducer.init)
         Scope(state: \.watchedState, action: \.watched, child: WatchedReducer.init)
         Scope(state: \.historyState, action: \.history, child: HistoryReducer.init)
-        Scope(state: \.detailState.wrappedValue!, action: \.detail, child: DetailReducer.init)
     }
 }

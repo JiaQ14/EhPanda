@@ -28,14 +28,21 @@ struct SearchRootView: View {
         self.embedsInNavigationStack = embedsInNavigationStack
     }
 
-    @ViewBuilder var body: some View {
-        if embedsInNavigationStack {
-            NavigationStack {
-                navigationContent
+    var body: some View {
+        navigationContent
+            .embeddedInNavigationStack(embedsInNavigationStack)
+            .adaptiveGalleryDetail(
+                selection: $store.route.sending(\.setNavigation).detail,
+                blurRadius: blurRadius
+            ) { gid in
+                GalleryDetailContainer(
+                    gid: gid,
+                    user: user,
+                    setting: $setting,
+                    blurRadius: blurRadius,
+                    tagTranslator: tagTranslator
+                )
             }
-        } else {
-            navigationContent
-        }
     }
 
     @ViewBuilder private var navigationContent: some View {
@@ -95,23 +102,8 @@ struct SearchRootView: View {
             .toolbar(content: toolbar)
             .navigationTitle(L10n.Localizable.SearchView.Title.search)
 
-        if DeviceUtil.isPad {
-            content
-                .sheet(item: $store.route.sending(\.setNavigation).detail, id: \.self) { gid in
-                    NavigationStack {
-                        DetailView(
-                            store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                            gid: gid,
-                            user: user,
-                            setting: $setting,
-                            blurRadius: blurRadius,
-                            tagTranslator: tagTranslator
-                        )
-                    }
-                    .autoBlur(radius: blurRadius).environment(\.inSheet, true)
-                }
-        } else {
-            // Workaround: Prevent the title disappearing issue.
+        Group {
+            // Workaround: Prevent the title disappearing issue on compact layouts.
             if store.historyKeywords.isEmpty && store.historyGalleries.isEmpty {
                 content
                     .navigationSubtitle(Text(" "))
@@ -137,20 +129,8 @@ struct SearchRootView: View {
 
 private extension SearchRootView {
     @ViewBuilder var navigationLinks: some View {
-        if DeviceUtil.isPhone {
-            detailViewLink
-        }
         searchViewLink
         historyViewLink
-    }
-    var detailViewLink: some View {
-        NavigationLink(unwrapping: $store.route, case: \.detail) { route in
-            DetailView(
-                store: store.scope(state: \.detailState.wrappedValue!, action: \.detail),
-                gid: route.wrappedValue, user: user, setting: $setting,
-                blurRadius: blurRadius, tagTranslator: tagTranslator
-            )
-        }
     }
     var searchViewLink: some View {
         NavigationLink(unwrapping: $store.route, case: \.search) { _ in
@@ -166,7 +146,8 @@ private extension SearchRootView {
             HistoryView(
                 store: store.scope(state: \.historyState, action: \.history),
                 user: user, setting: $setting,
-                blurRadius: blurRadius, tagTranslator: tagTranslator
+                blurRadius: blurRadius, tagTranslator: tagTranslator,
+                embedsInNavigationStack: false
             )
         }
     }

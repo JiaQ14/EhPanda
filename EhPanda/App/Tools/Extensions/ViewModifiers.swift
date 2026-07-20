@@ -61,6 +61,146 @@ extension View {
                 first.wrappedValue = newValue
             }
     }
+
+    func adaptiveGalleryDetail<Detail: View>(
+        selection: Binding<String?>,
+        blurRadius: Double,
+        @ViewBuilder detail: @escaping (String) -> Detail
+    ) -> some View {
+        modifier(
+            AdaptiveGalleryDetailModifier(
+                selection: selection,
+                blurRadius: blurRadius,
+                detail: detail
+            )
+        )
+    }
+
+    func gallerySheetPresentation(
+        gid: String,
+        blurRadius: Double,
+        onDetached: @escaping () -> Void
+    ) -> some View {
+        modifier(
+            GallerySheetPresentationModifier(
+                gid: gid,
+                blurRadius: blurRadius,
+                onDetached: onDetached
+            )
+        )
+    }
+
+    func embeddedInNavigationStack(_ embeds: Bool) -> some View {
+        modifier(EmbeddedNavigationStackModifier(embeds: embeds))
+    }
+}
+
+private struct EmbeddedNavigationStackModifier: ViewModifier {
+    let embeds: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if embeds {
+            NavigationStack {
+                content
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct AdaptiveGalleryDetailModifier<Detail: View>: ViewModifier {
+    @Binding var selection: String?
+
+    let blurRadius: Double
+    let detail: (String) -> Detail
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if DeviceUtil.isPhone {
+            content.navigationDestination(item: $selection) { gid in
+                detail(gid)
+                    .id(gid)
+            }
+        } else {
+            content
+                .sheet(item: $selection, id: \.self) { route in
+                    let gid = route.wrappedValue
+                    NavigationStack {
+                        detail(gid)
+                            .id(gid)
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) {
+                                    Button(role: .cancel) {
+                                        selection = nil
+                                    } label: {
+                                        Image(systemSymbol: .xmark)
+                                    }
+                                }
+                            }
+                    }
+                    .gallerySheetPresentation(
+                        gid: gid,
+                        blurRadius: blurRadius,
+                        onDetached: { selection = nil }
+                    )
+                }
+        }
+    }
+}
+
+private struct GallerySheetPresentationModifier: ViewModifier {
+    let gid: String
+    let blurRadius: Double
+    let onDetached: () -> Void
+
+    @State private var detachmentToken = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .autoBlur(radius: blurRadius)
+            .environment(\.inSheet, true)
+            .presentationDragIndicator(.visible)
+            .overlay(alignment: .top) {
+                GallerySheetDetachmentSource(
+                    gid: gid,
+                    detachmentToken: detachmentToken
+                )
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: GallerySceneActivity.didDetachSceneNotification
+                )
+            ) { notification in
+                guard notification.object as? UUID == detachmentToken else { return }
+                onDetached()
+            }
+    }
+}
+
+private struct GallerySheetDetachmentSource: View {
+    let gid: String
+    let detachmentToken: UUID
+
+    var body: some View {
+        Color.clear
+            .frame(width: 96, height: 28)
+            .contentShape(.interaction, Rectangle())
+            .onDrag {
+                GallerySceneActivity.itemProvider(
+                    gid: gid,
+                    url: nil,
+                    detachmentToken: detachmentToken
+                )
+            } preview: {
+                Capsule()
+                    .fill(.secondary)
+                    .frame(width: 36, height: 5)
+                    .padding(12)
+            }
+            .accessibilityHidden(true)
+    }
 }
 
 struct PlainLinearProgressViewStyle: ProgressViewStyle {

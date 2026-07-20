@@ -11,6 +11,8 @@ struct WaterfallCollectionView: UIViewRepresentable {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.inSheet) private var inSheet
+    @Environment(\.isStandaloneGalleryWindow)
+    private var isStandaloneGalleryWindow
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.locale) private var locale
     @Environment(\.galleryContextMenuConfiguration)
@@ -36,6 +38,7 @@ struct WaterfallCollectionView: UIViewRepresentable {
             colorScheme: colorScheme,
             dynamicTypeSize: dynamicTypeSize,
             inSheet: inSheet,
+            isStandaloneGalleryWindow: isStandaloneGalleryWindow,
             layoutDirection: layoutDirection,
             locale: locale
         )
@@ -143,8 +146,10 @@ extension WaterfallCollectionView {
             self.collectionView = collectionView
             self.layout = layout
 
-            let registration = UICollectionView.CellRegistration<WaterfallHostingCell, WaterfallItemID> {
-                [weak self] cell, indexPath, itemIdentifier in
+            let registration = UICollectionView.CellRegistration<
+                WaterfallHostingCell,
+                WaterfallItemID
+            > { [weak self] cell, indexPath, itemIdentifier in
                 self?.configure(cell: cell, at: indexPath, itemIdentifier: itemIdentifier)
             }
             dataSource = UICollectionViewDiffableDataSource<WaterfallSection, WaterfallItemID>(
@@ -496,8 +501,7 @@ private extension WaterfallCollectionView.Coordinator {
         itemIdentifier: WaterfallItemID
     ) {
         let measurementGeneration = measurementGenerations[itemIdentifier, default: 0]
-        cell.prepare(for: itemIdentifier) {
-            [weak self] identifier, height, width in
+        cell.prepare(for: itemIdentifier) { [weak self] identifier, height, width in
             self?.queueMeasuredHeight(
                 height,
                 measuredAtWidth: width,
@@ -548,6 +552,10 @@ private extension WaterfallCollectionView.Coordinator {
                 .environment(\.colorScheme, environment.colorScheme)
                 .environment(\.dynamicTypeSize, environment.dynamicTypeSize)
                 .environment(\.inSheet, environment.inSheet)
+                .environment(
+                    \.isStandaloneGalleryWindow,
+                    environment.isStandaloneGalleryWindow
+                )
                 .environment(\.layoutDirection, environment.layoutDirection)
                 .environment(\.locale, environment.locale)
                 .environment(
@@ -1251,6 +1259,7 @@ private struct WaterfallHostEnvironment: Equatable {
     let colorScheme: ColorScheme
     let dynamicTypeSize: DynamicTypeSize
     let inSheet: Bool
+    let isStandaloneGalleryWindow: Bool
     let layoutDirection: LayoutDirection
     let locale: Locale
 }
