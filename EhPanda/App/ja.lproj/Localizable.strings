@@ -187,6 +187,10 @@
 "general_setting_view.title.redirects_links_to_the_selected_host" = "リンクを選択されたホストへリダイレクト";
 "general_setting_view.title.detects_links_from_clipboard" = "クリップボードからリンクを探知";
 "general_setting_view.title.background_blur_radius" = "バッググラウンドぼかし度";
+"general_setting_view.title.enables_system_content_search" = "最近表示した漫画とキャッシュ済みの漫画をSpotlightに表示";
+"general_setting_view.title.displays_covers_in_system_search" = "システム検索結果に漫画の表紙を表示";
+"general_setting_view.title.enables_visual_search" = "スクリーンショットから漫画を照合";
+"general_setting_view.description.system_search_privacy" = "タイトルにはセンシティブな内容が含まれる場合があります。システム検索と画像照合は、有効にするまでオフのままです。";
 "general_setting_view.button.logs" = "ログ";
 "general_setting_view.button.import_custom_translations" = "カスタム翻訳を取り込む";
 "general_setting_view.button.remove_custom_translations" = "カスタム翻訳を削除";
@@ -194,6 +198,7 @@
 "general_setting_view.value.default_language_description" = "無効";
 "general_setting_view.section.title.tags" = "タグ";
 "general_setting_view.section.title.navigation" = "ナビゲーション";
+"general_setting_view.section.title.siri_and_system_search" = "Siriとシステム検索";
 "general_setting_view.section.title.security" = "セキュリティ";
 "general_setting_view.section.title.caches" = "キャッシュ";
 // AutoLockPolicy
@@ -959,3 +964,30 @@
 "tab_item.title.more" = "その他";
 "more_view.section.title.tab_bar" = "タブバー";
 "more_view.section.title.more" = "その他";
+
+// MARK: App Intents
+"Gallery" = "漫画";
+"Section" = "セクション";
+"Home" = "ホーム";
+"Popular" = "人気";
+"History" = "履歴";
+"Favorites" = "お気に入り";
+"Cache" = "キャッシュ";
+"Search" = "検索";
+"Settings" = "設定";
+"Open Section" = "セクションを開く";
+"Open a section in EhPanda." = "EhPandaのセクションを開きます。";
+"Search Galleries" = "漫画を検索";
+"Search for galleries in EhPanda." = "EhPandaで漫画を検索します。";
+"Search text" = "検索語";
+"Open Gallery" = "漫画を開く";
+"Continue Reading" = "続きを読む";
+"Continue reading a recent gallery in EhPanda." = "EhPandaで最近の漫画の続きを読みます。";
+"There is no recent gallery to continue." = "続きから読める最近の漫画はありません。";
+"Continuing %@." = "%@の続きを読む。";
+"Refresh Cache Library" = "キャッシュ一覧を更新";
+"Synchronize the EhPanda cache library with files on disk." = "EhPandaのキャッシュ一覧をディスク上のファイルと同期します。";
+"The cache library now contains %lld galleries." = "キャッシュ一覧には%lld件の漫画があります。";
+"Search Galleries from Image" = "画像から漫画を検索";
+"Open Cache" = "キャッシュを開く";
+"Refresh Cache" = "キャッシュを更新";

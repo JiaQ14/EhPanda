@@ -187,6 +187,10 @@
 "general_setting_view.title.redirects_links_to_the_selected_host" = "將連結重新導向至選擇的網站";
 "general_setting_view.title.detects_links_from_clipboard" = "偵測剪貼簿中的連結";
 "general_setting_view.title.background_blur_radius" = "後台背景模糊";
+"general_setting_view.title.enables_system_content_search" = "在 Spotlight 中顯示最近瀏覽和已快取的漫畫";
+"general_setting_view.title.displays_covers_in_system_search" = "在系統搜尋結果中顯示漫畫封面";
+"general_setting_view.title.enables_visual_search" = "允許從螢幕截圖比對漫畫";
+"general_setting_view.description.system_search_privacy" = "標題可能包含敏感內容。系統搜尋與圖像比對在你啟用前會保持關閉。";
 "general_setting_view.button.logs" = "日誌";
 "general_setting_view.button.import_custom_translations" = "匯入自訂標籤翻譯";
 "general_setting_view.button.remove_custom_translations" = "刪除自訂標籤翻譯";
@@ -194,6 +198,7 @@
 "general_setting_view.value.default_language_description" = "N/A";
 "general_setting_view.section.title.tags" = "標籤";
 "general_setting_view.section.title.navigation" = "導覽";
+"general_setting_view.section.title.siri_and_system_search" = "Siri 與系統搜尋";
 "general_setting_view.section.title.security" = "安全";
 "general_setting_view.section.title.caches" = "快取";
 // AutoLockPolicy
@@ -959,3 +964,30 @@
 "tab_item.title.more" = "更多";
 "more_view.section.title.tab_bar" = "標籤列";
 "more_view.section.title.more" = "更多";
+
+// MARK: App Intents
+"Gallery" = "漫畫";
+"Section" = "分區";
+"Home" = "首頁";
+"Popular" = "熱門";
+"History" = "歷史";
+"Favorites" = "收藏";
+"Cache" = "快取";
+"Search" = "搜尋";
+"Settings" = "設定";
+"Open Section" = "開啟分區";
+"Open a section in EhPanda." = "在 EhPanda 中開啟一個分區。";
+"Search Galleries" = "搜尋漫畫";
+"Search for galleries in EhPanda." = "在 EhPanda 中搜尋漫畫。";
+"Search text" = "搜尋內容";
+"Open Gallery" = "開啟漫畫";
+"Continue Reading" = "繼續閱讀";
+"Continue reading a recent gallery in EhPanda." = "繼續閱讀 EhPanda 中最近開啟的漫畫。";
+"There is no recent gallery to continue." = "沒有可繼續閱讀的最近漫畫。";
+"Continuing %@." = "繼續閱讀「%@」。";
+"Refresh Cache Library" = "重新整理快取列表";
+"Synchronize the EhPanda cache library with files on disk." = "將 EhPanda 快取列表與磁碟上的檔案同步。";
+"The cache library now contains %lld galleries." = "快取列表現在包含 %lld 部漫畫。";
+"Search Galleries from Image" = "透過圖片搜尋漫畫";
+"Open Cache" = "開啟快取";
+"Refresh Cache" = "重新整理快取";

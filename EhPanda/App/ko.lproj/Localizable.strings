@@ -187,6 +187,10 @@
 "general_setting_view.title.redirects_links_to_the_selected_host" = "선택한 서버로 이동하기";
 "general_setting_view.title.detects_links_from_clipboard" = "클립보드의 링크 인식하기";
 "general_setting_view.title.background_blur_radius" = "Background blur radius";
+"general_setting_view.title.enables_system_content_search" = "최근 본 만화와 캐시된 만화를 Spotlight에 표시";
+"general_setting_view.title.displays_covers_in_system_search" = "시스템 검색 결과에 만화 표지 표시";
+"general_setting_view.title.enables_visual_search" = "스크린샷에서 만화 일치 허용";
+"general_setting_view.description.system_search_privacy" = "제목에 민감한 내용이 포함될 수 있습니다. 시스템 검색과 이미지 일치는 활성화할 때까지 꺼져 있습니다.";
 "general_setting_view.button.logs" = "로그";
 "general_setting_view.button.import_custom_translations" = "Import custom translations";
 "general_setting_view.button.remove_custom_translations" = "Remove custom translations";
@@ -194,6 +198,7 @@
 "general_setting_view.value.default_language_description" = "N/A";
 "general_setting_view.section.title.tags" = "Tags";
 "general_setting_view.section.title.navigation" = "내비게이션";
+"general_setting_view.section.title.siri_and_system_search" = "Siri 및 시스템 검색";
 "general_setting_view.section.title.security" = "개인 정보 보호";
 "general_setting_view.section.title.caches" = "캐시";
 // AutoLockPolicy
@@ -959,3 +964,30 @@
 "tab_item.title.more" = "더보기";
 "more_view.section.title.tab_bar" = "탭 막대";
 "more_view.section.title.more" = "더보기";
+
+// MARK: App Intents
+"Gallery" = "만화";
+"Section" = "섹션";
+"Home" = "홈";
+"Popular" = "인기";
+"History" = "기록";
+"Favorites" = "즐겨찾기";
+"Cache" = "캐시";
+"Search" = "검색";
+"Settings" = "설정";
+"Open Section" = "섹션 열기";
+"Open a section in EhPanda." = "EhPanda에서 섹션을 엽니다.";
+"Search Galleries" = "만화 검색";
+"Search for galleries in EhPanda." = "EhPanda에서 만화를 검색합니다.";
+"Search text" = "검색어";
+"Open Gallery" = "만화 열기";
+"Continue Reading" = "계속 읽기";
+"Continue reading a recent gallery in EhPanda." = "EhPanda에서 최근 만화를 계속 읽습니다.";
+"There is no recent gallery to continue." = "계속 읽을 최근 만화가 없습니다.";
+"Continuing %@." = "%@을(를) 계속 읽습니다.";
+"Refresh Cache Library" = "캐시 목록 새로 고침";
+"Synchronize the EhPanda cache library with files on disk." = "EhPanda 캐시 목록을 디스크의 파일과 동기화합니다.";
+"The cache library now contains %lld galleries." = "캐시 목록에 만화 %lld개가 있습니다.";
+"Search Galleries from Image" = "이미지로 만화 검색";
+"Open Cache" = "캐시 열기";
+"Refresh Cache" = "캐시 새로 고침";

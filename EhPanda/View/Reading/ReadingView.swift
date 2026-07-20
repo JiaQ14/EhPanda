@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppIntents
 import ComposableArchitecture
 
 struct ReadingView: View {
@@ -33,6 +34,14 @@ struct ReadingView: View {
 
     var body: some View {
         changeTriggers(content: { content })
+            .userActivity(
+                "com.zjq9714.ehpanda.gallery.reading",
+                element: screenGalleryEntity
+            ) { entity, activity in
+                activity.title = entity.title
+                activity.appEntityIdentifier = EntityIdentifier(for: entity)
+                activity.userInfo = ["gid": entity.id]
+            }
             .sheet(item: $store.route.sending(\.setNavigation).readingSetting) { _ in
                 NavigationView {
                     ReadingSettingView(
@@ -79,6 +88,11 @@ struct ReadingView: View {
                 setAutoPlayPolocy(.off)
             }
             .onAppear { store.send(.onAppear(gid, setting.enablesLandscape)) }
+    }
+
+    private var screenGalleryEntity: GalleryEntity? {
+        guard !store.gallery.id.isEmpty else { return nil }
+        return GalleryEntity(gallery: store.gallery)
     }
 
     var content: some View {

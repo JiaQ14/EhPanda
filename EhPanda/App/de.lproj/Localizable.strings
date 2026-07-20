@@ -187,6 +187,10 @@
 "general_setting_view.title.redirects_links_to_the_selected_host" = "Links zum ausgewählten Host umleiten";
 "general_setting_view.title.detects_links_from_clipboard" = "Übernimmt automatisch Links aus der Zwischenablage";
 "general_setting_view.title.background_blur_radius" = "Background blur radius";
+"general_setting_view.title.enables_system_content_search" = "Kürzlich angesehene und zwischengespeicherte Galerien in Spotlight anzeigen";
+"general_setting_view.title.displays_covers_in_system_search" = "Galeriecover in Systemergebnissen anzeigen";
+"general_setting_view.title.enables_visual_search" = "Galerien anhand von Screenshots abgleichen";
+"general_setting_view.description.system_search_privacy" = "Titel können sensible Inhalte enthalten. Systemsuche und visueller Abgleich bleiben deaktiviert, bis du sie aktivierst.";
 "general_setting_view.button.logs" = "Logs";
 "general_setting_view.button.import_custom_translations" = "Import custom translations";
 "general_setting_view.button.remove_custom_translations" = "Remove custom translations";
@@ -194,6 +198,7 @@
 "general_setting_view.value.default_language_description" = "N/A";
 "general_setting_view.section.title.tags" = "Tags";
 "general_setting_view.section.title.navigation" = "Navigation";
+"general_setting_view.section.title.siri_and_system_search" = "Siri und Systemsuche";
 "general_setting_view.section.title.security" = "Sicherheit";
 "general_setting_view.section.title.caches" = "Caches";
 // AutoLockPolicy
@@ -959,3 +964,30 @@
 "tab_item.title.more" = "Mehr";
 "more_view.section.title.tab_bar" = "Tableiste";
 "more_view.section.title.more" = "Mehr";
+
+// MARK: App Intents
+"Gallery" = "Galerie";
+"Section" = "Bereich";
+"Home" = "Start";
+"Popular" = "Beliebt";
+"History" = "Verlauf";
+"Favorites" = "Favoriten";
+"Cache" = "Cache";
+"Search" = "Suchen";
+"Settings" = "Einstellungen";
+"Open Section" = "Bereich öffnen";
+"Open a section in EhPanda." = "Öffnet einen Bereich in EhPanda.";
+"Search Galleries" = "Galerien suchen";
+"Search for galleries in EhPanda." = "Sucht nach Galerien in EhPanda.";
+"Search text" = "Suchtext";
+"Open Gallery" = "Galerie öffnen";
+"Continue Reading" = "Weiterlesen";
+"Continue reading a recent gallery in EhPanda." = "Liest eine kürzlich geöffnete Galerie in EhPanda weiter.";
+"There is no recent gallery to continue." = "Es gibt keine kürzlich geöffnete Galerie zum Weiterlesen.";
+"Continuing %@." = "%@ wird weitergelesen.";
+"Refresh Cache Library" = "Cache-Bibliothek aktualisieren";
+"Synchronize the EhPanda cache library with files on disk." = "Synchronisiert die EhPanda Cache-Bibliothek mit den Dateien auf dem Gerät.";
+"The cache library now contains %lld galleries." = "Die Cache-Bibliothek enthält jetzt %lld Galerien.";
+"Search Galleries from Image" = "Galerien anhand eines Bildes suchen";
+"Open Cache" = "Cache öffnen";
+"Refresh Cache" = "Cache aktualisieren";

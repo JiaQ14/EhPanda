@@ -8,6 +8,10 @@ import ComposableArchitecture
 
 @Reducer
 struct AppReducer {
+    private enum CancelID {
+        case systemSearchIndex
+    }
+
     @ObservableState
     struct State: Equatable {
         var appDelegateState = AppDelegateReducer.State()
@@ -25,11 +29,24 @@ struct AppReducer {
             settingState.route = .account
             settingState.accountSettingState.route = isLoggedIn ? nil : .login()
         }
+
+        mutating func navigateToSection(_ item: AppNavigationItem) {
+            moreState.route = nil
+            if item == .home || settingState.setting.tabBarItems.contains(item) {
+                tabBarState.tabBarItemType = item
+            } else {
+                moreState.route = item
+                tabBarState.tabBarItemType = .more
+            }
+        }
     }
 
     enum Action: BindableAction {
         case binding(BindingAction<State>)
         case onScenePhaseChange(ScenePhase)
+        case consumePendingIntentRoute
+        case handleIntentRoute(AppIntentRoute)
+        case syncSystemSearchIndex
 
         case appDelegate(AppDelegateReducer.Action)
         case appRoute(AppRouteReducer.Action)
@@ -56,8 +73,20 @@ struct AppReducer {
                 .onChange(of: \.appRouteState.route) { _, newValue in
                     Reduce({ _, _ in newValue == nil ? .send(.appRoute(.clearSubStates)) : .none })
                 }
-                .onChange(of: \.settingState.setting) { _, _ in
-                    Reduce({ _, _ in .send(.setting(.syncSetting)) })
+                .onChange(of: \.settingState.setting) { oldValue, newValue in
+                    Reduce { _, _ in
+                        var effects: [Effect<Action>] = [
+                            .send(.setting(.syncSetting)),
+                            .run { _ in AppIntentPreferences.update(using: newValue) }
+                        ]
+                        if oldValue.enablesSystemContentSearch
+                            != newValue.enablesSystemContentSearch
+                            || oldValue.displaysCoversInSystemSearch
+                            != newValue.displaysCoversInSystemSearch {
+                            effects.append(.send(.syncSystemSearchIndex))
+                        }
+                        return .merge(effects)
+                    }
                 }
 
             Reduce { state, action in
@@ -72,7 +101,11 @@ struct AppReducer {
                     case .active:
                         let threshold = state.settingState.setting.autoLockPolicy.rawValue
                         let blurRadius = state.settingState.setting.backgroundBlurRadius
-                        return .send(.appLock(.onBecomeActive(threshold, blurRadius)))
+                        return .merge(
+                            .send(.appLock(.onBecomeActive(threshold, blurRadius))),
+                            .send(.consumePendingIntentRoute),
+                            .send(.syncSystemSearchIndex)
+                        )
 
                     case .inactive:
                         let blurRadius = state.settingState.setting.backgroundBlurRadius
@@ -81,6 +114,40 @@ struct AppReducer {
                     default:
                         return .none
                     }
+
+                case .consumePendingIntentRoute:
+                    guard state.settingState.hasLoadedInitialSetting else { return .none }
+                    return .run { send in
+                        if let route = AppIntentNavigationStore.shared.consume() {
+                            await send(.handleIntentRoute(route))
+                        }
+                    }
+
+                case .handleIntentRoute(let route):
+                    switch route {
+                    case .section(let section):
+                        state.navigateToSection(section.navigationItem)
+                        return .none
+
+                    case .search(let query):
+                        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !query.isEmpty else { return .none }
+                        state.navigateToSection(.search)
+                        state.searchRootState.keyword = query
+                        state.searchRootState.route = .search
+                        return .send(.searchRoot(.search(.fetchGalleries(query))))
+
+                    case .gallery(let gid, let readingProgress):
+                        return .send(.appRoute(.openGallery(gid, readingProgress)))
+                    }
+
+                case .syncSystemSearchIndex:
+                    let setting = state.settingState.setting
+                    return .run { _ in
+                        try await Task.sleep(for: .milliseconds(500))
+                        await SystemSearchIndexService.shared.synchronize(using: setting)
+                    }
+                    .cancellable(id: CancelID.systemSearchIndex, cancelInFlight: true)
 
                 case .appDelegate(.migration(.onDatabasePreparationSuccess)):
                     return .merge(
@@ -98,6 +165,9 @@ struct AppReducer {
                         effects.append(.send(.setting(.clearSubStates)))
                     }
                     return effects.isEmpty ? .none : .merge(effects)
+
+                case .appRoute(.detail(.saveGalleryHistory)):
+                    return .send(.syncSystemSearchIndex)
 
                 case .appRoute:
                     return .none
@@ -205,6 +275,9 @@ struct AppReducer {
                 case .favorites:
                     return .none
 
+                case .cache(.itemsUpdated):
+                    return .send(.syncSystemSearchIndex)
+
                 case .cache:
                     return .none
 
@@ -226,6 +299,13 @@ struct AppReducer {
                         .init(setting: state.settingState.setting),
                         resumesAutomatically: state.settingState.setting.cacheResumesAutomatically
                     ))))
+                    effects.append(.send(.consumePendingIntentRoute))
+                    effects.append(.send(.syncSystemSearchIndex))
+                    effects.append(
+                        .run { [setting = state.settingState.setting] _ in
+                            AppIntentPreferences.update(using: setting)
+                        }
+                    )
                     return effects.isEmpty ? .none : .merge(effects)
 
                 case .setting(.fetchGreetingDone(let result)):

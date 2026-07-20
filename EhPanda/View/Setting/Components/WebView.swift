@@ -28,7 +28,7 @@ struct WebView: UIViewControllerRepresentable {
             guard parent.loginDoneAction != nil, !didCompleteLogin else { return }
 
             let navigationURL = webView.url
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
                 cookies.forEach { HTTPCookieStorage.shared.setCookie($0) }
 
                 DispatchQueue.main.async { [weak self] in

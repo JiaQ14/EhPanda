@@ -195,6 +195,60 @@ internal enum L10n {
     internal static let nsPhotoLibraryAddUsageDescription = L10n.tr("InfoPlist", "NSPhotoLibraryAddUsageDescription", fallback: "We need this permission to save images to your photo library.")
   }
   internal enum Localizable {
+    /// Cache
+    internal static let cache = L10n.tr("Localizable", "Cache", fallback: "Cache")
+    /// Continue Reading
+    internal static let continueReading = L10n.tr("Localizable", "Continue Reading", fallback: "Continue Reading")
+    /// Continue reading a recent gallery in EhPanda.
+    internal static let continueReadingARecentGalleryInEhPanda = L10n.tr("Localizable", "Continue reading a recent gallery in EhPanda.", fallback: "Continue reading a recent gallery in EhPanda.")
+    /// Continuing %@.
+    internal static func continuing(_ p1: Any) -> String {
+      return L10n.tr("Localizable", "Continuing %@.", String(describing: p1), fallback: "Continuing %@.")
+    }
+    /// Favorites
+    internal static let favorites = L10n.tr("Localizable", "Favorites", fallback: "Favorites")
+    /// Gallery
+    internal static let gallery = L10n.tr("Localizable", "Gallery", fallback: "Gallery")
+    /// History
+    internal static let history = L10n.tr("Localizable", "History", fallback: "History")
+    /// Home
+    internal static let home = L10n.tr("Localizable", "Home", fallback: "Home")
+    /// Open a section in EhPanda.
+    internal static let openASectionInEhPanda = L10n.tr("Localizable", "Open a section in EhPanda.", fallback: "Open a section in EhPanda.")
+    /// Open Cache
+    internal static let openCache = L10n.tr("Localizable", "Open Cache", fallback: "Open Cache")
+    /// Open Gallery
+    internal static let openGallery = L10n.tr("Localizable", "Open Gallery", fallback: "Open Gallery")
+    /// Open Section
+    internal static let openSection = L10n.tr("Localizable", "Open Section", fallback: "Open Section")
+    /// Popular
+    internal static let popular = L10n.tr("Localizable", "Popular", fallback: "Popular")
+    /// Refresh Cache
+    internal static let refreshCache = L10n.tr("Localizable", "Refresh Cache", fallback: "Refresh Cache")
+    /// Refresh Cache Library
+    internal static let refreshCacheLibrary = L10n.tr("Localizable", "Refresh Cache Library", fallback: "Refresh Cache Library")
+    /// Search
+    internal static let search = L10n.tr("Localizable", "Search", fallback: "Search")
+    /// Search for galleries in EhPanda.
+    internal static let searchForGalleriesInEhPanda = L10n.tr("Localizable", "Search for galleries in EhPanda.", fallback: "Search for galleries in EhPanda.")
+    /// Search Galleries
+    internal static let searchGalleries = L10n.tr("Localizable", "Search Galleries", fallback: "Search Galleries")
+    /// Search Galleries from Image
+    internal static let searchGalleriesFromImage = L10n.tr("Localizable", "Search Galleries from Image", fallback: "Search Galleries from Image")
+    /// Search text
+    internal static let searchText = L10n.tr("Localizable", "Search text", fallback: "Search text")
+    /// Section
+    internal static let section = L10n.tr("Localizable", "Section", fallback: "Section")
+    /// Settings
+    internal static let settings = L10n.tr("Localizable", "Settings", fallback: "Settings")
+    /// Synchronize the EhPanda cache library with files on disk.
+    internal static let synchronizeTheEhPandaCacheLibraryWithFilesOnDisk = L10n.tr("Localizable", "Synchronize the EhPanda cache library with files on disk.", fallback: "Synchronize the EhPanda cache library with files on disk.")
+    /// The cache library now contains %lld galleries.
+    internal static func theCacheLibraryNowContainsLldGalleries(_ p1: Int) -> String {
+      return L10n.tr("Localizable", "The cache library now contains %lld galleries.", p1, fallback: "The cache library now contains %lld galleries.")
+    }
+    /// There is no recent gallery to continue.
+    internal static let thereIsNoRecentGalleryToContinue = L10n.tr("Localizable", "There is no recent gallery to continue.", fallback: "There is no recent gallery to continue.")
     internal enum AboutView {
       internal enum Button {
         /// AltStore source
@@ -239,16 +293,6 @@ internal enum L10n {
         internal static let account = L10n.tr("Localizable", "account_setting_view.title.account", fallback: "Account")
         /// Shows new dawn greeting
         internal static let showsNewDawnGreeting = L10n.tr("Localizable", "account_setting_view.title.shows_new_dawn_greeting", fallback: "Shows new dawn greeting")
-      }
-    }
-    internal enum MoreView {
-      internal enum Section {
-        internal enum Title {
-          /// More
-          internal static let more = L10n.tr("Localizable", "more_view.section.title.more", fallback: "More")
-          /// Tab Bar
-          internal static let tabBar = L10n.tr("Localizable", "more_view.section.title.tab_bar", fallback: "Tab Bar")
-        }
       }
     }
     internal enum AppIconView {
@@ -308,8 +352,8 @@ internal enum L10n {
         internal enum Footer {
           /// Original images use more storage. Changes apply to newly cached galleries.
           internal static let download = L10n.tr("Localizable", "cache_setting_view.section.footer.download", fallback: "Original images use more storage. Changes apply to newly cached galleries.")
-          /// Cached pages are available in Files > On My iPhone > EhPanda > Downloads.
-          internal static let storage = L10n.tr("Localizable", "cache_setting_view.section.footer.storage", fallback: "Cached pages are available in Files > On My iPhone > EhPanda > Downloads.")
+          /// Cached pages are available in Files > On My iPhone > EhPanda > Downloads. Refresh to sync compatible folders added or removed in Files, including JHenTai downloads.
+          internal static let storage = L10n.tr("Localizable", "cache_setting_view.section.footer.storage", fallback: "Cached pages are available in Files > On My iPhone > EhPanda > Downloads. Refresh to sync compatible folders added or removed in Files, including JHenTai downloads.")
         }
         internal enum Title {
           /// Download
@@ -1955,6 +1999,10 @@ internal enum L10n {
         /// Remove custom translations
         internal static let removeCustomTranslations = L10n.tr("Localizable", "general_setting_view.button.remove_custom_translations", fallback: "Remove custom translations")
       }
+      internal enum Description {
+        /// Titles may be sensitive. System search and visual matching remain off until you enable them.
+        internal static let systemSearchPrivacy = L10n.tr("Localizable", "general_setting_view.description.system_search_privacy", fallback: "Titles may be sensitive. System search and visual matching remain off until you enable them.")
+      }
       internal enum Section {
         internal enum Title {
           /// Caches
@@ -1963,6 +2011,8 @@ internal enum L10n {
           internal static let navigation = L10n.tr("Localizable", "general_setting_view.section.title.navigation", fallback: "Navigation")
           /// Security
           internal static let security = L10n.tr("Localizable", "general_setting_view.section.title.security", fallback: "Security")
+          /// Siri and System Search
+          internal static let siriAndSystemSearch = L10n.tr("Localizable", "general_setting_view.section.title.siri_and_system_search", fallback: "Siri and System Search")
           /// Tags
           internal static let tags = L10n.tr("Localizable", "general_setting_view.section.title.tags", fallback: "Tags")
         }
@@ -1974,8 +2024,14 @@ internal enum L10n {
         internal static let backgroundBlurRadius = L10n.tr("Localizable", "general_setting_view.title.background_blur_radius", fallback: "Background blur radius")
         /// Detects links from the clipboard
         internal static let detectsLinksFromClipboard = L10n.tr("Localizable", "general_setting_view.title.detects_links_from_clipboard", fallback: "Detects links from the clipboard")
+        /// Show gallery covers in system results
+        internal static let displaysCoversInSystemSearch = L10n.tr("Localizable", "general_setting_view.title.displays_covers_in_system_search", fallback: "Show gallery covers in system results")
+        /// Show recent and cached galleries in Spotlight
+        internal static let enablesSystemContentSearch = L10n.tr("Localizable", "general_setting_view.title.enables_system_content_search", fallback: "Show recent and cached galleries in Spotlight")
         /// Enables tags extension
         internal static let enablesTagsExtension = L10n.tr("Localizable", "general_setting_view.title.enables_tags_extension", fallback: "Enables tags extension")
+        /// Allow matching galleries from screenshots
+        internal static let enablesVisualSearch = L10n.tr("Localizable", "general_setting_view.title.enables_visual_search", fallback: "Allow matching galleries from screenshots")
         /// General
         internal static let general = L10n.tr("Localizable", "general_setting_view.title.general", fallback: "General")
         /// Language
@@ -2080,6 +2136,16 @@ internal enum L10n {
         internal static let latest = L10n.tr("Localizable", "logs_view.title.latest", fallback: "Latest")
         /// Logs
         internal static let logs = L10n.tr("Localizable", "logs_view.title.logs", fallback: "Logs")
+      }
+    }
+    internal enum MoreView {
+      internal enum Section {
+        internal enum Title {
+          /// More
+          internal static let more = L10n.tr("Localizable", "more_view.section.title.more", fallback: "More")
+          /// Tab Bar
+          internal static let tabBar = L10n.tr("Localizable", "more_view.section.title.tab_bar", fallback: "Tab Bar")
+        }
       }
     }
     internal enum NewDawnView {

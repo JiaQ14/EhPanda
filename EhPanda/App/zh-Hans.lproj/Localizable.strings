@@ -187,6 +187,10 @@
 "general_setting_view.title.redirects_links_to_the_selected_host" = "重定向链接到选定的站点";
 "general_setting_view.title.detects_links_from_clipboard" = "从剪切板检测链接";
 "general_setting_view.title.background_blur_radius" = "后台模糊效果";
+"general_setting_view.title.enables_system_content_search" = "在 Spotlight 中显示最近浏览和已缓存的漫画";
+"general_setting_view.title.displays_covers_in_system_search" = "在系统搜索结果中显示漫画封面";
+"general_setting_view.title.enables_visual_search" = "允许从截图匹配漫画";
+"general_setting_view.description.system_search_privacy" = "标题可能包含敏感内容。系统搜索和图像匹配在你启用前会保持关闭。";
 "general_setting_view.button.logs" = "日志";
 "general_setting_view.button.import_custom_translations" = "导入自定义翻译";
 "general_setting_view.button.remove_custom_translations" = "移除自定义翻译";
@@ -194,6 +198,7 @@
 "general_setting_view.value.default_language_description" = "无效";
 "general_setting_view.section.title.tags" = "标签";
 "general_setting_view.section.title.navigation" = "导航";
+"general_setting_view.section.title.siri_and_system_search" = "Siri 与系统搜索";
 "general_setting_view.section.title.security" = "安全";
 "general_setting_view.section.title.caches" = "缓存";
 // AutoLockPolicy
@@ -959,3 +964,30 @@
 "tab_item.title.more" = "更多";
 "more_view.section.title.tab_bar" = "标签栏";
 "more_view.section.title.more" = "更多";
+
+// MARK: App Intents
+"Gallery" = "漫画";
+"Section" = "分区";
+"Home" = "首页";
+"Popular" = "热门";
+"History" = "历史";
+"Favorites" = "收藏";
+"Cache" = "缓存";
+"Search" = "搜索";
+"Settings" = "设置";
+"Open Section" = "打开分区";
+"Open a section in EhPanda." = "在 EhPanda 中打开一个分区。";
+"Search Galleries" = "搜索漫画";
+"Search for galleries in EhPanda." = "在 EhPanda 中搜索漫画。";
+"Search text" = "搜索内容";
+"Open Gallery" = "打开漫画";
+"Continue Reading" = "继续阅读";
+"Continue reading a recent gallery in EhPanda." = "继续阅读 EhPanda 中最近打开的漫画。";
+"There is no recent gallery to continue." = "没有可继续阅读的最近漫画。";
+"Continuing %@." = "继续阅读“%@”。";
+"Refresh Cache Library" = "刷新缓存列表";
+"Synchronize the EhPanda cache library with files on disk." = "将 EhPanda 缓存列表与磁盘上的文件同步。";
+"The cache library now contains %lld galleries." = "缓存列表现在包含 %lld 部漫画。";
+"Search Galleries from Image" = "通过图片搜索漫画";
+"Open Cache" = "打开缓存";
+"Refresh Cache" = "刷新缓存";

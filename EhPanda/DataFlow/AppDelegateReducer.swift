@@ -67,6 +67,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication, didFinishLaunchingWithOptions
         launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        AppIntentDependencies.register()
         if !AppUtil.isTesting {
             store.send(.appDelegate(.onLaunchFinish))
         }

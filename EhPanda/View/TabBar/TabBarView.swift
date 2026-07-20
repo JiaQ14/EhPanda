@@ -5,6 +5,8 @@
 
 import SwiftUI
 import UIKit
+import Combine
+import CoreSpotlight
 import SFSafeSymbols
 import ComposableArchitecture
 
@@ -89,6 +91,20 @@ struct TabBarView: View {
             )
         )
         .onChange(of: scenePhase) { _, newValue in store.send(.onScenePhaseChange(newValue)) }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: AppIntentNavigationStore.didEnqueueNotification
+            )
+            .receive(on: RunLoop.main)
+        ) { _ in
+            store.send(.consumePendingIntentRoute)
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                  let galleryID = GalleryEntity.galleryID(fromSpotlightIdentifier: identifier)
+            else { return }
+            store.send(.handleIntentRoute(.gallery(gid: galleryID, readingProgress: nil)))
+        }
         .onOpenURL { store.send(.appRoute(.handleDeepLink($0))) }
     }
 

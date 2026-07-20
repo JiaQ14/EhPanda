@@ -53,6 +53,11 @@ struct Setting: Codable, Equatable {
     var backgroundBlurRadius: Double = 10
     var autoLockPolicy: AutoLockPolicy = .never
 
+    // System integration
+    var enablesSystemContentSearch = false
+    var displaysCoversInSystemSearch = false
+    var enablesVisualSearch = false
+
     // Appearance
     var listDisplayMode: ListDisplayMode = DeviceUtil.isPadWidth ? .waterfall : .detail
     var preferredColorScheme = PreferredColorScheme.automatic
@@ -330,6 +335,16 @@ extension Setting {
         detectsLinksFromClipboard = (try? container?.decodeIfPresent(Bool.self, forKey: .detectsLinksFromClipboard)) ?? false
         backgroundBlurRadius = (try? container?.decodeIfPresent(Double.self, forKey: .backgroundBlurRadius)) ?? 10
         autoLockPolicy = (try? container?.decodeIfPresent(AutoLockPolicy.self, forKey: .autoLockPolicy)) ?? .never
+        // System integration
+        enablesSystemContentSearch = (try? container?.decodeIfPresent(
+            Bool.self, forKey: .enablesSystemContentSearch
+        )) ?? false
+        displaysCoversInSystemSearch = (try? container?.decodeIfPresent(
+            Bool.self, forKey: .displaysCoversInSystemSearch
+        )) ?? false
+        enablesVisualSearch = (try? container?.decodeIfPresent(
+            Bool.self, forKey: .enablesVisualSearch
+        )) ?? false
         // Appearance
         listDisplayMode = (try? container?.decodeIfPresent(ListDisplayMode.self, forKey: .listDisplayMode)) ?? (DeviceUtil.isPadWidth ? .waterfall : .detail)
         preferredColorScheme = (try? container?.decodeIfPresent(PreferredColorScheme.self, forKey: .preferredColorScheme)) ?? .automatic

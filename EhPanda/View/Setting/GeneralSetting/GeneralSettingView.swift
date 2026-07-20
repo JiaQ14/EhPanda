@@ -20,6 +20,9 @@ struct GeneralSettingView: View {
     @Binding private var detectsLinksFromClipboard: Bool
     @Binding private var backgroundBlurRadius: Double
     @Binding private var autoLockPolicy: AutoLockPolicy
+    @Binding private var enablesSystemContentSearch: Bool
+    @Binding private var displaysCoversInSystemSearch: Bool
+    @Binding private var enablesVisualSearch: Bool
 
     init(
         store: StoreOf<GeneralSettingReducer>,
@@ -28,7 +31,8 @@ struct GeneralSettingView: View {
         translatesTags: Binding<Bool>, showsTagsSearchSuggestion: Binding<Bool>,
         showsImagesInTags: Binding<Bool>, redirectsLinksToSelectedHost: Binding<Bool>,
         detectsLinksFromClipboard: Binding<Bool>, backgroundBlurRadius: Binding<Double>,
-        autoLockPolicy: Binding<AutoLockPolicy>
+        autoLockPolicy: Binding<AutoLockPolicy>, enablesSystemContentSearch: Binding<Bool>,
+        displaysCoversInSystemSearch: Binding<Bool>, enablesVisualSearch: Binding<Bool>
     ) {
         self.store = store
         self.tagTranslatorLoadingState = tagTranslatorLoadingState
@@ -42,6 +46,9 @@ struct GeneralSettingView: View {
         _detectsLinksFromClipboard = detectsLinksFromClipboard
         _backgroundBlurRadius = backgroundBlurRadius
         _autoLockPolicy = autoLockPolicy
+        _enablesSystemContentSearch = enablesSystemContentSearch
+        _displaysCoversInSystemSearch = displaysCoversInSystemSearch
+        _enablesVisualSearch = enablesVisualSearch
     }
 
     private var language: String {
@@ -130,6 +137,26 @@ struct GeneralSettingView: View {
                     isOn: $detectsLinksFromClipboard
                 )
             }
+            Section {
+                Toggle(
+                    L10n.Localizable.GeneralSettingView.Title.enablesSystemContentSearch,
+                    isOn: $enablesSystemContentSearch
+                )
+                if enablesSystemContentSearch {
+                    Toggle(
+                        L10n.Localizable.GeneralSettingView.Title.displaysCoversInSystemSearch,
+                        isOn: $displaysCoversInSystemSearch
+                    )
+                }
+                Toggle(
+                    L10n.Localizable.GeneralSettingView.Title.enablesVisualSearch,
+                    isOn: $enablesVisualSearch
+                )
+            } header: {
+                Text(L10n.Localizable.GeneralSettingView.Section.Title.siriAndSystemSearch)
+            } footer: {
+                Text(L10n.Localizable.GeneralSettingView.Description.systemSearchPrivacy)
+            }
             Section(L10n.Localizable.GeneralSettingView.Section.Title.security) {
                 HStack {
                     Picker(
@@ -210,7 +237,10 @@ struct GeneralSettingView_Previews: PreviewProvider {
                 redirectsLinksToSelectedHost: .constant(false),
                 detectsLinksFromClipboard: .constant(false),
                 backgroundBlurRadius: .constant(10),
-                autoLockPolicy: .constant(.never)
+                autoLockPolicy: .constant(.never),
+                enablesSystemContentSearch: .constant(false),
+                displaysCoversInSystemSearch: .constant(false),
+                enablesVisualSearch: .constant(false)
             )
         }
     }

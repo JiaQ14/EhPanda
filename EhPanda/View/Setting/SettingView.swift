@@ -94,7 +94,10 @@ private extension SettingView {
                 redirectsLinksToSelectedHost: $store.setting.redirectsLinksToSelectedHost,
                 detectsLinksFromClipboard: $store.setting.detectsLinksFromClipboard,
                 backgroundBlurRadius: $store.setting.backgroundBlurRadius,
-                autoLockPolicy: $store.setting.autoLockPolicy
+                autoLockPolicy: $store.setting.autoLockPolicy,
+                enablesSystemContentSearch: $store.setting.enablesSystemContentSearch,
+                displaysCoversInSystemSearch: $store.setting.displaysCoversInSystemSearch,
+                enablesVisualSearch: $store.setting.enablesVisualSearch
             )
             .tint(store.setting.accentColor)
 

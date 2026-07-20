@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppIntents
 import Kingfisher
 import ComposableArchitecture
 import CommonMark
@@ -210,6 +211,14 @@ struct DetailView: View {
 
     var body: some View {
         modalModifiers(content: { content })
+            .userActivity(
+                "com.zjq9714.ehpanda.gallery",
+                element: screenGalleryEntity
+            ) { entity, activity in
+                activity.title = entity.title
+                activity.appEntityIdentifier = EntityIdentifier(for: entity)
+                activity.userInfo = ["gid": entity.id]
+            }
             .animation(.default, value: store.showsUserRating)
             .animation(.default, value: store.showsFullTitle)
             .animation(.default, value: store.galleryDetail)
@@ -236,6 +245,11 @@ struct DetailView: View {
             } message: {
                 Text(L10n.Localizable.DetailView.Cache.Confirmation.Delete.message)
             }
+    }
+
+    private var screenGalleryEntity: GalleryEntity? {
+        guard !store.gallery.id.isEmpty else { return nil }
+        return GalleryEntity(gallery: store.gallery)
     }
 }
 
