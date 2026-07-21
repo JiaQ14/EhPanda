@@ -81,7 +81,6 @@ struct CacheView: View {
 
     var body: some View {
         navigationContent
-            .embeddedInNavigationStack(embedsInNavigationStack)
             .adaptiveGalleryDetail(
                 selection: $store.route.sending(\.setNavigation).detail,
                 blurRadius: blurRadius
@@ -94,6 +93,7 @@ struct CacheView: View {
                     tagTranslator: tagTranslator
                 )
             }
+            .embeddedInNavigationStack(embedsInNavigationStack)
     }
 
     private var navigationContent: some View {

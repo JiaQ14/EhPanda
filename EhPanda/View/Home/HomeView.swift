@@ -33,15 +33,15 @@ struct HomeView: View {
                 .navigationDestination(item: navigationRoute) { route in
                     destination(for: route)
                 }
-        }
-        .adaptiveGalleryDetail(
-            selection: detailRoute,
-            blurRadius: blurRadius
-        ) { gid in
-            GalleryDetailContainer(
-                gid: gid, user: user, setting: $setting,
-                blurRadius: blurRadius, tagTranslator: tagTranslator
-            )
+                .adaptiveGalleryDetail(
+                    selection: detailRoute,
+                    blurRadius: blurRadius
+                ) { gid in
+                    GalleryDetailContainer(
+                        gid: gid, user: user, setting: $setting,
+                        blurRadius: blurRadius, tagTranslator: tagTranslator
+                    )
+                }
         }
     }
 

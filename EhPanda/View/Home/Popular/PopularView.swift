@@ -66,16 +66,16 @@ struct PopularView: View {
         .navigationTitle(L10n.Localizable.PopularView.Title.popular)
 
         content
-            .embeddedInNavigationStack(embedsInNavigationStack)
             .adaptiveGalleryDetail(
-            selection: $store.route.sending(\.setNavigation).detail,
-            blurRadius: blurRadius
-        ) { gid in
-            GalleryDetailContainer(
-                gid: gid, user: user, setting: $setting,
-                blurRadius: blurRadius, tagTranslator: tagTranslator
-            )
-        }
+                selection: $store.route.sending(\.setNavigation).detail,
+                blurRadius: blurRadius
+            ) { gid in
+                GalleryDetailContainer(
+                    gid: gid, user: user, setting: $setting,
+                    blurRadius: blurRadius, tagTranslator: tagTranslator
+                )
+            }
+            .embeddedInNavigationStack(embedsInNavigationStack)
     }
     private func toolbar() -> some ToolbarContent {
         CustomToolbarItem {

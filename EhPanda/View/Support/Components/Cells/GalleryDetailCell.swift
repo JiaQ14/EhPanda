@@ -175,6 +175,7 @@ extension View {
 private struct GalleryContextMenuModifier: ViewModifier {
     @Environment(\.galleryContextMenuConfiguration) private var configuration
     @State private var presentationRevision = 0
+    @State private var shareURL: URL?
 
     let gallery: Gallery
     let actions: [GalleryListAction]
@@ -191,7 +192,8 @@ private struct GalleryContextMenuModifier: ViewModifier {
                             gallery: gallery,
                             user: configuration.user,
                             setting: configuration.setting,
-                            isFavorited: isFavorited ?? configuration.defaultFavoriteState
+                            isFavorited: isFavorited ?? configuration.defaultFavoriteState,
+                            shareAction: { shareURL = $0 }
                         )
                     case .downloadsOnly:
                         GalleryDownloadContextMenu(actions: actions)
@@ -212,6 +214,9 @@ private struct GalleryContextMenuModifier: ViewModifier {
                         url: gallery.galleryURL
                     )
                 )
+                .sheet(item: $shareURL, id: \.absoluteString) { url in
+                    ActivityView(activityItems: [url])
+                }
         } else {
             content.modifier(
                 GalleryDraggableModifier(
@@ -263,6 +268,7 @@ private struct GalleryStandardContextMenu: View {
     let user: User
     let setting: Setting
     let isFavorited: Bool?
+    let shareAction: (URL) -> Void
 
     @State private var favoriteOverride: Bool?
     @State private var operationInProgress = false
@@ -325,7 +331,9 @@ private struct GalleryStandardContextMenu: View {
             }
 
             if let galleryURL = gallery.galleryURL {
-                ShareLink(item: galleryURL) {
+                Button {
+                    shareAction(galleryURL)
+                } label: {
                     Label(
                         L10n.Localizable.DetailView.ToolbarItem.Button.share,
                         systemImage: "square.and.arrow.up"

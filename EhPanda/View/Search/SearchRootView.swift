@@ -30,7 +30,6 @@ struct SearchRootView: View {
 
     var body: some View {
         navigationContent
-            .embeddedInNavigationStack(embedsInNavigationStack)
             .adaptiveGalleryDetail(
                 selection: $store.route.sending(\.setNavigation).detail,
                 blurRadius: blurRadius
@@ -43,6 +42,7 @@ struct SearchRootView: View {
                     tagTranslator: tagTranslator
                 )
             }
+            .embeddedInNavigationStack(embedsInNavigationStack)
     }
 
     @ViewBuilder private var navigationContent: some View {

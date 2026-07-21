@@ -83,7 +83,6 @@ struct ControlPanel: View {
 
 // MARK: UpperPanel
 private struct UpperPanel: View {
-    @Environment(\.windowSize) private var windowSize
     @Binding private var setting: Setting
     @Binding private var enablesLiveText: Bool
     @Binding private var autoPlayPolicy: AutoPlayPolicy
@@ -228,7 +227,7 @@ private struct UpperPanel: View {
     }
 
     private var windowControlsLeadingInset: CGFloat {
-        guard #available(iOS 26.0, *), DeviceUtil.isWindowed(windowSize) else {
+        guard #available(iOS 26.0, *), DeviceUtil.isPad else {
             return 0
         }
         return 64

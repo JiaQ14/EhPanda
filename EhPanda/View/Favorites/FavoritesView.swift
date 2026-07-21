@@ -36,16 +36,16 @@ struct FavoritesView: View {
 
     var body: some View {
         content
-            .embeddedInNavigationStack(embedsInNavigationStack)
             .adaptiveGalleryDetail(
-            selection: $store.route.sending(\.setNavigation).detail,
-            blurRadius: blurRadius
-        ) { gid in
-            GalleryDetailContainer(
-                gid: gid, user: user, setting: $setting,
-                blurRadius: blurRadius, tagTranslator: tagTranslator
-            )
-        }
+                selection: $store.route.sending(\.setNavigation).detail,
+                blurRadius: blurRadius
+            ) { gid in
+                GalleryDetailContainer(
+                    gid: gid, user: user, setting: $setting,
+                    blurRadius: blurRadius, tagTranslator: tagTranslator
+                )
+            }
+            .embeddedInNavigationStack(embedsInNavigationStack)
     }
 
     private var content: some View {
