@@ -96,11 +96,12 @@ extension View {
         isPresented: Binding<Bool>,
         tagTranslator: TagTranslator,
         setting: Setting,
-        prompt: Text? = nil
+        prompt: Text? = nil,
+        onSubmit: (() -> Void)? = nil
     ) -> some View {
         modifier(GallerySearchModifier(
             text: text, isPresented: isPresented,
-            tagTranslator: tagTranslator, setting: setting, prompt: prompt
+            tagTranslator: tagTranslator, setting: setting, prompt: prompt, submitAction: onSubmit
         ))
     }
 }
@@ -112,20 +113,10 @@ private struct GallerySearchModifier: ViewModifier {
     let tagTranslator: TagTranslator
     let setting: Setting
     let prompt: Text?
+    let submitAction: (() -> Void)?
 
     func body(content: Content) -> some View {
-        // Keep search in this navigation item. Hiding/restoring the navigation bar
-        // during search changes the large-title and scroll insets independently.
-        content.searchable(
-            text: $text,
-            isPresented: $isPresented,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: prompt
-        )
-        .searchPresentationToolbarBehavior(.avoidHidingContent)
-        // Floating iPad tabs must not inherit Home's large-title height during search.
-        .navigationBarTitleDisplayMode(DeviceUtil.isPad ? .inline : .automatic)
-        .searchFocused($isFocused)
+        content
         .overlay {
             TagSuggestionOverlay(
                 keyword: $text,
@@ -136,6 +127,70 @@ private struct GallerySearchModifier: ViewModifier {
                 maximumCount: 5
             )
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("", text: $text, prompt: prompt ?? Text(L10n.Localizable.search))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                        .focused($isFocused)
+                        .onSubmit {
+                            isFocused = false
+                            submitAction?()
+                        }
+                        .submitScope()
+                        .accessibilityLabel(L10n.Localizable.search)
+                        .accessibilityIdentifier("gallery-search-field")
+                    if !text.isEmpty {
+                        Button { text = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityLabel(L10n.Localizable.ConfirmationDialog.Button.clear)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 40)
+                .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+                if isPresented {
+                    GallerySearchCancelButton {
+                        text = ""
+                        isFocused = false
+                        isPresented = false
+                    }
+                    .frame(width: 36, height: 40)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+        }
+        .onChange(of: isFocused) { _, focused in
+            if focused { isPresented = true }
+        }
+        .onChange(of: isPresented) { _, presented in
+            isFocused = presented
+        }
+    }
+}
+
+private struct GallerySearchCancelButton: UIViewRepresentable {
+    let action: () -> Void
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .close)
+        button.accessibilityIdentifier = "gallery-search-cancel"
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        button.removeAction(identifiedBy: UIAction.Identifier("cancel-search"), for: .touchUpInside)
+        button.addAction(UIAction(identifier: UIAction.Identifier("cancel-search")) { _ in action() },
+                         for: .touchUpInside)
     }
 }
 

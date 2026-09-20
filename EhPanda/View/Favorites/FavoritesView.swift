@@ -94,11 +94,9 @@ struct FavoritesView: View {
             text: $store.keyword,
             isPresented: $isSearchPresented,
             tagTranslator: tagTranslator,
-            setting: setting
+            setting: setting,
+            onSubmit: { store.send(.fetchGalleries()) }
         )
-        .onSubmit(of: .search) {
-            store.send(.fetchGalleries())
-        }
         .onAppear {
             if store.galleries?.isEmpty != false && CookieUtil.didLogin {
                 DispatchQueue.main.async {

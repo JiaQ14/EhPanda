@@ -83,11 +83,9 @@ struct SearchRootView: View {
                 text: $store.keyword,
                 isPresented: $isSearchPresented,
                 tagTranslator: tagTranslator,
-                setting: setting
+                setting: setting,
+                onSubmit: { store.send(.setNavigation(.search)) }
             )
-            .onSubmit(of: .search) {
-                store.send(.setNavigation(.search))
-            }
             .onAppear {
                 store.send(.fetchHistoryGalleries)
                 store.send(.fetchDatabaseInfos)

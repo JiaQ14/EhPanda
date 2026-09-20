@@ -61,11 +61,9 @@ struct SearchView: View {
             text: $store.keyword,
             isPresented: $isSearchPresented,
             tagTranslator: tagTranslator,
-            setting: setting
+            setting: setting,
+            onSubmit: { store.send(.fetchGalleries()) }
         )
-        .onSubmit(of: .search) {
-            store.send(.fetchGalleries())
-        }
         .onAppear {
             if store.galleries.isEmpty {
                 DispatchQueue.main.async {
