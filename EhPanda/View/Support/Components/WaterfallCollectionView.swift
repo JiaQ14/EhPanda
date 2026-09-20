@@ -7,7 +7,7 @@ import UIKit
 import SwiftUI
 import Kingfisher
 
-struct WaterfallCollectionView: UIViewRepresentable {
+struct WaterfallCollectionView: UIViewControllerRepresentable {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.inSheet) private var inSheet
@@ -48,31 +48,36 @@ struct WaterfallCollectionView: UIViewRepresentable {
         Coordinator(parent: self)
     }
 
-    func makeUIView(context: Context) -> UICollectionView {
+    func makeUIViewController(context: Context) -> UICollectionViewController {
         let layout = WaterfallCollectionLayout()
+        // A native scroll controller coordinates search/navigation-bar inset transitions.
+        let controller = UICollectionViewController(collectionViewLayout: layout)
         let collectionView = WaterfallUICollectionView(
             frame: .zero,
             collectionViewLayout: layout
         )
         collectionView.alwaysBounceVertical = true
         collectionView.backgroundColor = .systemGroupedBackground
-        collectionView.contentInsetAdjustmentBehavior = .always
+        collectionView.contentInsetAdjustmentBehavior = .automatic
         collectionView.keyboardDismissMode = .interactive
         collectionView.showsVerticalScrollIndicator = true
+        controller.collectionView = collectionView
+        controller.clearsSelectionOnViewWillAppear = false
 
         context.coordinator.configureCollectionView(
             collectionView,
             layout: layout
         )
-        return collectionView
+        return controller
     }
 
-    func updateUIView(_ collectionView: UICollectionView, context: Context) {
-        context.coordinator.update(parent: self, collectionView: collectionView)
+    func updateUIViewController(_ controller: UICollectionViewController, context: Context) {
+        context.coordinator.update(parent: self, collectionView: controller.collectionView)
     }
 
-    static func dismantleUIView(_ collectionView: UICollectionView, coordinator: Coordinator) {
+    static func dismantleUIViewController(_ controller: UICollectionViewController, coordinator: Coordinator) {
         coordinator.tearDown()
+        guard let collectionView = controller.collectionView else { return }
         collectionView.delegate = nil
         collectionView.prefetchDataSource = nil
         if let collectionView = collectionView as? WaterfallUICollectionView {

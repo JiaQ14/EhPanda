@@ -8,7 +8,7 @@ import ComposableArchitecture
 
 struct SearchRootView: View {
     @Bindable private var store: StoreOf<SearchRootReducer>
-    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchPresented = false
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -79,13 +79,11 @@ struct SearchRootView: View {
                 .accentColor(setting.accentColor)
                 .autoBlur(radius: blurRadius)
             }
-            .searchable(text: $store.keyword)
-            .searchFocused($isSearchFocused)
-            .tagSuggestionOverlay(
-                keyword: $store.keyword,
+            .gallerySearch(
+                text: $store.keyword,
+                isPresented: $isSearchPresented,
                 tagTranslator: tagTranslator,
-                setting: setting,
-                isPresented: isSearchFocused
+                setting: setting
             )
             .onSubmit(of: .search) {
                 store.send(.setNavigation(.search))
@@ -96,7 +94,7 @@ struct SearchRootView: View {
             }
             .task {
                 await Task.yield()
-                isSearchFocused = false
+                isSearchPresented = false
             }
             .background(navigationLinks)
             .toolbar(content: toolbar)

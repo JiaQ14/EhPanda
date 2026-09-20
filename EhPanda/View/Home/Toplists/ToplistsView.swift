@@ -8,7 +8,7 @@ import ComposableArchitecture
 
 struct ToplistsView: View {
     @Bindable private var store: StoreOf<ToplistsReducer>
-    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchPresented = false
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -65,13 +65,12 @@ struct ToplistsView: View {
         } message: {
             Text("1 - \((store.pageNumber?.maximum ?? 0) + 1)")
         }
-        .searchable(text: $store.keyword, prompt: L10n.Localizable.Searchable.Prompt.filter)
-        .searchFocused($isSearchFocused)
-        .tagSuggestionOverlay(
-            keyword: $store.keyword,
+        .gallerySearch(
+            text: $store.keyword,
+            isPresented: $isSearchPresented,
             tagTranslator: tagTranslator,
             setting: setting,
-            isPresented: isSearchFocused
+            prompt: Text(L10n.Localizable.Searchable.Prompt.filter)
         )
         .onAppear {
             if store.galleries?.isEmpty != false {

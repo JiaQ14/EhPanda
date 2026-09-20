@@ -4,12 +4,258 @@
 //
 
 import UIKit
+import SwiftUI
 import XCTest
+import ComposableArchitecture
 @testable import EhPanda
 
 private let waterfallTestWidth: CGFloat = 390
 
 final class WaterfallLayoutTests: XCTestCase {
+    @MainActor
+    func testSearchActivationDoesNotJumpWaterfallToTop() async throws {
+        try await checkSearchTransition(startingAtTop: false)
+    }
+
+    @MainActor
+    func testSearchTransitionKeepsFirstRowBelowNavigationBar() async throws {
+        try await checkSearchTransition(startingAtTop: true)
+    }
+
+    @MainActor
+    func testDetailListSearchPreservesItemGeometry() async throws {
+        try await checkSearchTransition(startingAtTop: true, displayMode: .detail)
+    }
+
+    @MainActor
+    func testScrolledDetailListSearchPreservesVisibleGallery() async throws {
+        try await checkSearchTransition(startingAtTop: false, displayMode: .detail)
+    }
+
+    @MainActor
+    func testShowAllWaterfallSearchPreservesNavigationGeometry() async throws {
+        try await checkSearchTransition(startingAtTop: true, route: .frontpage)
+    }
+
+    @MainActor
+    func testShowAllDetailSearchPreservesNavigationGeometry() async throws {
+        try await checkSearchTransition(startingAtTop: true, displayMode: .detail, route: .frontpage)
+    }
+
+    @MainActor
+    func testPopularTabSearchPreservesVisibleGallery() async throws {
+        try await checkSearchTransition(startingAtTop: false, route: .popular)
+    }
+
+    private enum SearchTestRoute { case toplists, frontpage, popular }
+
+    @MainActor
+    private func checkSearchTransition(
+        startingAtTop: Bool, displayMode: ListDisplayMode = .waterfall,
+        route: SearchTestRoute = .toplists
+    ) async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene)
+        let window = try XCTUnwrap(scene.keyWindow)
+        let previousController = window.rootViewController
+        var setting = Setting()
+        setting.listDisplayMode = displayMode
+        setting.tabBarItems = [.popular, .search]
+        let galleries = (0..<80).map { index in
+            Gallery(
+                gid: "search-test-\(index)", token: "token", title: "Gallery \(index)",
+                rating: 4, tags: [], category: .manga, uploader: "Tester", pageCount: 20,
+                postedDate: Date(timeIntervalSince1970: 0), coverURL: nil, galleryURL: nil
+            )
+        }
+        var appState = AppReducer.State()
+        appState.settingState.setting = setting
+        appState.homeState.popularGalleries = Array(galleries.prefix(10))
+        appState.homeState.frontpageGalleries = Array(galleries.prefix(20))
+        appState.homeState.toplistsGalleries = [11: Array(galleries.prefix(20))]
+        appState.homeState.toplistsState.rawGalleries[.yesterday] = galleries
+        appState.homeState.frontpageState.galleries = galleries
+        appState.homeState.popularState.galleries = galleries
+        let store = StoreOf<AppReducer>(initialState: appState) {
+            Scope(state: \AppReducer.State.homeState, action: \Case<AppReducer.Action>.home) {
+                Scope(state: \HomeReducer.State.toplistsState, action: \Case<HomeReducer.Action>.toplists) {
+                    BindingReducer<ToplistsReducer.State, ToplistsReducer.Action, ToplistsReducer.Action>()
+                }
+                Scope(state: \HomeReducer.State.frontpageState, action: \Case<HomeReducer.Action>.frontpage) {
+                    BindingReducer<FrontpageReducer.State, FrontpageReducer.Action, FrontpageReducer.Action>()
+                }
+                Scope(state: \HomeReducer.State.popularState, action: \Case<HomeReducer.Action>.popular) {
+                    BindingReducer<PopularReducer.State, PopularReducer.Action, PopularReducer.Action>()
+                }
+            }
+            Reduce<AppReducer.State, AppReducer.Action> { state, action in
+                if case .home(.setNavigation(let route)) = action {
+                    state.homeState.route = route
+                }
+                if case .tabBar(.setTabBarItemType(let tab)) = action {
+                    state.tabBarState.tabBarItemType = tab
+                }
+                return .none
+            }
+        }
+        let migration = Store(initialState: MigrationReducer.State()) {
+            Reduce<MigrationReducer.State, MigrationReducer.Action> { _, _ in .none }
+        }
+        let host = UIHostingController(rootView: GeometryReader { proxy in
+            ZStack {
+                TabBarView(store: store)
+                MigrationView(store: migration).opacity(0)
+            }
+            .environment(\.windowSize, proxy.size)
+            .navigationViewStyle(.stack)
+        })
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.endEditing(true)
+            window.rootViewController = previousController
+        }
+        try await Task.sleep(for: .milliseconds(800))
+        switch route {
+        case .toplists:
+            store.send(.home(.setNavigation(.section(.toplists))), animation: .default)
+        case .frontpage:
+            store.send(.home(.setNavigation(.section(.frontpage))), animation: .default)
+        case .popular:
+            store.send(.tabBar(.setTabBarItemType(.popular)))
+        }
+        try await Task.sleep(for: .milliseconds(800))
+        let collection = try XCTUnwrap(findSubview(UICollectionView.self, in: host.view))
+        let initialOffset: CGFloat = startingAtTop ? -collection.adjustedContentInset.top : 1600
+        collection.setContentOffset(CGPoint(x: 0, y: initialOffset), animated: false)
+        try await Task.sleep(for: .milliseconds(400))
+        let initialVisibleTop = collection.contentOffset.y + collection.adjustedContentInset.top
+        let initialFrame = collection.convert(collection.bounds, to: window)
+        let firstIndex = IndexPath(item: 0, section: 0)
+        let anchorIndex = try XCTUnwrap(collection.indexPathsForVisibleItems.sorted().first)
+        let anchorCell = try XCTUnwrap(collection.cellForItem(at: anchorIndex))
+        let initialAnchorY = anchorCell.convert(.zero, to: window).y
+        let initialCellWidth = collection.collectionViewLayout.layoutAttributesForItem(at: firstIndex)?.size.width
+        let initialCellFrames = Dictionary(
+            uniqueKeysWithValues: collection.indexPathsForVisibleItems.compactMap { index in
+                collection.collectionViewLayout.layoutAttributesForItem(at: index).map { (index, $0.frame) }
+            }
+        )
+        func snapshot(_ name: String) {
+            let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
+            let picture = renderer.image { _ in window.drawHierarchy(in: window.bounds, afterScreenUpdates: false) }
+            let attachment = XCTAttachment(image: picture)
+            attachment.name = name
+            attachment.lifetime = .deleteOnSuccess
+            self.add(attachment)
+        }
+        snapshot("before")
+        var visibleTops = [initialVisibleTop]
+        let observation = collection.observe(\.contentOffset, options: [.new]) { view, _ in
+            visibleTops.append(view.contentOffset.y + view.adjustedContentInset.top)
+        }
+        defer { observation.invalidate() }
+        let search = try XCTUnwrap(findSearchController(in: host))
+        XCTAssertFalse(search.hidesNavigationBarDuringPresentation)
+        let initialSearchY = search.searchBar.convert(.zero, to: window).y
+        let navigationBar = try XCTUnwrap(findSubview(UINavigationBar.self, in: host.view))
+        let initialNavigationBottom = navigationBar.convert(navigationBar.bounds, to: window).maxY
+        func recordTransition(_ name: String) async throws {
+            var metrics = [String]()
+            var maximumSearchMovement: CGFloat = 0
+            var maximumGalleryMovement: CGFloat = 0
+            var maximumNavigationMovement: CGFloat = 0
+            var lostVisibleGallery = false
+            for frame in 0..<40 {
+                try await Task.sleep(for: .milliseconds(16))
+                let frameInWindow = collection.convert(collection.bounds, to: window)
+                let searchFrame = search.searchBar.convert(search.searchBar.bounds, to: window)
+                maximumSearchMovement = max(maximumSearchMovement, abs(searchFrame.minY - initialSearchY))
+                let navigationBottom = navigationBar.convert(navigationBar.bounds, to: window).maxY
+                maximumNavigationMovement = max(
+                    maximumNavigationMovement, abs(navigationBottom - initialNavigationBottom)
+                )
+                if let cell = collection.cellForItem(at: anchorIndex) {
+                    // End-state offsets miss jumps that only exist in the navigation animation.
+                    let renderedY = cell.layer.presentation()?.convert(
+                        .zero, to: window.layer.presentation() ?? window.layer
+                    ).y ?? cell.convert(.zero, to: window).y
+                    maximumGalleryMovement = max(maximumGalleryMovement, abs(renderedY - initialAnchorY))
+                } else {
+                    lostVisibleGallery = true
+                }
+                metrics.append(
+                    "\(frame): frame=\(frameInWindow) offset=\(collection.contentOffset.y) "
+                    + "inset=\(collection.adjustedContentInset) search=\(searchFrame)"
+                )
+                if frame == 0 { snapshot("\(name)-first-frame") }
+            }
+            let attachment = XCTAttachment(string: metrics.joined(separator: "\n"))
+            attachment.name = name
+            attachment.lifetime = .deleteOnSuccess
+            self.add(attachment)
+            XCTAssertLessThanOrEqual(maximumSearchMovement, 1, "Search moved during \(name)")
+            XCTAssertLessThanOrEqual(maximumGalleryMovement, 1, "Visible gallery moved during \(name)")
+            XCTAssertLessThanOrEqual(maximumNavigationMovement, 1, "Navigation title area moved during \(name)")
+            XCTAssertFalse(lostVisibleGallery, "Visible gallery disappeared during \(name)")
+        }
+        for cycle in 0..<3 {
+            XCTAssertTrue(search.searchBar.searchTextField.becomeFirstResponder())
+            XCTAssertTrue(search.searchBar.searchTextField.isFirstResponder)
+            try await recordTransition("activate-\(cycle)")
+            XCTAssertTrue(search.isActive)
+            XCTAssertLessThan(window.keyboardLayoutGuide.layoutFrame.minY, window.bounds.maxY - 100)
+            snapshot("focused-\(cycle)")
+            XCTAssertTrue(collection === findSubview(UICollectionView.self, in: host.view))
+            search.searchBar.searchTextField.resignFirstResponder()
+            search.searchBar.delegate?.searchBarCancelButtonClicked?(search.searchBar)
+            try await recordTransition("cancel-\(cycle)")
+            snapshot("cancelled-\(cycle)")
+            XCTAssertFalse(search.isActive)
+            XCTAssertTrue(collection === findSubview(UICollectionView.self, in: host.view))
+            let finalFrame = collection.convert(collection.bounds, to: window)
+            XCTAssertEqual(finalFrame.width, initialFrame.width, accuracy: 0.5)
+            XCTAssertEqual(finalFrame.minX, initialFrame.minX, accuracy: 0.5)
+            XCTAssertEqual(finalFrame.minY, initialFrame.minY, accuracy: 0.5)
+            XCTAssertEqual(
+                collection.collectionViewLayout.layoutAttributesForItem(at: firstIndex)?.size.width,
+                initialCellWidth
+            )
+            for (index, initial) in initialCellFrames {
+                let final = try XCTUnwrap(collection.collectionViewLayout.layoutAttributesForItem(at: index)?.frame)
+                XCTAssertEqual(final.minY, initial.minY, accuracy: 0.5, "Item \(index) moved within the list")
+                XCTAssertEqual(final.height, initial.height, accuracy: 0.5, "Item \(index) changed height")
+            }
+        }
+        if startingAtTop {
+            XCTAssertLessThanOrEqual(visibleTops.map(abs).max() ?? 0, 1, "Visible tops: \(visibleTops)")
+        } else {
+            XCTAssertGreaterThan(visibleTops.min() ?? 0, initialVisibleTop - 100, "Visible tops: \(visibleTops)")
+            XCTAssertEqual(
+                collection.contentOffset.y + collection.adjustedContentInset.top,
+                initialVisibleTop, accuracy: 1
+            )
+        }
+    }
+
+    @MainActor
+    private func findSearchController(in controller: UIViewController) -> UISearchController? {
+        if let search = controller.navigationItem.searchController { return search }
+        for child in controller.children.reversed() {
+            if let search = findSearchController(in: child) { return search }
+        }
+        return nil
+    }
+
+    @MainActor
+    private func findSubview<T: UIView>(_ type: T.Type, in view: UIView) -> T? {
+        if let match = view as? T { return match }
+        for child in view.subviews {
+            if let match = findSubview(type, in: child) { return match }
+        }
+        return nil
+    }
+
     func testThumbnailInformationHeightIsStableAndContentDependent() {
         var shortTitleGallery = Gallery.preview
         shortTitleGallery.title = "Short"
@@ -1397,6 +1643,54 @@ final class GalleryCacheActivityUnitProgressTests: XCTestCase {
 }
 
 final class NavigationLayoutSettingTests: XCTestCase {
+    @MainActor
+    func testPhoneSearchTabRespectsCustomOrder() async throws {
+        guard !DeviceUtil.isPad else { throw XCTSkip("Phone-specific tab ordering") }
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        var state = AppReducer.State()
+        state.settingState.setting.tabBarItems = [.search, .popular, .favorites]
+        state.tabBarState.tabBarItemType = .more
+        let store = Store(initialState: state) {
+            Reduce<AppReducer.State, AppReducer.Action> { state, action in
+                if case let .setNavigationItems(tabs, more) = action {
+                    state.settingState.setting.tabBarItems = tabs
+                    state.settingState.setting.moreItems = more
+                }
+                return .none
+            }
+        }
+        let host = UIHostingController(rootView: TabBarView(store: store))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        try await Task.sleep(for: .milliseconds(600))
+        let controller = try XCTUnwrap(findTabController(in: host))
+        XCTAssertFalse(controller.tabs.contains { $0 is UISearchTab })
+        XCTAssertEqual(
+            controller.tabBar.items?.map(\.title),
+            [AppNavigationItem.home, .search, .popular, .favorites, .more].map(\.title)
+        )
+
+        store.send(.setNavigationItems([.popular, .search, .favorites], state.settingState.setting.moreItems))
+        try await Task.sleep(for: .milliseconds(600))
+        XCTAssertEqual(
+            controller.tabBar.items?.map(\.title),
+            [AppNavigationItem.home, .popular, .search, .favorites, .more].map(\.title)
+        )
+    }
+
+    @MainActor
+    private func findTabController(in controller: UIViewController) -> UITabBarController? {
+        if let tabController = controller as? UITabBarController { return tabController }
+        return controller.children.lazy.compactMap { self.findTabController(in: $0) }.first
+    }
+
     func testDefaultLayoutKeepsHomeAndMoreAroundSearch() {
         let setting = Setting()
 

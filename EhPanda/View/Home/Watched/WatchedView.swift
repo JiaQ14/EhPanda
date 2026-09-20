@@ -8,7 +8,7 @@ import ComposableArchitecture
 
 struct WatchedView: View {
     @Bindable private var store: StoreOf<WatchedReducer>
-    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchPresented = false
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -64,13 +64,11 @@ struct WatchedView: View {
             FiltersView(store: store.scope(state: \.filtersState, action: \.filters))
                 .autoBlur(radius: blurRadius).environment(\.inSheet, true)
         }
-        .searchable(text: $store.keyword)
-        .searchFocused($isSearchFocused)
-        .tagSuggestionOverlay(
-            keyword: $store.keyword,
+        .gallerySearch(
+            text: $store.keyword,
+            isPresented: $isSearchPresented,
             tagTranslator: tagTranslator,
-            setting: setting,
-            isPresented: isSearchFocused
+            setting: setting
         )
         .onSubmit(of: .search) {
             store.send(.fetchGalleries())

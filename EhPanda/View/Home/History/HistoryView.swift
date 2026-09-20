@@ -8,7 +8,7 @@ import ComposableArchitecture
 
 struct HistoryView: View {
     @Bindable private var store: StoreOf<HistoryReducer>
-    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchPresented = false
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -43,13 +43,12 @@ struct HistoryView: View {
                 tagTranslator.lookup(word: $0, returnOriginal: !setting.translatesTags)
             }
         )
-        .searchable(text: $store.keyword, prompt: L10n.Localizable.Searchable.Prompt.filter)
-        .searchFocused($isSearchFocused)
-        .tagSuggestionOverlay(
-            keyword: $store.keyword,
+        .gallerySearch(
+            text: $store.keyword,
+            isPresented: $isSearchPresented,
             tagTranslator: tagTranslator,
             setting: setting,
-            isPresented: isSearchFocused
+            prompt: Text(L10n.Localizable.Searchable.Prompt.filter)
         )
         .onAppear {
             if store.galleries.isEmpty {

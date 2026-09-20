@@ -8,7 +8,7 @@ import ComposableArchitecture
 
 struct CacheView: View {
     @Bindable private var store: StoreOf<CacheReducer>
-    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchPresented = false
     private let user: User
     @Binding private var setting: Setting
     private let blurRadius: Double
@@ -111,16 +111,12 @@ struct CacheView: View {
             }
         }
         .navigationTitle(L10n.Localizable.CacheView.Title.cache)
-        .searchable(
+        .gallerySearch(
             text: $store.searchText,
-            prompt: L10n.Localizable.CacheView.Search.Prompt.cache
-        )
-        .searchFocused($isSearchFocused)
-        .tagSuggestionOverlay(
-            keyword: $store.searchText,
+            isPresented: $isSearchPresented,
             tagTranslator: tagTranslator,
             setting: setting,
-            isPresented: isSearchFocused
+            prompt: Text(L10n.Localizable.CacheView.Search.Prompt.cache)
         )
         .toolbar { toolbarContent }
         .confirmationDialog(

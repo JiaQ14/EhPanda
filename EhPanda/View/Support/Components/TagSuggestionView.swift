@@ -91,19 +91,48 @@ struct TagSuggestionOverlay: View {
 }
 
 extension View {
-    func tagSuggestionOverlay(
-        keyword: Binding<String>,
+    func gallerySearch(
+        text: Binding<String>,
+        isPresented: Binding<Bool>,
         tagTranslator: TagTranslator,
         setting: Setting,
-        isPresented: Bool
+        prompt: Text? = nil
     ) -> some View {
-        overlay {
+        modifier(GallerySearchModifier(
+            text: text, isPresented: isPresented,
+            tagTranslator: tagTranslator, setting: setting, prompt: prompt
+        ))
+    }
+}
+
+private struct GallerySearchModifier: ViewModifier {
+    @Binding var text: String
+    @Binding var isPresented: Bool
+    @FocusState private var isFocused: Bool
+    let tagTranslator: TagTranslator
+    let setting: Setting
+    let prompt: Text?
+
+    func body(content: Content) -> some View {
+        // Keep search in this navigation item. Hiding/restoring the navigation bar
+        // during search changes the large-title and scroll insets independently.
+        content.searchable(
+            text: $text,
+            isPresented: $isPresented,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: prompt
+        )
+        .searchPresentationToolbarBehavior(.avoidHidingContent)
+        // Floating iPad tabs must not inherit Home's large-title height during search.
+        .navigationBarTitleDisplayMode(DeviceUtil.isPad ? .inline : .automatic)
+        .searchFocused($isFocused)
+        .overlay {
             TagSuggestionOverlay(
-                keyword: keyword,
+                keyword: $text,
                 translations: tagTranslator.translations,
                 showsImages: setting.showsImagesInTags,
                 isEnabled: setting.showsTagsSearchSuggestion,
-                isPresented: isPresented,
+                isPresented: isFocused,
                 maximumCount: 5
             )
         }

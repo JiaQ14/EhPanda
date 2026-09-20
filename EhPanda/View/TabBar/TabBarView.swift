@@ -201,7 +201,8 @@ struct TabBarView: View {
     }
 
     private func navigationTab(_ type: AppNavigationItem) -> some TabContent<AppNavigationItem> {
-        Tab(value: type, role: type == .search ? .search : nil) {
+        // A search role pins the tab to the trailing edge, overriding the phone's custom order.
+        Tab(value: type, role: DeviceUtil.isPad && type == .search ? .search : nil) {
             AppNavigationContent(
                 store: store,
                 item: type,

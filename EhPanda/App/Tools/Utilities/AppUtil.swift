@@ -13,14 +13,7 @@ struct AppUtil {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "null"
     }
 
-    private static let internalIsTesting = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    public static var isTesting: Bool {
-        #if DEBUG
-        internalIsTesting
-        #else
-        false
-        #endif
-    }
+    static let isTesting = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     static var galleryHost: GalleryHost {
         let rawValue: String? = UserDefaultsUtil.value(forKey: .galleryHost)

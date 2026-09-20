@@ -242,7 +242,11 @@ private struct GallerySceneReducer {
 
     var body: some Scene {
         WindowGroup {
-            AppSceneRoot(bootstrapStore: appDelegate.store)
+            if AppUtil.isTesting {
+                Color.clear
+            } else {
+                AppSceneRoot(bootstrapStore: appDelegate.store)
+            }
         }
         .commands { EhPandaCommands() }
         WindowGroup("Gallery", id: "gallery", for: GallerySceneValue.self) { value in
