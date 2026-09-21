@@ -3238,7 +3238,7 @@ private actor GalleryCacheBackgroundTaskCoordinator {
     }
 
     private func taskIdentifier() -> String {
-        let bundleIdentifier = Bundle.main.bundleIdentifier ?? "app.ehpanda"
+        let bundleIdentifier = Bundle.main.bundleIdentifier ?? "dev.ehpanda"
         let operationIdentifier = UUID().uuidString
             .replacingOccurrences(of: "-", with: "")
             .lowercased()
