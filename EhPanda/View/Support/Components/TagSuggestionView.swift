@@ -114,15 +114,12 @@ private struct GallerySearchModifier: ViewModifier {
     let prompt: Text?
 
     func body(content: Content) -> some View {
-        // Keep search in this navigation item. Hiding/restoring the navigation bar
-        // during search changes the large-title and scroll insets independently.
         content.searchable(
             text: $text,
             isPresented: $isPresented,
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: prompt
         )
-        .searchPresentationToolbarBehavior(.avoidHidingContent)
         // Floating iPad tabs must not inherit Home's large-title height during search.
         .navigationBarTitleDisplayMode(DeviceUtil.isPad ? .inline : .automatic)
         .searchFocused($isFocused)

@@ -213,7 +213,8 @@ private struct DetailList: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemGroupedBackground))
-        .ignoresSafeArea(.container, edges: .bottom)
+        // Preserve the list behind the translucent keyboard, including its dismissal.
+        .ignoresSafeArea(.all, edges: .bottom)
     }
 
     @ViewBuilder
@@ -291,7 +292,7 @@ private struct WaterfallList: View {
             navigateAction: navigateAction,
             translateAction: translateAction
         )
-        .ignoresSafeArea(.container, edges: [.top, .bottom])
+        .ignoresSafeArea(.all, edges: [.top, .bottom])
         .background(Color(uiColor: .systemGroupedBackground))
     }
 

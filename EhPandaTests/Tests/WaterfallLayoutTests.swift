@@ -156,22 +156,30 @@ final class WaterfallLayoutTests: XCTestCase {
         }
         defer { observation.invalidate() }
         let search = try XCTUnwrap(findSearchController(in: host))
-        XCTAssertFalse(search.hidesNavigationBarDuringPresentation)
+        XCTAssertTrue(search.hidesNavigationBarDuringPresentation)
         let initialSearchY = search.searchBar.convert(.zero, to: window).y
         let navigationBar = try XCTUnwrap(findSubview(UINavigationBar.self, in: host.view))
         let initialNavigationBottom = navigationBar.convert(navigationBar.bounds, to: window).maxY
+        var maximumNavigationTransition: CGFloat = 0
+        func renderedFrame(of view: UIView) -> CGRect {
+            let layer = view.layer.presentation() ?? view.layer
+            return layer.convert(layer.bounds, to: window.layer.presentation() ?? window.layer)
+        }
         func recordTransition(_ name: String) async throws {
             var metrics = [String]()
             var maximumSearchMovement: CGFloat = 0
             var maximumGalleryMovement: CGFloat = 0
             var maximumNavigationMovement: CGFloat = 0
+            var minimumRenderedBottom = initialFrame.maxY
             var lostVisibleGallery = false
             for frame in 0..<40 {
                 try await Task.sleep(for: .milliseconds(16))
                 let frameInWindow = collection.convert(collection.bounds, to: window)
-                let searchFrame = search.searchBar.convert(search.searchBar.bounds, to: window)
+                let renderedCollectionFrame = renderedFrame(of: collection)
+                minimumRenderedBottom = min(minimumRenderedBottom, renderedCollectionFrame.maxY)
+                let searchFrame = renderedFrame(of: search.searchBar)
                 maximumSearchMovement = max(maximumSearchMovement, abs(searchFrame.minY - initialSearchY))
-                let navigationBottom = navigationBar.convert(navigationBar.bounds, to: window).maxY
+                let navigationBottom = renderedFrame(of: navigationBar).maxY
                 maximumNavigationMovement = max(
                     maximumNavigationMovement, abs(navigationBottom - initialNavigationBottom)
                 )
@@ -186,17 +194,27 @@ final class WaterfallLayoutTests: XCTestCase {
                 }
                 metrics.append(
                     "\(frame): frame=\(frameInWindow) offset=\(collection.contentOffset.y) "
-                    + "inset=\(collection.adjustedContentInset) search=\(searchFrame)"
+                    + "inset=\(collection.adjustedContentInset) search=\(searchFrame) rendered=\(renderedCollectionFrame)"
                 )
-                if frame == 0 { snapshot("\(name)-first-frame") }
+                if frame == 0 || frame == 5 { snapshot("\(name)-frame-\(frame)") }
             }
             let attachment = XCTAttachment(string: metrics.joined(separator: "\n"))
             attachment.name = name
             attachment.lifetime = .deleteOnSuccess
             self.add(attachment)
-            XCTAssertLessThanOrEqual(maximumSearchMovement, 1, "Search moved during \(name)")
-            XCTAssertLessThanOrEqual(maximumGalleryMovement, 1, "Visible gallery moved during \(name)")
-            XCTAssertLessThanOrEqual(maximumNavigationMovement, 1, "Navigation title area moved during \(name)")
+            // Collapsing the native title/search toolbar may move the viewport,
+            // but must not jump to another gallery or uncover the host background.
+            maximumNavigationTransition = max(
+                maximumNavigationTransition, max(maximumSearchMovement, maximumNavigationMovement)
+            )
+            XCTAssertLessThanOrEqual(
+                maximumGalleryMovement, maximumNavigationTransition + 1,
+                "Visible gallery jumped beyond the navigation transition during \(name)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                minimumRenderedBottom, initialFrame.maxY - 1,
+                "List uncovered the keyboard background during \(name)"
+            )
             XCTAssertFalse(lostVisibleGallery, "Visible gallery disappeared during \(name)")
         }
         for cycle in 0..<3 {
@@ -205,13 +223,23 @@ final class WaterfallLayoutTests: XCTestCase {
             try await recordTransition("activate-\(cycle)")
             XCTAssertTrue(search.isActive)
             XCTAssertLessThan(window.keyboardLayoutGuide.layoutFrame.minY, window.bounds.maxY - 100)
+            if !DeviceUtil.isPad {
+                XCTAssertLessThan(search.searchBar.convert(.zero, to: window).y, initialSearchY - 1)
+            }
             snapshot("focused-\(cycle)")
             XCTAssertTrue(collection === findSubview(UICollectionView.self, in: host.view))
-            search.searchBar.searchTextField.resignFirstResponder()
-            search.searchBar.delegate?.searchBarCancelButtonClicked?(search.searchBar)
+            if DeviceUtil.isPad {
+                // The native iPad search presentation doesn't expose a cancel button.
+                search.searchBar.searchTextField.resignFirstResponder()
+                search.searchBar.delegate?.searchBarCancelButtonClicked?(search.searchBar)
+            } else {
+                let cancelButton = try XCTUnwrap(findSearchCancelButton(in: search.searchBar))
+                cancelButton.sendActions(for: .touchUpInside)
+            }
             try await recordTransition("cancel-\(cycle)")
             snapshot("cancelled-\(cycle)")
             XCTAssertFalse(search.isActive)
+            XCTAssertFalse(search.searchBar.searchTextField.isFirstResponder)
             XCTAssertTrue(collection === findSubview(UICollectionView.self, in: host.view))
             let finalFrame = collection.convert(collection.bounds, to: window)
             XCTAssertEqual(finalFrame.width, initialFrame.width, accuracy: 0.5)
@@ -236,6 +264,17 @@ final class WaterfallLayoutTests: XCTestCase {
                 initialVisibleTop, accuracy: 1
             )
         }
+    }
+
+    @MainActor
+    private func findSearchCancelButton(in view: UIView) -> UIButton? {
+        // Exclude the text field's clear button; exercise the system search cancellation action.
+        guard !(view is UITextField), !view.isHidden, view.alpha > 0.01 else { return nil }
+        if let button = view as? UIButton, button.isEnabled,
+           button.allControlEvents.contains(.touchUpInside) {
+            return button
+        }
+        return view.subviews.lazy.compactMap { self.findSearchCancelButton(in: $0) }.first
     }
 
     @MainActor
