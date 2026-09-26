@@ -960,9 +960,13 @@
 "detail_view.cache.confirmation.delete.title" = "刪除這本漫畫的快取？";
 "detail_view.cache.confirmation.delete.message" = "「檔案」App 中對應的圖片檔案亦會一併刪除。";
 
-"tab_item.title.more" = "更多";
+"tab_item.title.more" = "全部";
 "more_view.section.title.tab_bar" = "標籤列";
-"more_view.section.title.more" = "更多";
+"navigation_editor.section.favorites" = "常用";
+"navigation_editor.section.available" = "可加入";
+"navigation_editor.button.reset" = "回復預設";
+"navigation_editor.button.cancel" = "取消";
+"navigation_editor.replace.title" = "以「%@」取代常用項目";
 
 // MARK: App Intents
 "Gallery" = "漫畫";

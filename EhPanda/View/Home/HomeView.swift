@@ -14,35 +14,37 @@ struct HomeView: View {
     @Binding private var setting: Setting
     private let blurRadius: Double
     private let tagTranslator: TagTranslator
+    private let embedsInNavigationStack: Bool
 
     init(
         store: StoreOf<HomeReducer>,
-        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator
+        user: User, setting: Binding<Setting>, blurRadius: Double, tagTranslator: TagTranslator,
+        embedsInNavigationStack: Bool = true
     ) {
         self.store = store
         self.user = user
         _setting = setting
         self.blurRadius = blurRadius
         self.tagTranslator = tagTranslator
+        self.embedsInNavigationStack = embedsInNavigationStack
     }
 
     // MARK: HomeView
     var body: some View {
-        NavigationStack {
-            content
-                .navigationDestination(item: navigationRoute) { route in
-                    destination(for: route)
-                }
-                .adaptiveGalleryDetail(
-                    selection: detailRoute,
-                    blurRadius: blurRadius
-                ) { gid in
-                    GalleryDetailContainer(
-                        gid: gid, user: user, setting: $setting,
-                        blurRadius: blurRadius, tagTranslator: tagTranslator
-                    )
-                }
-        }
+        content
+            .navigationDestination(item: navigationRoute) { route in
+                destination(for: route)
+            }
+            .adaptiveGalleryDetail(
+                selection: detailRoute,
+                blurRadius: blurRadius
+            ) { gid in
+                GalleryDetailContainer(
+                    gid: gid, user: user, setting: $setting,
+                    blurRadius: blurRadius, tagTranslator: tagTranslator
+                )
+            }
+            .embeddedInNavigationStack(embedsInNavigationStack)
     }
 
     private var content: some View {

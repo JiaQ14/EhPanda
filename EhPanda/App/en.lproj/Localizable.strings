@@ -961,9 +961,13 @@
 "detail_view.cache.confirmation.delete.title" = "Remove this cached gallery?";
 "detail_view.cache.confirmation.delete.message" = "The downloaded image files will also be removed from Files.";
 
-"tab_item.title.more" = "More";
+"tab_item.title.more" = "All";
 "more_view.section.title.tab_bar" = "Tab Bar";
-"more_view.section.title.more" = "More";
+"navigation_editor.section.favorites" = "Pinned";
+"navigation_editor.section.available" = "Available";
+"navigation_editor.button.reset" = "Restore Defaults";
+"navigation_editor.button.cancel" = "Cancel";
+"navigation_editor.replace.title" = "Replace a tab with %@";
 
 // MARK: App Intents
 "Gallery" = "Gallery";

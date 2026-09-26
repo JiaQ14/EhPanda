@@ -961,9 +961,13 @@
 "detail_view.cache.confirmation.delete.title" = "このギャラリーのキャッシュを削除しますか？";
 "detail_view.cache.confirmation.delete.message" = "ダウンロードした画像ファイルも「ファイル」から削除されます。";
 
-"tab_item.title.more" = "その他";
+"tab_item.title.more" = "すべて";
 "more_view.section.title.tab_bar" = "タブバー";
-"more_view.section.title.more" = "その他";
+"navigation_editor.section.favorites" = "よく使う項目";
+"navigation_editor.section.available" = "追加できる項目";
+"navigation_editor.button.reset" = "デフォルトに戻す";
+"navigation_editor.button.cancel" = "キャンセル";
+"navigation_editor.replace.title" = "%@ に置き換えるタブ";
 
 // MARK: App Intents
 "Gallery" = "漫画";

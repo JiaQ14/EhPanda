@@ -961,9 +961,13 @@
 "detail_view.cache.confirmation.delete.title" = "删除这本漫画的缓存？";
 "detail_view.cache.confirmation.delete.message" = "“文件”App 中对应的图片文件也会一并删除。";
 
-"tab_item.title.more" = "更多";
+"tab_item.title.more" = "全部";
 "more_view.section.title.tab_bar" = "标签栏";
-"more_view.section.title.more" = "更多";
+"navigation_editor.section.favorites" = "常用";
+"navigation_editor.section.available" = "可添加";
+"navigation_editor.button.reset" = "恢复默认";
+"navigation_editor.button.cancel" = "取消";
+"navigation_editor.replace.title" = "用“%@”替换常用项";
 
 // MARK: App Intents
 "Gallery" = "漫画";

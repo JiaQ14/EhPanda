@@ -38,11 +38,27 @@ struct AppReducer {
                 tabBarState.tabBarItemType = item == .more ? .setting : item
                 return
             }
-            if item == .home || settingState.setting.tabBarItems.contains(item) {
+            if settingState.setting.phoneTabItems.contains(item) {
                 tabBarState.tabBarItemType = item
             } else {
                 moreState.route = item
                 tabBarState.tabBarItemType = .more
+            }
+        }
+
+        mutating func reconcileNavigationSelection(usesNativeTabs: Bool) {
+            guard !usesNativeTabs,
+                  !settingState.setting.phoneTabItems.contains(tabBarState.tabBarItemType)
+            else { return }
+            navigateToSection(tabBarState.tabBarItemType)
+        }
+
+        mutating func restoreInitialNavigationSelection(usesNativeTabs: Bool) {
+            guard !usesNativeTabs else { return }
+            if tabBarState.tabBarItemType == .home, homeState.route == nil, moreState.route == nil {
+                tabBarState.tabBarItemType = settingState.setting.tabBarItems.first ?? .more
+            } else {
+                reconcileNavigationSelection(usesNativeTabs: false)
             }
         }
     }
@@ -61,7 +77,7 @@ struct AppReducer {
 
         case tabBar(TabBarReducer.Action)
         case more(MoreReducer.Action)
-        case setNavigationItems([AppNavigationItem], [AppNavigationItem])
+        case setNavigationItems([AppNavigationItem])
 
         case home(HomeReducer.Action)
         case favorites(FavoritesReducer.Action)
@@ -204,15 +220,10 @@ struct AppReducer {
                 case .appLock:
                     return .none
 
-                case .setNavigationItems(let tabBarItems, let moreItems):
+                case .setNavigationItems(let tabBarItems):
                     state.settingState.setting.tabBarItems = tabBarItems
-                    state.settingState.setting.moreItems = moreItems
                     state.settingState.setting.normalizeNavigationItems()
-                    if !state.settingState.setting.tabBarItems.contains(
-                        state.tabBarState.tabBarItemType
-                    ), ![.home, .more].contains(state.tabBarState.tabBarItemType) {
-                        state.tabBarState.tabBarItemType = .more
-                    }
+                    state.reconcileNavigationSelection(usesNativeTabs: deviceClient.isPad())
                     return .merge(
                         .send(.setting(.syncSetting)),
                         .run { _ in hapticsClient.generateFeedback(.soft) }
@@ -311,6 +322,7 @@ struct AppReducer {
 
                 case .setting(.loadUserSettingsDone):
                     var effects = [Effect<Action>]()
+                    state.restoreInitialNavigationSelection(usesNativeTabs: deviceClient.isPad())
                     let threshold = state.settingState.setting.autoLockPolicy.rawValue
                     let blurRadius = state.settingState.setting.backgroundBlurRadius
                     if threshold >= 0 {

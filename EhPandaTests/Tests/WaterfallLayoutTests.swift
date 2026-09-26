@@ -7,6 +7,7 @@ import UIKit
 import SwiftUI
 import XCTest
 import ComposableArchitecture
+import Kanna
 @testable import EhPanda
 
 private let waterfallTestWidth: CGFloat = 390
@@ -60,7 +61,7 @@ final class WaterfallLayoutTests: XCTestCase {
         let previousController = window.rootViewController
         var setting = Setting()
         setting.listDisplayMode = displayMode
-        setting.tabBarItems = [.popular, .search]
+        setting.tabBarItems = [.home, .popular, .search]
         let galleries = (0..<80).map { index in
             Gallery(
                 gid: "search-test-\(index)", token: "token", title: "Gallery \(index)",
@@ -1681,7 +1682,138 @@ final class GalleryCacheActivityUnitProgressTests: XCTestCase {
     }
 }
 
+final class FavoritesSearchTests: XCTestCase {
+    private func gallery(_ id: String = "favorites-search-test") -> Gallery {
+        Gallery(
+            gid: id, token: "test", title: "Chinese gallery", rating: 4, tags: [],
+            category: .manga, pageCount: 1, postedDate: Date(timeIntervalSince1970: 0),
+            coverURL: nil, galleryURL: nil
+        )
+    }
+
+    @MainActor
+    func testEmptySearchResponseReplacesExistingResults() async {
+        var state = FavoritesReducer.State()
+        state.keyword = "language:japanese"
+        state.submittedKeyword = state.keyword
+        state.rawGalleries[-1] = [gallery()]
+        let revision = state.beginSearch(keyword: nil, sortOrder: nil)
+        let store = TestStore(initialState: state) { FavoritesReducer() }
+        await store.send(.fetchGalleriesDone(-1, revision, .success((PageNumber(), nil, [])))) {
+            $0.activeRequests[-1] = nil
+            $0.rawGalleries[-1] = []
+            $0.rawLoadingState[-1] = .failed(.notFound)
+        }
+    }
+
+    func testNewSearchInvalidatesEveryCachedCategoryAndPendingRequest() {
+        var state = FavoritesReducer.State()
+        state.rawGalleries = [-1: [gallery()], 0: [gallery()], 2: [gallery()]]
+        state.rawPageNumber[0] = PageNumber(isNextButtonEnabled: true)
+        state.rawFooterLoadingState[0] = .loading
+        let oldRevision = state.beginRequest(index: 0)
+        let revision = state.beginSearch(keyword: "  language:japanese  ", sortOrder: nil)
+        XCTAssertEqual(state.keyword, "language:japanese")
+        XCTAssertEqual(state.submittedKeyword, "language:japanese")
+        XCTAssertTrue(state.rawGalleries.isEmpty)
+        XCTAssertNil(state.rawPageNumber[0])
+        XCTAssertNil(state.rawFooterLoadingState[0])
+        XCTAssertEqual(state.activeRequests, [-1: revision])
+        XCTAssertGreaterThan(revision, oldRevision)
+    }
+
+    @MainActor
+    func testOldSearchAndPaginationResponsesCannotRestorePreviousResults() async {
+        var state = FavoritesReducer.State()
+        let oldRevision = state.beginSearch(keyword: "language:chinese", sortOrder: nil)
+        _ = state.beginSearch(keyword: "language:japanese", sortOrder: nil)
+        let store = TestStore(initialState: state) { FavoritesReducer() }
+        await store.send(.fetchGalleriesDone(-1, oldRevision, .success((PageNumber(), nil, [gallery()]))))
+        await store.send(.fetchMoreGalleriesDone(-1, oldRevision, .success((PageNumber(), nil, [gallery()]))))
+        await store.send(.fetchGalleriesDone(-1, oldRevision, .failure(.parseFailed)))
+    }
+
+    func testReplacementRequestHasNewIdentityEvenWithTheSameQuery() {
+        var state = FavoritesReducer.State()
+        let first = state.beginSearch(keyword: "l:japanese", sortOrder: nil)
+        let second = state.beginSearch(keyword: "l:japanese", sortOrder: nil)
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(state.activeRequests[-1], second)
+    }
+
+    func testClearingSearchInvalidatesFilteredCategories() {
+        var state = FavoritesReducer.State()
+        _ = state.beginSearch(keyword: "l:chinese", sortOrder: nil)
+        state.rawGalleries[1] = [gallery()]
+        _ = state.beginSearch(keyword: "", sortOrder: nil)
+        XCTAssertTrue(state.rawGalleries.isEmpty)
+        XCTAssertEqual(state.submittedKeyword, "")
+    }
+
+    func testSortChangeInvalidatesCachedCategories() {
+        var state = FavoritesReducer.State()
+        state.sortOrder = .favoritedTime
+        state.rawGalleries[0] = [gallery()]
+        _ = state.beginSearch(keyword: nil, sortOrder: .lastUpdateTime)
+        XCTAssertTrue(state.rawGalleries.isEmpty)
+        XCTAssertEqual(state.sortOrder, .lastUpdateTime)
+    }
+
+    func testPaginationUsesSubmittedQueryAndServerCursorNotTheDraftOrOldGallery() throws {
+        var state = FavoritesReducer.State()
+        state.submittedKeyword = "language:chinese"
+        state.keyword = "language:japanese"
+        state.rawGalleries[2] = [gallery("old-gallery")]
+        state.rawPageNumber[2] = PageNumber(
+            lastItemTimestamp: "1234", nextGalleryID: "5678", isNextButtonEnabled: true
+        )
+        let request = try XCTUnwrap(state.paginationRequest(index: 2))
+        XCTAssertEqual(request.favIndex, 2)
+        XCTAssertEqual(request.keyword, "language:chinese")
+        XCTAssertEqual(request.lastID, "5678")
+        XCTAssertEqual(request.lastTimestamp, "1234")
+        state.rawLoadingState[2] = .loading
+        XCTAssertNil(state.paginationRequest(index: 2))
+    }
+
+    func testEmptyFilteredPageRetainsServerPaginationCursor() throws {
+        let document = try Kanna.HTML(html: """
+        <html><body><div class="searchnav">
+        <a href="https://example.com/favorites.php?next=5678-1234">Next &gt;</a>
+        </div></body></html>
+        """, encoding: .utf8)
+        let page = Parser.parsePageNum(doc: document)
+        XCTAssertTrue(try Parser.parseGalleries(doc: document).isEmpty)
+        XCTAssertEqual(page.nextGalleryID, "5678")
+        XCTAssertEqual(page.lastItemTimestamp, "1234")
+        var state = FavoritesReducer.State()
+        state.rawGalleries[-1] = []
+        state.rawPageNumber[-1] = page
+        XCTAssertNotNil(state.paginationRequest(index: -1))
+    }
+
+    func testFavoritesURLsPreserveLanguageSearchOnFirstAndFollowingPages() throws {
+        let keyword = "l:japanese$"
+        let urls = [
+            URLUtil.favoritesList(favIndex: 2, keyword: keyword),
+            URLUtil.moreFavoritesList(favIndex: 2, lastID: "5678", lastTimestamp: "1234", keyword: keyword)
+        ]
+        for url in urls {
+            let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+            XCTAssertEqual(items.first { $0.name == "f_search" }?.value, keyword)
+            XCTAssertEqual(items.first { $0.name == "favcat" }?.value, "2")
+            XCTAssertEqual(items.first { $0.name == "st" }?.value, "on")
+        }
+        XCTAssertEqual(TagNamespace.language.abbreviation, "l")
+    }
+}
+
 final class NavigationLayoutSettingTests: XCTestCase {
+    @Observable
+    final class EditorDraft {
+        var setting = Setting()
+    }
+
     @MainActor
     func testPhoneSearchTabRespectsCustomOrder() async throws {
         guard !DeviceUtil.isPad else { throw XCTSkip("Phone-specific tab ordering") }
@@ -1689,13 +1821,12 @@ final class NavigationLayoutSettingTests: XCTestCase {
         let previousWindow = scene.keyWindow
         let window = UIWindow(windowScene: scene)
         var state = AppReducer.State()
-        state.settingState.setting.tabBarItems = [.search, .popular, .favorites]
+        state.settingState.setting.tabBarItems = [.home, .search, .popular, .favorites]
         state.tabBarState.tabBarItemType = .more
         let store = Store(initialState: state) {
             Reduce<AppReducer.State, AppReducer.Action> { state, action in
-                if case let .setNavigationItems(tabs, more) = action {
+                if case let .setNavigationItems(tabs) = action {
                     state.settingState.setting.tabBarItems = tabs
-                    state.settingState.setting.moreItems = more
                 }
                 return .none
             }
@@ -1716,11 +1847,11 @@ final class NavigationLayoutSettingTests: XCTestCase {
             [AppNavigationItem.home, .search, .popular, .favorites, .more].map(\.title)
         )
 
-        store.send(.setNavigationItems([.popular, .search, .favorites], state.settingState.setting.moreItems))
+        store.send(.setNavigationItems([.popular, .search, .favorites]))
         try await Task.sleep(for: .milliseconds(600))
         XCTAssertEqual(
             controller.tabBar.items?.map(\.title),
-            [AppNavigationItem.home, .popular, .search, .favorites, .more].map(\.title)
+            [AppNavigationItem.popular, .search, .favorites, .more].map(\.title)
         )
     }
 
@@ -1730,114 +1861,365 @@ final class NavigationLayoutSettingTests: XCTestCase {
         return controller.children.lazy.compactMap { self.findTabController(in: $0) }.first
     }
 
-    func testDefaultLayoutKeepsHomeAndMoreAroundSearch() {
-        let setting = Setting()
-
-        XCTAssertEqual(setting.tabBarItems, [.search])
-        XCTAssertEqual(
-            setting.moreItems,
-            [.popular, .watched, .history, .favorites, .cache]
-        )
+    func testDefaultLayoutHasFourShortcutsAndAll() {
+        XCTAssertEqual(Setting().phoneTabItems, [.home, .search, .favorites, .cache, .more])
+        XCTAssertEqual(Setting().availableTabItems, [.popular, .watched, .history])
     }
 
-    func testMovesItemsBetweenTabBarAndMoreInRequestedOrder() {
+    func testLegacyDefaultsAdoptNewDefaults() throws {
+        for json in ["{}", #"{"tabBarItems":["search"]}"#] {
+            let setting = try JSONDecoder().decode(Setting.self, from: Data(json.utf8))
+            XCTAssertEqual(setting.tabBarItems, AppNavigationItem.defaultTabItems)
+        }
+    }
+
+    func testLegacyCustomOrderPreservesImplicitHomeAndAllChoices() throws {
+        let json = #"{"tabBarItems":["popular","search","history"],"moreItems":["cache","favorites","watched"]}"#
+        let setting = try JSONDecoder().decode(Setting.self, from: Data(json.utf8))
+        XCTAssertEqual(setting.tabBarItems, [.home, .popular, .search, .history])
+        XCTAssertEqual(setting.availableTabItems, [.watched, .favorites, .cache])
+    }
+
+    func testLegacyEmptyLayoutRetainsOnlyHome() throws {
+        let setting = try JSONDecoder().decode(Setting.self, from: Data(#"{"tabBarItems":[]}"#.utf8))
+        XCTAssertEqual(setting.phoneTabItems, [.home, .more])
+    }
+
+    func testCurrentLayoutsRoundTripWithoutAddingHomeOrResettingSearch() throws {
+        for items: [AppNavigationItem] in [[], [.search], [.cache, .search, .history]] {
+            var setting = Setting()
+            setting.tabBarItems = items
+            let decoded = try JSONDecoder().decode(Setting.self, from: JSONEncoder().encode(setting))
+            XCTAssertEqual(decoded.tabBarItems, items)
+        }
+    }
+
+    func testFullBarRequiresExplicitReplacement() {
         var setting = Setting()
-
-        XCTAssertTrue(setting.moveNavigationItem(.favorites, to: .tabBar, at: 0))
-        XCTAssertEqual(setting.tabBarItems, [.favorites, .search])
-        XCTAssertFalse(setting.moreItems.contains(.favorites))
-
-        XCTAssertTrue(setting.moveNavigationItem(.favorites, to: .more, at: 1))
-        XCTAssertEqual(setting.tabBarItems, [.search])
-        XCTAssertEqual(
-            setting.moreItems,
-            [.popular, .favorites, .watched, .history, .cache]
-        )
+        XCTAssertFalse(setting.addNavigationItem(.popular))
+        XCTAssertEqual(setting.tabBarItems, AppNavigationItem.defaultTabItems)
+        XCTAssertTrue(setting.addNavigationItem(.popular, replacing: .search))
+        XCTAssertEqual(setting.tabBarItems, [.home, .popular, .favorites, .cache])
     }
 
-    func testRejectsFixedItemsAndReplacesTheLastItemInAFullTabBar() {
+    func testInvalidReplacementAndDuplicateLeaveLayoutUnchanged() {
         var setting = Setting()
-        setting.tabBarItems = [.search, .popular, .history]
-        setting.moreItems = [.watched, .favorites, .cache]
-
-        XCTAssertFalse(setting.moveNavigationItem(.home, to: .more, at: 0))
-        XCTAssertFalse(setting.moveNavigationItem(.more, to: .tabBar, at: 0))
-        XCTAssertFalse(setting.moveNavigationItem(.setting, to: .tabBar, at: 0))
-        XCTAssertTrue(setting.moveNavigationItem(.watched, to: .tabBar, at: 0))
-        XCTAssertEqual(setting.tabBarItems, [.watched, .search, .popular])
-        XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache])
+        XCTAssertFalse(setting.addNavigationItem(.cache, replacing: .home))
+        XCTAssertFalse(setting.addNavigationItem(.popular, replacing: .history))
+        XCTAssertFalse(setting.addNavigationItem(.more, replacing: .home))
+        XCTAssertFalse(setting.addNavigationItem(.setting, replacing: .home))
+        XCTAssertEqual(setting.tabBarItems, AppNavigationItem.defaultTabItems)
     }
 
-    func testEditorMovesAnItemFromMoreIntoAnEmptyTabBar() {
+    func testHomeAndSearchAreOrdinaryRemovableAndReorderableItems() {
         var setting = Setting()
         setting.tabBarItems = []
-        setting.moreItems = [.popular, .search, .history]
-
-        XCTAssertTrue(
-            setting.moveNavigationItem(
-                from: .more,
-                at: 1,
-                to: .tabBar,
-                at: 0
-            )
-        )
-        XCTAssertEqual(setting.tabBarItems, [.search])
-        XCTAssertEqual(
-            setting.moreItems,
-            [.popular, .history, .watched, .favorites, .cache]
-        )
-    }
-
-    func testEditorMovesAnItemFromTabBarBackToMore() {
-        var setting = Setting()
-        setting.tabBarItems = [.search, .popular]
-        setting.moreItems = [.history, .watched, .favorites, .cache]
-
-        XCTAssertTrue(
-            setting.moveNavigationItem(
-                from: .tabBar,
-                at: 0,
-                to: .more,
-                at: 2
-            )
-        )
-        XCTAssertEqual(setting.tabBarItems, [.popular])
-        XCTAssertEqual(
-            setting.moreItems,
-            [.history, .watched, .search, .favorites, .cache]
-        )
-    }
-
-    func testEditorMovesAnItemDownWithinTheSameGroup() {
-        var setting = Setting()
-        setting.tabBarItems = [.search]
-        setting.moreItems = [.popular, .watched, .history, .favorites, .cache]
-
-        XCTAssertTrue(
-            setting.moveNavigationItem(
-                from: .more,
-                at: 0,
-                to: .more,
-                at: 2
-            )
-        )
-        XCTAssertEqual(
-            setting.moreItems,
-            [.watched, .history, .popular, .favorites, .cache]
-        )
+        XCTAssertTrue(setting.addNavigationItem(.search))
+        XCTAssertTrue(setting.addNavigationItem(.home))
+        setting.tabBarItems.move(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+        XCTAssertEqual(setting.phoneTabItems, [.home, .search, .more])
+        setting.tabBarItems.remove(atOffsets: IndexSet(integer: 0))
+        XCTAssertEqual(setting.phoneTabItems, [.search, .more])
     }
 
     func testNormalizationRepairsDuplicatesInvalidItemsAndOverflow() {
         var setting = Setting()
-        setting.tabBarItems = [
-            .home, .setting, .search, .search, .popular, .watched, .history, .more
-        ]
-        setting.moreItems = [.favorites, .setting, .favorites, .home]
-
+        setting.tabBarItems = [.home, .setting, .search, .search, .popular, .watched, .history, .more]
         setting.normalizeNavigationItems()
+        XCTAssertEqual(setting.tabBarItems, [.home, .search, .popular, .watched])
+        XCTAssertEqual(setting.availableTabItems, [.history, .favorites, .cache])
+    }
 
-        XCTAssertEqual(setting.tabBarItems, [.search, .popular, .watched])
-        XCTAssertEqual(setting.moreItems, [.history, .favorites, .cache])
+    @MainActor
+    func testAllCatalogDestinationsRemainReachableWithEveryPinConfiguration() {
+        for pins: [AppNavigationItem] in [[], [.search], AppNavigationItem.defaultTabItems] {
+            var state = AppReducer.State()
+            state.settingState.setting.tabBarItems = pins
+            for item in AppNavigationItem.allCases {
+                state.navigateToSection(item)
+                if pins.contains(item) || item == .more {
+                    XCTAssertEqual(state.tabBarState.tabBarItemType, item)
+                    XCTAssertNil(state.moreState.route)
+                } else {
+                    XCTAssertEqual(state.tabBarState.tabBarItemType, .more)
+                    XCTAssertEqual(state.moreState.route, item)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testRemovingSelectedTabPreservesItsDestinationInAll() {
+        var state = AppReducer.State()
+        state.settingState.setting.tabBarItems = [.search]
+        state.reconcileNavigationSelection(usesNativeTabs: false)
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .more)
+        XCTAssertEqual(state.moreState.route, .home)
+        state.navigateToSection(.search)
+        state.reconcileNavigationSelection(usesNativeTabs: false)
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .search)
+        XCTAssertNil(state.moreState.route)
+    }
+
+    @MainActor
+    func testPhoneCustomizationDoesNotAffectIPadSelectionOrDefaults() {
+        var state = AppReducer.State()
+        state.settingState.setting.tabBarItems = []
+        state.navigateToSection(.setting, usesNativeTabs: true)
+        state.reconcileNavigationSelection(usesNativeTabs: true)
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .setting)
+        XCTAssertNil(state.moreState.route)
+        XCTAssertEqual(AppNavigationItem.home.defaultTabBarVisibility, .visible)
+        XCTAssertEqual(AppNavigationItem.search.defaultTabBarVisibility, .visible)
+        XCTAssertEqual(AppNavigationItem.cache.defaultTabBarVisibility, .visible)
+        XCTAssertEqual(AppNavigationItem.setting.defaultTabBarVisibility, .hidden)
+    }
+
+    @MainActor
+    func testStartupUsesFirstPinnedTabWithoutOverwritingPendingNavigation() {
+        var state = AppReducer.State()
+        state.settingState.setting.tabBarItems = [.cache, .search]
+        state.restoreInitialNavigationSelection(usesNativeTabs: false)
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .cache)
+        state.navigateToSection(.search)
+        state.restoreInitialNavigationSelection(usesNativeTabs: false)
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .search)
+        state.navigateToSection(.home)
+        state.restoreInitialNavigationSelection(usesNativeTabs: false)
+        XCTAssertEqual(state.moreState.route, .home)
+        state.navigateToSection(.more)
+        state.settingState.setting.tabBarItems = []
+        state.restoreInitialNavigationSelection(usesNativeTabs: false)
+        XCTAssertEqual(state.tabBarState.tabBarItemType, .more)
+        XCTAssertNil(state.moreState.route)
+    }
+
+    func testPreviouslyHiddenIPadSidebarItemsBecomeReachableAgain() {
+        var customization = TabViewCustomization()
+        for item in AppNavigationItem.iPadItems {
+            customization[tab: item.customizationID].sidebarVisibility = .hidden
+        }
+        let normalized = customization.preservingFullNavigationSidebar()
+        for item in AppNavigationItem.iPadItems {
+            XCTAssertEqual(normalized[tab: item.customizationID].sidebarVisibility, .visible)
+        }
+    }
+
+    @MainActor
+    func testUnpinnedHomeReusesAllNavigationStack() async throws {
+        guard !DeviceUtil.isPad else { throw XCTSkip("Phone All catalog") }
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        var state = AppReducer.State()
+        state.settingState.setting.tabBarItems = [.search]
+        state.tabBarState.tabBarItemType = .more
+        let store = Store(initialState: state) {
+            Reduce<AppReducer.State, AppReducer.Action> { state, action in
+                if case let .navigateToSection(item) = action { state.navigateToSection(item) }
+                if case let .home(.setNavigation(route)) = action { state.homeState.route = route }
+                return .none
+            }
+        }
+        let host = UIHostingController(rootView: TabBarView(store: store))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        try await Task.sleep(for: .milliseconds(500))
+        store.send(.navigateToSection(.home))
+        try await Task.sleep(for: .milliseconds(600))
+        let tabs = try XCTUnwrap(findTabController(in: host))
+        let selected = try XCTUnwrap(tabs.selectedViewController)
+        func navigationControllers(in controller: UIViewController) -> [UINavigationController] {
+            (controller as? UINavigationController).map { [$0] } ?? controller.children.flatMap {
+                navigationControllers(in: $0)
+            }
+        }
+        let navigation = try XCTUnwrap(navigationControllers(in: selected).first)
+        XCTAssertEqual(navigation.viewControllers.count, 2)
+        XCTAssertTrue(navigationControllers(in: try XCTUnwrap(navigation.topViewController)).isEmpty)
+        store.send(.home(.setNavigation(.section(.frontpage))))
+        try await Task.sleep(for: .milliseconds(600))
+        XCTAssertEqual(navigation.viewControllers.count, 3)
+    }
+
+    @MainActor
+    func testEditorUpdatesEditingControlsWithoutReopening() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        let draft = EditorDraft()
+        draft.setting.tabBarItems = [.home, .search, .favorites]
+        let host = UIHostingController(rootView: NavigationStack {
+            NavigationItemsEditorList(
+                draft: Binding(get: { draft.setting }, set: { draft.setting = $0 }),
+                pendingItem: .constant(nil)
+            )
+        })
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        func descendants(of view: UIView) -> [UIView] {
+            [view] + view.subviews.flatMap { descendants(of: $0) }
+        }
+        @discardableResult
+        func checkControls(_ name: String, capture: Bool = false) async throws -> UICollectionView {
+            try await Task.sleep(for: .milliseconds(300))
+            let list = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? UICollectionView }.first)
+            XCTAssertEqual(list.numberOfItems(inSection: 0), draft.setting.tabBarItems.count, name)
+            XCTAssertEqual(list.numberOfItems(inSection: 2), draft.setting.availableTabItems.count, name)
+            for section in 0..<list.numberOfSections {
+                for item in 0..<list.numberOfItems(inSection: section) {
+                    let indexPath = IndexPath(item: item, section: section)
+                    list.scrollToItem(at: indexPath, at: .centeredVertically, animated: false)
+                    list.layoutIfNeeded()
+                    let cell = try XCTUnwrap(list.cellForItem(at: indexPath) as? UICollectionViewListCell)
+                    XCTAssertEqual(cell.accessories.count, section == 0 ? 2 : 0, "\(name): \(indexPath)")
+                    if section == 0 {
+                        XCTAssertTrue(cell.configurationState.isEditing,
+                                      "\(name): pinned item \(item) must enter edit mode immediately")
+                    }
+                }
+            }
+            if capture {
+                list.setContentOffset(CGPoint(x: 0, y: -list.adjustedContentInset.top), animated: false)
+                let screenshot = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                    window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                })
+                screenshot.name = name
+                screenshot.lifetime = .keepAlways
+                add(screenshot)
+            }
+            return list
+        }
+        try await checkControls("Before adding")
+        XCTAssertTrue(draft.setting.addNavigationItem(.popular))
+        try await checkControls("After adding", capture: true)
+        XCTAssertTrue(draft.setting.addNavigationItem(.history, replacing: .search))
+        try await checkControls("After replacement")
+        draft.setting.tabBarItems.remove(at: 3)
+        try await checkControls("After removal")
+        XCTAssertTrue(draft.setting.addNavigationItem(.popular))
+        let listBeforeReordering = try await checkControls("After re-adding")
+        draft.setting.tabBarItems.move(fromOffsets: IndexSet(integer: 3), toOffset: 0)
+        let listAfterReordering = try await checkControls("After reordering")
+        XCTAssertTrue(listBeforeReordering === listAfterReordering, "Reordering must not rebuild the list")
+        draft.setting.tabBarItems = []
+        try await checkControls("After removing all")
+        XCTAssertTrue(draft.setting.addNavigationItem(.cache))
+        try await checkControls("After first addition to empty list")
+        draft.setting.tabBarItems = AppNavigationItem.defaultTabItems
+        try await checkControls("After restoring defaults", capture: true)
+    }
+
+    @MainActor
+    func testEditorRendersAtCompactWidthAndAccessibilityTextSize() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        let host = UIHostingController(rootView: NavigationItemsEditor(
+            tabBarItems: AppNavigationItem.defaultTabItems,
+            onSave: { _ in XCTFail("Rendering must not save changes") }
+        ).environment(\.dynamicTypeSize, .xxxLarge))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        try await Task.sleep(for: .milliseconds(500))
+        let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        })
+        attachment.name = "Navigation editor large text"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testIPadNativeTabPlacementAndSidebarCatalog() async throws {
+        guard DeviceUtil.isPad else { throw XCTSkip("iPad native customization") }
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        var state = AppReducer.State()
+        state.settingState.setting.tabBarItems = []
+        state.tabBarState.tabBarItemType = .search
+        let store = Store(initialState: state) {
+            Reduce<AppReducer.State, AppReducer.Action> { _, _ in .none }
+        }
+        let host = UIHostingController(rootView: TabBarView(store: store))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        try await Task.sleep(for: .milliseconds(600))
+        let controller = try XCTUnwrap(findTabController(in: host))
+        let initialScreenshot = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        })
+        initialScreenshot.name = "iPad initial tabs"
+        initialScreenshot.lifetime = .keepAlways
+        add(initialScreenshot)
+        // SwiftUI 26 uses legacy viewControllers; SwiftUI 27 exposes UITab objects.
+        if controller.tabs.isEmpty {
+            XCTAssertEqual(
+                Set(controller.viewControllers?.compactMap { $0.tabBarItem.title } ?? []),
+                Set(AppNavigationItem.iPadItems.map(\.title))
+            )
+        } else {
+            XCTAssertEqual(Set(controller.tabs.map(\.title)), Set(AppNavigationItem.iPadItems.map(\.title)))
+            XCTAssertFalse(controller.tabs.contains { $0 is UISearchTab })
+            for item in AppNavigationItem.iPadItems {
+                let tab = try XCTUnwrap(controller.tabs.first { $0.title == item.title })
+                XCTAssertFalse(tab.isHidden, "\(item) must remain in the sidebar")
+                XCTAssertFalse(tab.allowsHiding)
+                if item == .setting {
+                    XCTAssertEqual(tab.preferredPlacement, .sidebarOnly)
+                } else {
+                    XCTAssertTrue(
+                        [UITab.Placement.automatic, .default, .optional].contains(tab.preferredPlacement),
+                        "\(item) has unexpected placement \(tab.preferredPlacement.rawValue)"
+                    )
+                }
+            }
+        }
+        let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        })
+        attachment.name = "iPad native tabs"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        host.traitOverrides.horizontalSizeClass = .compact
+        try await Task.sleep(for: .milliseconds(600))
+        let compactController = try XCTUnwrap(findTabController(in: host))
+        let compactScreenshot = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        })
+        compactScreenshot.name = "iPad compact tabs"
+        compactScreenshot.lifetime = .keepAlways
+        add(compactScreenshot)
+        XCTAssertFalse(compactController.tabBar.items?.isEmpty ?? true)
+        XCTAssertEqual(compactController.tabBar.items?.last?.title, compactController.moreNavigationController.tabBarItem.title)
+        let compactTitles = compactController.tabs.isEmpty
+            ? compactController.viewControllers?.compactMap { $0.tabBarItem.title } ?? []
+            : compactController.tabs.map(\.title)
+        XCTAssertEqual(Set(compactTitles), Set(AppNavigationItem.iPadItems.map(\.title)))
+        XCTAssertTrue(compactTitles.contains(AppNavigationItem.setting.title),
+                      "Settings must remain reachable through native overflow in compact windows")
     }
 }
 

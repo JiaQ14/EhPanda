@@ -31,6 +31,7 @@ struct PageNumber: Equatable {
     var current = 0
     var maximum = 0
     var lastItemTimestamp: String?
+    var nextGalleryID: String?
     var isNextButtonEnabled = false
 
     var isSinglePage: Bool {

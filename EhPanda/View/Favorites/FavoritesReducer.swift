@@ -9,6 +9,10 @@ import ComposableArchitecture
 
 @Reducer
 struct FavoritesReducer {
+    private enum CancelID: Hashable {
+        case request(Int)
+    }
+
     @CasePathable
     enum Route: Equatable {
         case quickSearch(EquatableVoid = .init())
@@ -19,6 +23,9 @@ struct FavoritesReducer {
     struct State: Equatable {
         var route: Route?
         var keyword = ""
+        var submittedKeyword = ""
+        var requestRevision = 0
+        var activeRequests = [Int: Int]()
 
         var index = -1
         var sortOrder: FavoritesSortOrder?
@@ -44,7 +51,44 @@ struct FavoritesReducer {
         var quickSearchState = QuickSearchReducer.State()
 
         mutating func insertGalleries(index: Int, galleries: [Gallery]) {
-            rawGalleries[index]?.appendUniqueGalleries(galleries)
+            rawGalleries[index, default: []].appendUniqueGalleries(galleries)
+        }
+
+        mutating func beginSearch(keyword: String?, sortOrder: FavoritesSortOrder?) -> Int {
+            let query = (keyword ?? self.keyword).trimmingCharacters(in: .whitespacesAndNewlines)
+            let order = sortOrder ?? self.sortOrder
+            if query != submittedKeyword || order != self.sortOrder {
+                rawGalleries.removeAll()
+                rawPageNumber.removeAll()
+                rawLoadingState.removeAll()
+                rawFooterLoadingState.removeAll()
+                activeRequests.removeAll()
+            }
+            self.keyword = query
+            submittedKeyword = query
+            self.sortOrder = order
+            rawLoadingState[index] = .loading
+            rawFooterLoadingState[index] = .idle
+            rawPageNumber[index] = PageNumber()
+            return beginRequest(index: index)
+        }
+
+        mutating func beginRequest(index: Int) -> Int {
+            requestRevision += 1
+            activeRequests[index] = requestRevision
+            return requestRevision
+        }
+
+        func paginationRequest(index: Int) -> MoreFavoritesGalleriesRequest? {
+            guard let pageNumber = rawPageNumber[index], pageNumber.hasNextPage(),
+                  rawLoadingState[index] != .loading,
+                  rawFooterLoadingState[index] != .loading,
+                  let lastID = pageNumber.nextGalleryID ?? rawGalleries[index]?.last?.id,
+                  let timestamp = pageNumber.lastItemTimestamp
+            else { return nil }
+            return MoreFavoritesGalleriesRequest(
+                favIndex: index, lastID: lastID, lastTimestamp: timestamp, keyword: submittedKeyword
+            )
         }
     }
 
@@ -56,9 +100,9 @@ struct FavoritesReducer {
         case onNotLoginViewButtonTapped
 
         case fetchGalleries(String? = nil, FavoritesSortOrder? = nil)
-        case fetchGalleriesDone(Int, Result<(PageNumber, FavoritesSortOrder?, [Gallery]), AppError>)
-        case fetchMoreGalleries
-        case fetchMoreGalleriesDone(Int, Result<(PageNumber, FavoritesSortOrder?, [Gallery]), AppError>)
+        case fetchGalleriesDone(Int, Int, Result<(PageNumber, FavoritesSortOrder?, [Gallery]), AppError>)
+        case fetchMoreGalleries(Int? = nil)
+        case fetchMoreGalleriesDone(Int, Int, Result<(PageNumber, FavoritesSortOrder?, [Gallery]), AppError>)
 
         case quickSearch(QuickSearchReducer.Action)
     }
@@ -89,8 +133,8 @@ struct FavoritesReducer {
 
             case .setFavoritesIndex(let index):
                 state.index = index
-                guard state.galleries?.isEmpty != false else { return .none }
-                return .send(.fetchGalleries())
+                guard state.galleries == nil, state.loadingState != .loading else { return .none }
+                return .send(.fetchGalleries(state.submittedKeyword))
 
             case .clearSubStates:
                 return .none
@@ -99,74 +143,70 @@ struct FavoritesReducer {
                 return .none
 
             case .fetchGalleries(let keyword, let sortOrder):
-                guard state.loadingState != .loading else { return .none }
-                state.rawLoadingState[state.index] = .loading
-                if let keyword = keyword {
-                    state.keyword = keyword
-                }
-                if state.pageNumber == nil {
-                    state.rawPageNumber[state.index] = PageNumber()
-                } else {
-                    state.rawPageNumber[state.index]?.resetPages()
-                }
-                return .run { [state] send in
-                    let response = await FavoritesGalleriesRequest(
-                        favIndex: state.index, keyword: state.keyword, sortOrder: sortOrder
-                    )
-                    .response()
-                    await send(.fetchGalleriesDone(state.index, response))
-                }
+                let previousRequests = state.activeRequests.keys.map { $0 }
+                let revision = state.beginSearch(keyword: keyword, sortOrder: sortOrder)
+                let request = FavoritesGalleriesRequest(
+                    favIndex: state.index, keyword: state.submittedKeyword, sortOrder: state.sortOrder
+                )
+                return .merge(
+                    previousRequests.filter { state.activeRequests[$0] == nil }
+                        .map { .cancel(id: CancelID.request($0)) }
+                    + [.run { send in
+                        let response = await request.response()
+                        await send(.fetchGalleriesDone(request.favIndex, revision, response))
+                    }.cancellable(id: CancelID.request(state.index), cancelInFlight: true)]
+                )
 
-            case .fetchGalleriesDone(let targetFavIndex, let result):
+            case .fetchGalleriesDone(let targetFavIndex, let revision, let result):
+                guard state.activeRequests[targetFavIndex] == revision else { return .none }
+                state.activeRequests[targetFavIndex] = nil
                 state.rawLoadingState[targetFavIndex] = .idle
                 switch result {
                 case .success(let (pageNumber, sortOrder, galleries)):
-                    guard !galleries.isEmpty else {
-                        state.rawLoadingState[targetFavIndex] = .failed(.notFound)
-                        guard pageNumber.hasNextPage() else { return .none }
-                        return .send(.fetchMoreGalleries)
-                    }
+                    // An empty response must replace the previous query's visible results too.
                     state.rawPageNumber[targetFavIndex] = pageNumber
                     state.rawGalleries[targetFavIndex] = galleries
-                    state.sortOrder = sortOrder
+                    state.sortOrder = sortOrder ?? state.sortOrder
+                    guard !galleries.isEmpty else {
+                        state.rawLoadingState[targetFavIndex] = .failed(.notFound)
+                        guard pageNumber.hasNextPage(), pageNumber.nextGalleryID != nil else { return .none }
+                        return .send(.fetchMoreGalleries(targetFavIndex))
+                    }
                     return .run(operation: { _ in await databaseClient.cacheGalleries(galleries) })
                 case .failure(let error):
                     state.rawLoadingState[targetFavIndex] = .failed(error)
                 }
                 return .none
 
-            case .fetchMoreGalleries:
-                let pageNumber = state.pageNumber ?? .init()
-                guard pageNumber.hasNextPage(),
-                      state.footerLoadingState != .loading,
-                      let lastID = state.galleries?.last?.id,
-                      let lastItemTimestamp = pageNumber.lastItemTimestamp
-                else { return .none }
-                state.rawFooterLoadingState[state.index] = .loading
-                return .run { [state] send in
-                    let response = await MoreFavoritesGalleriesRequest(
-                        favIndex: state.index,
-                        lastID: lastID,
-                        lastTimestamp: lastItemTimestamp,
-                        keyword: state.keyword
-                    )
-                    .response()
-                    await send(.fetchMoreGalleriesDone(state.index, response))
+            case .fetchMoreGalleries(let targetIndex):
+                let index = targetIndex ?? state.index
+                guard let request = state.paginationRequest(index: index) else { return .none }
+                state.rawFooterLoadingState[index] = .loading
+                let revision = state.beginRequest(index: index)
+                return .run { send in
+                    let response = await request.response()
+                    await send(.fetchMoreGalleriesDone(index, revision, response))
                 }
+                .cancellable(id: CancelID.request(index), cancelInFlight: true)
 
-            case .fetchMoreGalleriesDone(let targetFavIndex, let result):
+            case .fetchMoreGalleriesDone(let targetFavIndex, let revision, let result):
+                guard state.activeRequests[targetFavIndex] == revision else { return .none }
+                state.activeRequests[targetFavIndex] = nil
                 state.rawFooterLoadingState[targetFavIndex] = .idle
                 switch result {
                 case .success(let (pageNumber, sortOrder, galleries)):
+                    let previousPage = state.rawPageNumber[targetFavIndex]
                     state.rawPageNumber[targetFavIndex] = pageNumber
                     state.insertGalleries(index: targetFavIndex, galleries: galleries)
-                    state.sortOrder = sortOrder
+                    state.sortOrder = sortOrder ?? state.sortOrder
 
                     var effects: [Effect<Action>] = [
                         .run(operation: { _ in await databaseClient.cacheGalleries(galleries) })
                     ]
-                    if galleries.isEmpty, pageNumber.hasNextPage() {
-                        effects.append(.send(.fetchMoreGalleries))
+                    if galleries.isEmpty, pageNumber.hasNextPage(), pageNumber != previousPage {
+                        effects.append(.send(.fetchMoreGalleries(targetFavIndex)))
+                    } else if galleries.isEmpty, pageNumber.hasNextPage() {
+                        state.rawFooterLoadingState[targetFavIndex] = .failed(.parseFailed)
                     } else if !galleries.isEmpty {
                         state.rawLoadingState[targetFavIndex] = .idle
                     }

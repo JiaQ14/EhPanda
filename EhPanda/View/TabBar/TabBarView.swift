@@ -166,7 +166,7 @@ struct TabBarView: View {
         if DeviceUtil.isPad {
             iPadTabView
                 .tabViewStyle(.sidebarAdaptable)
-                .tabViewCustomization($tabViewCustomization)
+                .tabViewCustomization(sidebarCustomization)
                 .defaultAdaptableTabBarPlacement(.tabBar)
                 .background(TabSidebarLayoutConfigurator())
         } else {
@@ -187,22 +187,18 @@ struct TabBarView: View {
             ForEach(AppNavigationItem.iPadItems) { type in
                 navigationTab(type)
                     .customizationID(type.customizationID)
-                    .customizationBehavior(
-                        type.nativeCustomizationBehavior,
-                        for: .sidebar,
-                        .tabBar
-                    )
-                    .defaultVisibility(
-                        defaultTabBarVisibility(for: type),
-                        for: .tabBar
-                    )
+                    .tabPlacement(type == .setting ? .sidebarOnly : .automatic)
+                    .customizationBehavior(.disabled, for: .sidebar)
+                    .customizationBehavior(type == .setting ? .disabled : .automatic, for: .tabBar)
+                    .defaultVisibility(.visible, for: .sidebar)
+                    .defaultVisibility(type.defaultTabBarVisibility, for: .tabBar)
             }
         }
     }
 
     private func navigationTab(_ type: AppNavigationItem) -> some TabContent<AppNavigationItem> {
-        // A search role pins the tab to the trailing edge, overriding the phone's custom order.
-        Tab(value: type, role: DeviceUtil.isPad && type == .search ? .search : nil) {
+        // Search is an ordinary destination and follows the user's tab order.
+        Tab(value: type) {
             AppNavigationContent(
                 store: store,
                 item: type,
@@ -221,15 +217,14 @@ struct TabBarView: View {
     }
 
     private var phoneTabItems: [AppNavigationItem] {
-        [.home] + store.settingState.setting.tabBarItems + [.more]
+        store.settingState.setting.phoneTabItems
     }
 
-    private func defaultTabBarVisibility(for type: AppNavigationItem) -> Visibility {
-        if type == .home || type == .setting
-            || store.settingState.setting.tabBarItems.contains(type) {
-            return .visible
-        }
-        return .hidden
+    private var sidebarCustomization: Binding<TabViewCustomization> {
+        .init(
+            get: { tabViewCustomization.preservingFullNavigationSidebar() },
+            set: { tabViewCustomization = $0.preservingFullNavigationSidebar() }
+        )
     }
 
     private func handleDroppedURLs(_ urls: [URL]) -> Bool {
@@ -381,7 +376,8 @@ private struct AppNavigationContent: View {
                 user: store.settingState.user,
                 setting: $store.settingState.setting,
                 blurRadius: store.appLockState.blurRadius,
-                tagTranslator: store.settingState.tagTranslator
+                tagTranslator: store.settingState.tagTranslator,
+                embedsInNavigationStack: embedsInNavigationStack
             )
         case .popular:
             PopularView(
@@ -452,518 +448,192 @@ private struct AppNavigationContent: View {
 
 private struct MoreView: View {
     @Bindable private var store: StoreOf<AppReducer>
-    @State private var isEditing = false
-    @State private var draftTabItems = [AppNavigationItem]()
-    @State private var draftMoreItems = [AppNavigationItem]()
+    @State private var showsEditor = false
 
     init(store: StoreOf<AppReducer>) {
         self.store = store
     }
 
-    private var tabBarItems: [AppNavigationItem] {
-        store.settingState.setting.tabBarItems
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(AppNavigationItem.configurableItems) { item in
+                        destinationButton(item)
+                    }
+                }
+                Section {
+                    destinationButton(.setting)
+                }
+            }
+            .navigationTitle(AppNavigationItem.more.title)
+            .navigationDestination(
+                item: $store.moreState.route.sending(\.more.setNavigation)
+            ) { item in
+                AppNavigationContent(store: store, item: item, embedsInNavigationStack: false)
+            }
+            .toolbar {
+                Button {
+                    showsEditor = true
+                } label: {
+                    Label(L10n.Localizable.MoreView.Section.Title.tabBar, systemSymbol: .sliderHorizontal3)
+                }
+                .accessibilityIdentifier("navigation.edit")
+            }
+        }
+        .sheet(isPresented: $showsEditor) {
+            NavigationItemsEditor(tabBarItems: store.settingState.setting.tabBarItems) {
+                store.send(.setNavigationItems($0))
+            }
+            .accentColor(store.settingState.setting.accentColor)
+            .autoBlur(radius: store.appLockState.blurRadius)
+        }
     }
 
-    private var moreItems: [AppNavigationItem] {
-        store.settingState.setting.moreItems
+    private func destinationButton(_ item: AppNavigationItem) -> some View {
+        Button {
+            store.send(.navigateToSection(item))
+        } label: {
+            HStack {
+                item.label()
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemSymbol: .chevronRight)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .accessibilityIdentifier("navigation.destination.\(item.rawValue)")
+    }
+}
+
+struct NavigationItemsEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: Setting
+    @State private var pendingItem: AppNavigationItem?
+    private let onSave: ([AppNavigationItem]) -> Void
+
+    init(tabBarItems: [AppNavigationItem], onSave: @escaping ([AppNavigationItem]) -> Void) {
+        var draft = Setting()
+        draft.tabBarItems = tabBarItems
+        draft.normalizeNavigationItems()
+        _draft = State(initialValue: draft)
+        self.onSave = onSave
     }
 
     var body: some View {
         NavigationStack {
-            NavigationItemsTable(
-                tabBarItems: tableTabBarItems,
-                moreItems: tableMoreItems,
-                isEditing: isEditing,
-                accentColor: store.settingState.setting.accentColor,
-                selectionAction: {
-                    store.send(.more(.setNavigation($0)))
-                }
-            )
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle(AppNavigationItem.more.title)
-            .navigationDestination(
-                item: moreRoute,
-                destination: destination
-            )
-            .toolbar {
-                Button {
-                    if isEditing {
-                        store.send(
-                            .setNavigationItems(
-                                draftTabItems,
-                                draftMoreItems
-                            )
-                        )
-                    } else {
-                        draftTabItems = tabBarItems
-                        draftMoreItems = moreItems
+            NavigationItemsEditorList(draft: $draft, pendingItem: $pendingItem)
+                .navigationTitle(L10n.Localizable.MoreView.Section.Title.tabBar)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.Localizable.NavigationEditor.Button.cancel) { dismiss() }
+                            .accessibilityIdentifier("navigation.cancel")
                     }
-                    isEditing.toggle()
-                } label: {
-                    Label(
-                        isEditing ? "Done" : "Edit",
-                        systemSymbol: isEditing ? .checkmark : .pencil
-                    )
-                    .labelStyle(.iconOnly)
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(L10n.Localizable.EhSettingView.ToolbarItem.Button.done) {
+                            onSave(draft.tabBarItems)
+                            dismiss()
+                        }
+                        .accessibilityIdentifier("navigation.save")
+                    }
                 }
-            }
-        }
-        .background(
-            Color(uiColor: .systemGroupedBackground)
-                .ignoresSafeArea()
-        )
-    }
-
-    private var moreRoute: Binding<AppNavigationItem?> {
-        .init(
-            get: { store.moreState.route },
-            set: { store.send(.more(.setNavigation($0))) }
-        )
-    }
-
-    private var tableTabBarItems: Binding<[AppNavigationItem]> {
-        .init(
-            get: {
-                isEditing ? draftTabItems : tabBarItems
-            },
-            set: {
-                guard isEditing else { return }
-                draftTabItems = $0
-            }
-        )
-    }
-
-    private var tableMoreItems: Binding<[AppNavigationItem]> {
-        .init(
-            get: {
-                isEditing ? draftMoreItems : moreItems
-            },
-            set: {
-                guard isEditing else { return }
-                draftMoreItems = $0
-            }
-        )
-    }
-
-    @ViewBuilder
-    private func destination(_ item: AppNavigationItem) -> some View {
-        AppNavigationContent(
-            store: store,
-            item: item,
-            embedsInNavigationStack: false
-        )
-    }
-}
-
-private struct NavigationItemsTable: UIViewRepresentable {
-    @Binding var tabBarItems: [AppNavigationItem]
-    @Binding var moreItems: [AppNavigationItem]
-    let isEditing: Bool
-    let accentColor: Color
-    let selectionAction: (AppNavigationItem) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    func makeUIView(context: Context) -> UITableView {
-        let tableView = UITableView(
-            frame: .zero,
-            style: .insetGrouped
-        )
-        tableView.register(
-            UITableViewCell.self,
-            forCellReuseIdentifier: Coordinator.cellReuseIdentifier
-        )
-        tableView.dataSource = context.coordinator
-        tableView.delegate = context.coordinator
-        tableView.isEditing = isEditing
-        tableView.allowsSelectionDuringEditing = false
-        tableView.keyboardDismissMode = .interactive
-        tableView.backgroundColor = .systemGroupedBackground
-        let backgroundView = UIView()
-        backgroundView.backgroundColor = .systemGroupedBackground
-        tableView.backgroundView = backgroundView
-        tableView.sectionHeaderTopPadding = 12
-        return tableView
-    }
-
-    func updateUIView(_ tableView: UITableView, context: Context) {
-        let coordinator = context.coordinator
-        let itemsChanged =
-            coordinator.tabBarItems != tabBarItems
-            || coordinator.moreItems != moreItems
-        let modeChanged = coordinator.isEditing != isEditing
-        let resolvedAccentColor = UIColor(accentColor)
-        let accentColorChanged =
-            !coordinator.accentColor.isEqual(resolvedAccentColor)
-        coordinator.parent = self
-        coordinator.tabBarItems = tabBarItems
-        coordinator.moreItems = moreItems
-        coordinator.isEditing = isEditing
-        coordinator.accentColor = resolvedAccentColor
-        tableView.allowsSelection = !isEditing
-        if modeChanged {
-            tableView.setEditing(isEditing, animated: false)
-            tableView.reloadData()
-        } else if itemsChanged {
-            tableView.reloadData()
-        } else if accentColorChanged {
-            tableView.visibleCells.forEach {
-                guard let indexPath = tableView.indexPath(for: $0) else { return }
-                coordinator.configure($0, at: indexPath)
-            }
-        }
-    }
-
-    final class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate {
-        static let cellReuseIdentifier = "NavigationEditorCell"
-
-        var parent: NavigationItemsTable
-        var tabBarItems: [AppNavigationItem]
-        var moreItems: [AppNavigationItem]
-        var isEditing: Bool
-        var accentColor: UIColor
-
-        init(parent: NavigationItemsTable) {
-            self.parent = parent
-            tabBarItems = parent.tabBarItems
-            moreItems = parent.moreItems
-            isEditing = parent.isEditing
-            accentColor = UIColor(parent.accentColor)
-        }
-
-        func numberOfSections(in tableView: UITableView) -> Int {
-            2
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            numberOfRowsInSection section: Int
-        ) -> Int {
-            if isEditing {
-                return section == 0 ? tabBarItems.count + 2 : moreItems.count
-            }
-            return section == 0 ? moreItems.count : 1
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            titleForHeaderInSection section: Int
-        ) -> String? {
-            guard isEditing else {
-                return section == 0
-                    ? L10n.Localizable.MoreView.Section.Title.more
-                    : nil
-            }
-            return section == 0
-                ? L10n.Localizable.MoreView.Section.Title.tabBar
-                : L10n.Localizable.MoreView.Section.Title.more
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            cellForRowAt indexPath: IndexPath
-        ) -> UITableViewCell {
-            let cell = tableView.dequeueReusableCell(
-                withIdentifier: Self.cellReuseIdentifier,
-                for: indexPath
-            )
-            configure(cell, at: indexPath)
-            return cell
-        }
-
-        func configure(_ cell: UITableViewCell, at indexPath: IndexPath) {
-            guard let row = row(at: indexPath) else { return }
-            var content = cell.defaultContentConfiguration()
-            content.text = row.item.title
-            content.image = UIImage(
-                systemSymbol: row.item.symbol,
-                withConfiguration: UIImage.SymbolConfiguration(
-                    pointSize: 17,
-                    weight: .semibold
-                )
-            )
-            content.imageProperties.tintColor = tintColor(for: row.item)
-            content.imageProperties.maximumSize = CGSize(width: 28, height: 28)
-            cell.contentConfiguration = content
-            cell.backgroundColor = .secondarySystemGroupedBackground
-            cell.selectionStyle = isEditing ? .none : .default
-            cell.showsReorderControl = isEditing && !row.isFixed
-            cell.accessoryView =
-                isEditing && row.isFixed ? lockAccessoryView() : nil
-            cell.accessoryType =
-                isEditing ? .none : .disclosureIndicator
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            canMoveRowAt indexPath: IndexPath
-        ) -> Bool {
-            isEditing && row(at: indexPath)?.isFixed == false
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            editingStyleForRowAt indexPath: IndexPath
-        ) -> UITableViewCell.EditingStyle {
-            .none
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            shouldIndentWhileEditingRowAt indexPath: IndexPath
-        ) -> Bool {
-            false
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
-            toProposedIndexPath proposedDestinationIndexPath: IndexPath
-        ) -> IndexPath {
-            if proposedDestinationIndexPath.section == 0 {
-                return IndexPath(
-                    row: min(
-                        max(proposedDestinationIndexPath.row, 1),
-                        tabBarItems.count + 1
+                .confirmationDialog(
+                    L10n.Localizable.NavigationEditor.Replace.title(pendingItem?.title ?? ""),
+                    isPresented: .init(
+                        get: { pendingItem != nil },
+                        set: { if !$0 { pendingItem = nil } }
                     ),
-                    section: 0
-                )
-            }
-            return IndexPath(
-                row: min(
-                    max(proposedDestinationIndexPath.row, 0),
-                    moreItems.count
-                ),
-                section: 1
-            )
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            moveRowAt sourceIndexPath: IndexPath,
-            to destinationIndexPath: IndexPath
-        ) {
-            guard let sourceRow = row(at: sourceIndexPath),
-                  !sourceRow.isFixed
-            else {
-                tableView.reloadData()
-                return
-            }
-
-            let destinationGroup: NavigationItemGroup =
-                destinationIndexPath.section == 0 ? .tabBar : .more
-            let destinationIndex =
-                destinationGroup == .tabBar
-                ? max(destinationIndexPath.row - 1, 0)
-                : destinationIndexPath.row
-            let sourceGroup: NavigationItemGroup =
-                sourceIndexPath.section == 0 ? .tabBar : .more
-            let sourceIndex =
-                sourceGroup == .tabBar
-                ? sourceIndexPath.row - 1
-                : sourceIndexPath.row
-
-            var draft = Setting()
-            draft.tabBarItems = tabBarItems
-            draft.moreItems = moreItems
-            guard draft.moveNavigationItem(
-                from: sourceGroup,
-                at: sourceIndex,
-                to: destinationGroup,
-                at: destinationIndex
-            ) else {
-                tableView.reloadData()
-                return
-            }
-
-            if sourceGroup == .more,
-               destinationGroup == .tabBar,
-               tabBarItems.count >= Setting.maximumConfigurableTabCount,
-               let displacedItem = tabBarItems.last
-            {
-                completeFullTabBarMove(
-                    in: tableView,
-                    move: FullTabBarMove(
-                        movedItem: sourceRow.item,
-                        displacedItem: displacedItem,
-                        sourceIndex: sourceIndex,
-                        destinationIndex: destinationIndex,
-                        finalTabBarItems: draft.tabBarItems,
-                        finalMoreItems: draft.moreItems
-                    )
-                )
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                return
-            }
-
-            tabBarItems = draft.tabBarItems
-            moreItems = draft.moreItems
-            parent.tabBarItems = draft.tabBarItems
-            parent.moreItems = draft.moreItems
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        }
-
-        func tableView(
-            _ tableView: UITableView,
-            didSelectRowAt indexPath: IndexPath
-        ) {
-            guard !isEditing, let row = row(at: indexPath) else { return }
-            tableView.deselectRow(at: indexPath, animated: true)
-            parent.selectionAction(row.item)
-        }
-
-        private func completeFullTabBarMove(
-            in tableView: UITableView,
-            move: FullTabBarMove
-        ) {
-            var intermediateTabBarItems = tabBarItems
-            var intermediateMoreItems = moreItems
-            intermediateMoreItems.remove(at: move.sourceIndex)
-            intermediateTabBarItems.insert(
-                move.movedItem,
-                at: min(
-                    max(move.destinationIndex, 0),
-                    intermediateTabBarItems.count
-                )
-            )
-            tabBarItems = intermediateTabBarItems
-            moreItems = intermediateMoreItems
-            guard let displacedSourceIndex =
-                    intermediateTabBarItems.firstIndex(of: move.displacedItem),
-                  let displacedDestinationIndex =
-                    move.finalMoreItems.firstIndex(of: move.displacedItem)
-            else {
-                DispatchQueue.main.async { [weak self, weak tableView] in
-                    guard let self, let tableView else { return }
-                    self.tabBarItems = move.finalTabBarItems
-                    self.moreItems = move.finalMoreItems
-                    self.parent.tabBarItems = move.finalTabBarItems
-                    self.parent.moreItems = move.finalMoreItems
-                    tableView.reloadData()
+                    titleVisibility: .visible,
+                    presenting: pendingItem
+                ) { item in
+                    ForEach(draft.tabBarItems) { replacedItem in
+                        Button(replacedItem.title) {
+                            draft.addNavigationItem(item, replacing: replacedItem)
+                            pendingItem = nil
+                        }
+                    }
                 }
-                return
-            }
-
-            DispatchQueue.main.async { [weak self, weak tableView] in
-                guard let self, let tableView else { return }
-                self.tabBarItems = move.finalTabBarItems
-                self.moreItems = move.finalMoreItems
-                tableView.performBatchUpdates {
-                    tableView.moveRow(
-                        at: IndexPath(
-                            row: displacedSourceIndex + 1,
-                            section: 0
-                        ),
-                        to: IndexPath(
-                            row: displacedDestinationIndex,
-                            section: 1
-                        )
-                    )
-                }
-                self.parent.tabBarItems = move.finalTabBarItems
-                self.parent.moreItems = move.finalMoreItems
-            }
-        }
-
-        private func row(at indexPath: IndexPath) -> NavigationEditorRow? {
-            guard isEditing else {
-                if indexPath.section == 0,
-                   moreItems.indices.contains(indexPath.row)
-                {
-                    return .init(
-                        item: moreItems[indexPath.row],
-                        isFixed: false
-                    )
-                }
-                if indexPath.section == 1, indexPath.row == 0 {
-                    return .init(item: .setting, isFixed: false)
-                }
-                return nil
-            }
-            if indexPath.section == 0 {
-                if indexPath.row == 0 {
-                    return .init(item: .home, isFixed: true)
-                }
-                if indexPath.row == tabBarItems.count + 1 {
-                    return .init(item: .more, isFixed: true)
-                }
-                let itemIndex = indexPath.row - 1
-                guard tabBarItems.indices.contains(itemIndex) else { return nil }
-                return .init(item: tabBarItems[itemIndex], isFixed: false)
-            }
-            guard indexPath.section == 1,
-                  moreItems.indices.contains(indexPath.row)
-            else { return nil }
-            return .init(item: moreItems[indexPath.row], isFixed: false)
-        }
-
-        private func tintColor(for item: AppNavigationItem) -> UIColor {
-            switch item {
-            case .home, .search, .more:
-                return accentColor
-            case .popular:
-                return .systemOrange
-            case .watched:
-                return .systemBlue
-            case .history:
-                return .systemTeal
-            case .favorites:
-                return .systemPink
-            case .cache:
-                return .systemCyan
-            case .setting:
-                return .systemGray
-            }
-        }
-
-        private func lockAccessoryView() -> UIImageView {
-            let imageView = UIImageView(
-                image: UIImage(
-                    systemSymbol: .lockFill,
-                    withConfiguration: UIImage.SymbolConfiguration(
-                        pointSize: 11,
-                        weight: .semibold
-                    )
-                )
-            )
-            imageView.tintColor = .tertiaryLabel
-            return imageView
         }
     }
 }
 
-private struct NavigationEditorRow {
-    let item: AppNavigationItem
-    let isFixed: Bool
+struct NavigationItemsEditorList: View {
+    @Binding var draft: Setting
+    @Binding var pendingItem: AppNavigationItem?
+
+    var body: some View {
+        List {
+            Section(L10n.Localizable.NavigationEditor.Section.favorites) {
+                ForEach($draft.tabBarItems, editActions: [.delete, .move]) { $item in
+                    item.label()
+                        .accessibilityIdentifier("navigation.pinned.\(item.rawValue)")
+                }
+            }
+            Section {
+                HStack {
+                    AppNavigationItem.more.label()
+                    Spacer()
+                    Image(systemSymbol: .lockFill)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Section(L10n.Localizable.NavigationEditor.Section.available) {
+                ForEach(draft.availableTabItems) { item in
+                    Button {
+                        if !draft.addNavigationItem(item) {
+                            pendingItem = item
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemSymbol: .plusCircleFill)
+                                .foregroundStyle(.green)
+                            item.label()
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    .accessibilityIdentifier("navigation.add.\(item.rawValue)")
+                }
+            }
+            Section {
+                Button {
+                    draft.tabBarItems = AppNavigationItem.defaultTabItems
+                } label: {
+                    Label(L10n.Localizable.NavigationEditor.Button.reset, systemSymbol: .arrowCounterclockwise)
+                }
+                .accessibilityIdentifier("navigation.reset")
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        // Inserted native cells can miss edit mode. Refresh on membership changes,
+        // but keep the list identity stable throughout a reorder gesture.
+        .id(Set(draft.tabBarItems))
+    }
 }
 
-private struct FullTabBarMove {
-    let movedItem: AppNavigationItem
-    let displacedItem: AppNavigationItem
-    let sourceIndex: Int
-    let destinationIndex: Int
-    let finalTabBarItems: [AppNavigationItem]
-    let finalMoreItems: [AppNavigationItem]
+extension TabViewCustomization {
+    func preservingFullNavigationSidebar() -> Self {
+        var customization = self
+        // Older versions allowed hiding destinations from the sidebar as well.
+        for item in AppNavigationItem.iPadItems {
+            customization[tab: item.customizationID].sidebarVisibility = .visible
+        }
+        return customization
+    }
 }
 
 extension AppNavigationItem {
     static let iPadItems: [Self] = [
-        .home, .setting, .popular, .watched, .history, .favorites, .cache, .search
+        .home, .search, .popular, .watched, .history, .favorites, .cache, .setting
     ]
 
     var customizationID: String {
         "app.ehpanda.tab.\(rawValue)"
     }
 
-    var nativeCustomizationBehavior: TabCustomizationBehavior {
-        switch self {
-        case .home, .search:
-            return .disabled
-        default:
-            return .automatic
-        }
+    var defaultTabBarVisibility: Visibility {
+        Self.defaultTabItems.contains(self) ? .visible : .hidden
     }
 
     var title: String {
@@ -1007,7 +677,7 @@ extension AppNavigationItem {
         case .setting:
             return .gearshape
         case .more:
-            return .ellipsisCircle
+            return .squareGrid2x2
         }
     }
 

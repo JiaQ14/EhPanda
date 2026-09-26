@@ -2147,11 +2147,29 @@ internal enum L10n {
     internal enum MoreView {
       internal enum Section {
         internal enum Title {
-          /// More
-          internal static let more = L10n.tr("Localizable", "more_view.section.title.more", fallback: "More")
           /// Tab Bar
           internal static let tabBar = L10n.tr("Localizable", "more_view.section.title.tab_bar", fallback: "Tab Bar")
         }
+      }
+    }
+    internal enum NavigationEditor {
+      internal enum Button {
+        /// Cancel
+        internal static let cancel = L10n.tr("Localizable", "navigation_editor.button.cancel", fallback: "Cancel")
+        /// Restore Defaults
+        internal static let reset = L10n.tr("Localizable", "navigation_editor.button.reset", fallback: "Restore Defaults")
+      }
+      internal enum Replace {
+        /// Replace a tab with %@
+        internal static func title(_ p1: Any) -> String {
+          return L10n.tr("Localizable", "navigation_editor.replace.title", String(describing: p1), fallback: "Replace a tab with %@")
+        }
+      }
+      internal enum Section {
+        /// Available
+        internal static let available = L10n.tr("Localizable", "navigation_editor.section.available", fallback: "Available")
+        /// Pinned
+        internal static let favorites = L10n.tr("Localizable", "navigation_editor.section.favorites", fallback: "Pinned")
       }
     }
     internal enum NewDawnView {
@@ -2360,8 +2378,8 @@ internal enum L10n {
         internal static let favorites = L10n.tr("Localizable", "tab_item.title.favorites", fallback: "Favorites")
         /// Home
         internal static let home = L10n.tr("Localizable", "tab_item.title.home", fallback: "Home")
-        /// More
-        internal static let more = L10n.tr("Localizable", "tab_item.title.more", fallback: "More")
+        /// All
+        internal static let more = L10n.tr("Localizable", "tab_item.title.more", fallback: "All")
         /// Search
         internal static let search = L10n.tr("Localizable", "tab_item.title.search", fallback: "Search")
         /// Setting

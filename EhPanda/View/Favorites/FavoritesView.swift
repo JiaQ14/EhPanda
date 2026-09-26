@@ -60,7 +60,7 @@ struct FavoritesView: View {
                     loadingState: store.loadingState ?? .idle,
                     footerLoadingState: store.footerLoadingState ?? .idle,
                     fetchAction: { await store.send(.fetchGalleries()).finish() },
-                    fetchMoreAction: { store.send(.fetchMoreGalleries) },
+                    fetchMoreAction: { store.send(.fetchMoreGalleries()) },
                     navigateAction: { store.send(.setNavigation(.detail($0))) },
                     translateAction: {
                         tagTranslator.lookup(word: $0, returnOriginal: !setting.translatesTags)

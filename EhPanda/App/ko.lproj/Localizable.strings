@@ -961,9 +961,13 @@
 "detail_view.cache.confirmation.delete.title" = "이 갤러리의 캐시를 삭제할까요?";
 "detail_view.cache.confirmation.delete.message" = "다운로드한 이미지 파일도 파일 앱에서 삭제됩니다.";
 
-"tab_item.title.more" = "더보기";
+"tab_item.title.more" = "전체";
 "more_view.section.title.tab_bar" = "탭 막대";
-"more_view.section.title.more" = "더보기";
+"navigation_editor.section.favorites" = "고정 항목";
+"navigation_editor.section.available" = "추가 가능";
+"navigation_editor.button.reset" = "기본값 복원";
+"navigation_editor.button.cancel" = "취소";
+"navigation_editor.replace.title" = "%@ 탭으로 바꿀 항목";
 
 // MARK: App Intents
 "Gallery" = "만화";

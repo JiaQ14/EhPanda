@@ -21,13 +21,10 @@ enum AppNavigationItem: String, Codable, CaseIterable, Hashable, Identifiable {
     case more
 
     static let configurableItems: [Self] = [
-        .search, .popular, .watched, .history, .favorites, .cache
+        .home, .search, .popular, .watched, .history, .favorites, .cache
     ]
-}
 
-enum NavigationItemGroup: Equatable {
-    case tabBar
-    case more
+    static let defaultTabItems: [Self] = [.home, .search, .favorites, .cache]
 }
 
 struct Setting: Codable, Equatable {
@@ -68,10 +65,8 @@ struct Setting: Codable, Equatable {
     var displaysJapaneseTitle = true
 
     // Navigation
-    var tabBarItems: [AppNavigationItem] = [.search]
-    var moreItems: [AppNavigationItem] = [
-        .popular, .watched, .history, .favorites, .cache
-    ]
+    var tabBarItems: [AppNavigationItem] = AppNavigationItem.defaultTabItems
+    private var navigationLayoutVersion = 1
 
     // Cache
     var cacheImageQuality: CacheImageQuality = .standard
@@ -223,99 +218,36 @@ extension ListDisplayMode {
 }
 
 extension Setting {
-    static let maximumConfigurableTabCount = 3
+    static let maximumConfigurableTabCount = 4
+
+    var phoneTabItems: [AppNavigationItem] { tabBarItems + [.more] }
+
+    var availableTabItems: [AppNavigationItem] {
+        AppNavigationItem.configurableItems.filter { !tabBarItems.contains($0) }
+    }
 
     mutating func normalizeNavigationItems() {
-        let configurableItems = Set(AppNavigationItem.configurableItems)
         var seen = Set<AppNavigationItem>()
-
-        let normalizedTabItems = tabBarItems.filter {
-            configurableItems.contains($0)
-                && seen.insert($0).inserted
-        }
-        let overflow = normalizedTabItems.dropFirst(Self.maximumConfigurableTabCount)
-        tabBarItems = Array(normalizedTabItems.prefix(Self.maximumConfigurableTabCount))
-        seen = Set(tabBarItems)
-
-        moreItems = (Array(overflow) + moreItems).filter {
-            configurableItems.contains($0)
-                && !tabBarItems.contains($0)
-                && seen.insert($0).inserted
-        }
-        moreItems.append(contentsOf: AppNavigationItem.configurableItems.filter {
-            !seen.contains($0)
-        })
+        tabBarItems = Array(tabBarItems.filter {
+            AppNavigationItem.configurableItems.contains($0) && seen.insert($0).inserted
+        }.prefix(Self.maximumConfigurableTabCount))
     }
 
     @discardableResult
-    mutating func moveNavigationItem(
+    mutating func addNavigationItem(
         _ item: AppNavigationItem,
-        to destination: NavigationItemGroup,
-        at rawDestinationIndex: Int
+        replacing replacedItem: AppNavigationItem? = nil
     ) -> Bool {
-        guard AppNavigationItem.configurableItems.contains(item) else { return false }
-
-        let source: NavigationItemGroup = tabBarItems.contains(item) ? .tabBar : .more
-        let sourceIndex = source == .tabBar
-            ? tabBarItems.firstIndex(of: item)
-            : moreItems.firstIndex(of: item)
-        let displacedItem =
-            destination == .tabBar
-            && source != .tabBar
-            && tabBarItems.count >= Self.maximumConfigurableTabCount
-            ? tabBarItems.last
-            : nil
-        tabBarItems.removeAll { $0 == item }
-        moreItems.removeAll { $0 == item }
-        if let displacedItem {
-            tabBarItems.removeAll { $0 == displacedItem }
-            let replacementIndex = min(
-                max(sourceIndex ?? 0, 0),
-                moreItems.count
-            )
-            moreItems.insert(displacedItem, at: replacementIndex)
+        guard availableTabItems.contains(item) else { return false }
+        if let replacedItem {
+            guard let index = tabBarItems.firstIndex(of: replacedItem) else { return false }
+            tabBarItems[index] = item
+        } else {
+            guard tabBarItems.count < Self.maximumConfigurableTabCount else { return false }
+            tabBarItems.append(item)
         }
-
-        var destinationIndex = rawDestinationIndex
-        if source == destination,
-           let sourceIndex,
-           sourceIndex < destinationIndex {
-            destinationIndex -= 1
-        }
-
-        switch destination {
-        case .tabBar:
-            destinationIndex = min(max(destinationIndex, 0), tabBarItems.count)
-            tabBarItems.insert(item, at: destinationIndex)
-        case .more:
-            destinationIndex = min(max(destinationIndex, 0), moreItems.count)
-            moreItems.insert(item, at: destinationIndex)
-        }
-        normalizeNavigationItems()
         return true
     }
-
-    @discardableResult
-    mutating func moveNavigationItem(
-        from source: NavigationItemGroup,
-        at sourceIndex: Int,
-        to destination: NavigationItemGroup,
-        at destinationIndex: Int
-    ) -> Bool {
-        let sourceItems = source == .tabBar ? tabBarItems : moreItems
-        guard sourceItems.indices.contains(sourceIndex) else { return false }
-
-        let rawDestinationIndex =
-            source == destination && sourceIndex < destinationIndex
-            ? destinationIndex + 1
-            : destinationIndex
-        return moveNavigationItem(
-            sourceItems[sourceIndex],
-            to: destination,
-            at: rawDestinationIndex
-        )
-    }
-
 }
 
 // swiftlint:disable line_length
@@ -354,9 +286,16 @@ extension Setting {
         listTagsNumberMaximum = (try? container?.decodeIfPresent(Int.self, forKey: .listTagsNumberMaximum)) ?? 0
         displaysJapaneseTitle = (try? container?.decodeIfPresent(Bool.self, forKey: .displaysJapaneseTitle)) ?? true
         // Navigation
-        tabBarItems = (try? container?.decodeIfPresent([AppNavigationItem].self, forKey: .tabBarItems)) ?? [.search]
-        moreItems = (try? container?.decodeIfPresent([AppNavigationItem].self, forKey: .moreItems))
-            ?? [.popular, .watched, .history, .favorites, .cache]
+        let savedTabs = try? container?.decodeIfPresent([AppNavigationItem].self, forKey: .tabBarItems)
+        let savedLayoutVersion = try? container?.decodeIfPresent(Int.self, forKey: .navigationLayoutVersion)
+        if savedLayoutVersion == nil, let savedTabs, savedTabs != [.search] {
+            // Legacy layouts had an implicit, fixed Home tab.
+            tabBarItems = [.home] + savedTabs
+        } else {
+            tabBarItems = savedTabs == [.search] && savedLayoutVersion == nil
+                ? AppNavigationItem.defaultTabItems
+                : savedTabs ?? AppNavigationItem.defaultTabItems
+        }
         normalizeNavigationItems()
         // Cache
         cacheImageQuality = (try? container?.decodeIfPresent(CacheImageQuality.self, forKey: .cacheImageQuality)) ?? .standard

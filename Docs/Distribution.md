@@ -33,7 +33,10 @@ requested otherwise.
 Use a unique build number for each upload, for example by passing
 `CURRENT_PROJECT_VERSION=<next-build-number>` to `xcodebuild archive`.
 Include the source branch and commit in the TestFlight testing notes.
-Do not expire earlier comparison builds when uploading another branch.
+The personal internal testing group now tracks `main` only. After the new
+main build is ready, add it to the group, then remove the superseded main
+build and retired comparison builds from that group. Do not permanently
+expire or delete their binaries as part of this replacement.
 
 Branches sharing this bundle identifier cannot be installed side by side.
 Switch between their builds using TestFlight's Previous Builds list. Treat

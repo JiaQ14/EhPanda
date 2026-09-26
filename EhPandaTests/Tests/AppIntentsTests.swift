@@ -92,8 +92,8 @@ final class AppIntentsTests: XCTestCase {
 
         XCTAssertEqual(primaryWindow.tabBarState.tabBarItemType, .search)
         XCTAssertNil(primaryWindow.moreState.route)
-        XCTAssertEqual(secondaryWindow.tabBarState.tabBarItemType, .more)
-        XCTAssertEqual(secondaryWindow.moreState.route, .cache)
+        XCTAssertEqual(secondaryWindow.tabBarState.tabBarItemType, .cache)
+        XCTAssertNil(secondaryWindow.moreState.route)
     }
 
     @MainActor

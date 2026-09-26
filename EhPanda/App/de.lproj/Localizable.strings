@@ -961,9 +961,13 @@
 "detail_view.cache.confirmation.delete.title" = "Diese Galerie aus dem Cache löschen?";
 "detail_view.cache.confirmation.delete.message" = "Die heruntergeladenen Bilddateien werden auch aus Dateien entfernt.";
 
-"tab_item.title.more" = "Mehr";
+"tab_item.title.more" = "Alle";
 "more_view.section.title.tab_bar" = "Tableiste";
-"more_view.section.title.more" = "Mehr";
+"navigation_editor.section.favorites" = "Angeheftet";
+"navigation_editor.section.available" = "Verfügbar";
+"navigation_editor.button.reset" = "Standard wiederherstellen";
+"navigation_editor.button.cancel" = "Abbrechen";
+"navigation_editor.replace.title" = "Tab durch %@ ersetzen";
 
 // MARK: App Intents
 "Gallery" = "Galerie";
